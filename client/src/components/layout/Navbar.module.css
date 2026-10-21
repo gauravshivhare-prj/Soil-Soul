@@ -1,0 +1,243 @@
+/*
+ * Navbar.module.css
+ *
+ * Styles for the Soil & Soul main navigation bar.
+ * Botanical colour palette:
+ *   Forest green  #2d5a1e  (brand, hover, badge)
+ *   Sage green    #5a8a46  (tagline, subtle accents)
+ *   Cream border  #e8e2d8  (separator)
+ *   Surface       #f7f5f0  (search pill, hover background)
+ *   Text dark     #1c1c1c  (nav link default)
+ */
+
+/* ─── Navbar Shell ──────────────────────────────────────────────────── */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e8e2d8;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  font-family: var(--font-geist-sans, system-ui, sans-serif);
+}
+
+/* ─── Inner Container ────────────────────────────────────────────────── */
+.container {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  height: 4rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+/* ─── Brand ──────────────────────────────────────────────────────────── */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  text-decoration: none;
+  flex-shrink: 0;
+  color: inherit;
+}
+
+.leafMark {
+  width: 2rem;
+  height: 2rem;
+  color: #2d5a1e;
+  flex-shrink: 0;
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.brandName {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #2d5a1e;
+  letter-spacing: -0.025em;
+}
+
+.brandTagline {
+  margin-top: 0.1rem;
+  font-size: 0.575rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: #5a8a46;
+  text-transform: uppercase;
+}
+
+/* ─── Navigation Links ───────────────────────────────────────────────── */
+.navList {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  justify-content: center;
+}
+
+.navLink {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #1c1c1c;
+  text-decoration: none;
+  padding: 0.4rem 0.7rem;
+  border-radius: 0.375rem;
+  white-space: nowrap;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.navLink:hover,
+.navLink:focus-visible {
+  color: #2d5a1e;
+  background-color: #eef5ea;
+  outline: none;
+}
+
+.navLink:focus-visible {
+  outline: 2px solid #2d5a1e;
+  outline-offset: 2px;
+}
+
+/* ─── Actions Cluster ────────────────────────────────────────────────── */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* Search */
+.searchForm {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #f7f5f0;
+  border: 1px solid #ddd8ce;
+  border-radius: 9999px;
+  padding: 0.375rem 0.875rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.searchForm:focus-within {
+  border-color: #2d5a1e;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(45, 90, 30, 0.14);
+}
+
+.searchIcon {
+  width: 1rem;
+  height: 1rem;
+  color: #7a7260;
+  flex-shrink: 0;
+}
+
+.searchInput {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 0.8125rem;
+  color: #1c1c1c;
+  width: 11.5rem;
+  font-family: inherit;
+}
+
+.searchInput::placeholder {
+  color: #a89f90;
+}
+
+/* Icon Buttons (Wishlist, Cart, Account) */
+.iconBtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  color: #3a3a3a;
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.iconBtn:hover {
+  color: #2d5a1e;
+  background-color: #eef5ea;
+}
+
+.iconBtn:focus-visible {
+  outline: 2px solid #2d5a1e;
+  outline-offset: 2px;
+  border-radius: 9999px;
+}
+
+.iconBtn svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* Cart item-count badge */
+.cartBadge {
+  position: absolute;
+  top: 0.125rem;
+  right: 0.125rem;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  padding: 0 0.2rem;
+  border-radius: 9999px;
+  background-color: #2d5a1e;
+  color: #ffffff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* ─── Responsive Breakpoints ─────────────────────────────────────────── */
+
+/* ≤1280px: hide search bar */
+@media (max-width: 1280px) {
+  .searchForm {
+    display: none;
+  }
+}
+
+/* ≤1024px: hide nav links */
+@media (max-width: 1024px) {
+  .navList {
+    display: none;
+  }
+}
+
+/* ≤640px: compact horizontal padding, hide tagline */
+@media (max-width: 640px) {
+  .container {
+    padding: 0 1rem;
+    gap: 0.75rem;
+  }
+
+  .brandTagline {
+    display: none;
+  }
+
+  .brandName {
+    font-size: 1.1rem;
+  }
+}
