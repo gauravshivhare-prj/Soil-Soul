@@ -186,7 +186,7 @@ export default function MobileNav({ links, brandFontClass }) {
       >
         {/* Drawer header */}
         <div className="flex items-center justify-between h-16 px-5 border-b border-[#ebe6da] flex-shrink-0">
-          <span className={`${brandFontClass} text-[1.6rem] font-semibold text-[#1b2a1c] leading-none`}>
+          <span className={`${brandFontClass} text-[1.4rem] font-semibold text-[#1b2a1c] leading-none`}>
             Soil &amp; Soul
           </span>
           <button

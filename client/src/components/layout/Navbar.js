@@ -11,7 +11,7 @@
  *   Announcement bar — dark green strip with shipping message (scrolls away).
  *   Main bar (sticky) — cream background:
  *     Left   — Brand: leaf mark, serif "Soil & Soul" wordmark, tagline.
- *     Centre — Primary navigation; chevrons mark future dropdown menus.
+ *     Centre — Primary navigation (DesktopNav client component: active underline).
  *     Right  — Search pill, Wishlist icon, Cart icon + badge, Account icon.
  *
  * Mobile (< lg): hamburger + brand on the left; search + cart on the right.
@@ -19,14 +19,10 @@
  */
 
 import Link from "next/link";
-import { Cormorant_Garamond } from "next/font/google";
+import { brandSerif } from "@/app/fonts";
+import DesktopNav from "./DesktopNav";
 import MobileNav from "./MobileNav";
 
-const brandSerif = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["600", "700"],
-  display: "swap",
-});
 
 /* ─── Navigation link definitions ─────────────────────────────────── */
 const NAV_LINKS = [
@@ -52,54 +48,14 @@ function LeafMark() {
       aria-hidden="true"
       focusable="false"
     >
-      {/* Leaf body */}
-      <path
-        d="M42 5C42 5 22 4 12.5 15C5 23.5 7 35 7 35C7 35 18.5 38.5 28 31C39 22.5 42 5 42 5Z"
-        fill="#24452a"
-      />
-      {/* Stem + midrib */}
-      <path
-        d="M4 44C10 34 19 24 35 12"
-        fill="none"
-        stroke="#24452a"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M10.5 36C17 28 24 21 35 12"
-        fill="none"
-        stroke="#ffffff"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-      />
-      {/* Side veins */}
-      <g stroke="#ffffff" strokeWidth="1.2" strokeLinecap="round" fill="none">
-        <path d="M17 29.5C17 25.5 16.5 22 15.5 19.5" />
-        <path d="M22.5 24C23 20.5 22.5 17 21.5 14" />
-        <path d="M28 19C29 16 29 13 28.5 10" />
-        <path d="M17 29.5C21 30 24.5 29.5 27.5 28" />
-        <path d="M22.5 24C26 24.5 29.5 23.5 32.5 21.5" />
-        <path d="M28 19C31 19 34 17.5 36.5 15.5" />
-      </g>
-    </svg>
-  );
-}
-
-function ChevronDownIcon() {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.25"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <polyline points="6 9 12 15 18 9" />
+      {/* Stem */}
+      <path d="M7 45C10.5 40 13 35.5 16 30" stroke="#24452a" strokeWidth="2.2" strokeLinecap="round" />
+      {/* Large leaf */}
+      <path d="M16 30C13.5 18 22 7 43 4C42 18 33 29.5 16 30Z" fill="#24452a" />
+      <path d="M17.5 28.5C24 21 31.5 13 39.5 7.5" stroke="#ffffff" strokeWidth="1.4" strokeLinecap="round" />
+      {/* Small leaf */}
+      <path d="M14 34C7 33.5 2.5 27 2.5 17.5C10.5 18.5 15.5 25 14 34Z" fill="#24452a" />
+      <path d="M13.5 32C10.5 28 7.5 24 4.5 20" stroke="#ffffff" strokeWidth="1.1" strokeLinecap="round" />
     </svg>
   );
 }
@@ -205,7 +161,7 @@ export default function Navbar() {
         <p className="max-w-[1360px] mx-auto px-4 h-8 sm:h-9 m-0 flex items-center justify-center gap-2 text-xs sm:text-[0.8125rem] tracking-wide text-center">
           <span aria-hidden="true">🌿</span>
           <span>Free shipping on orders above ₹499</span>
-          <span className="opacity-60" aria-hidden="true">|</span>
+          <span className="hidden sm:inline opacity-60" aria-hidden="true">|</span>
           <span className="hidden sm:inline">Bring nature home</span>
           <span className="hidden sm:inline" aria-hidden="true">🌱</span>
         </p>
@@ -216,7 +172,7 @@ export default function Navbar() {
         className="sticky top-0 z-50 bg-[#faf8f2] border-b border-[#ebe6da] font-sans"
       >
         <nav aria-label="Main navigation">
-          <div className="max-w-[1536px] mx-auto px-4 sm:px-6 xl:px-10 h-16 sm:h-[72px] xl:h-[84px] flex items-center gap-2 sm:gap-4 xl:gap-6">
+          <div className="max-w-[1536px] mx-auto px-4 sm:px-6 xl:px-10 h-16 sm:h-[72px] xl:h-[84px] flex items-center gap-2 sm:gap-4 xl:gap-5">
 
             {/* ── Mobile menu (hamburger + drawer, < lg only) ── */}
             <MobileNav links={NAV_LINKS} brandFontClass={brandSerif.className} />
@@ -232,7 +188,7 @@ export default function Navbar() {
               </span>
               <div className="flex flex-col leading-none">
                 <span
-                  className={`${brandSerif.className} text-[1.45rem] sm:text-[1.6rem] whitespace-nowrap xl:text-[2rem] font-semibold text-[#1b2a1c] leading-none`}
+                  className={`${brandSerif.className} text-[1.3rem] sm:text-[1.45rem] whitespace-nowrap xl:text-[1.7rem] font-semibold tracking-[-0.01em] text-[#1b2a1c] leading-none`}
                 >
                   Soil &amp; Soul
                 </span>
@@ -245,26 +201,8 @@ export default function Navbar() {
               </div>
             </Link>
 
-            {/* ── Primary navigation ── */}
-            <ul
-              className="hidden lg:flex items-center gap-0 xl:gap-1 list-none m-0 p-0 flex-1 min-w-0 justify-center"
-              role="list"
-            >
-              {NAV_LINKS.map(({ label, href, hasMenu }) => (
-                <li key={href}>
-                  <Link
-                    href={href}
-                    className="flex items-center gap-1 text-sm xl:text-[0.9375rem] font-medium text-[#1f241d] no-underline px-2 xl:px-3 py-2 rounded-md whitespace-nowrap
-                               transition-colors duration-150
-                               hover:text-[#24452a] hover:bg-[#ece8dc]
-                               focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#24452a] focus-visible:outline-offset-2"
-                  >
-                    {label}
-                    {hasMenu && <ChevronDownIcon />}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            {/* ── Primary navigation (lg+) ── */}
+            <DesktopNav links={NAV_LINKS} />
 
             {/* ── Right-side actions ── */}
             <div
@@ -275,8 +213,8 @@ export default function Navbar() {
 
               {/* Search pill */}
               <form
-                className="hidden 2xl:flex items-center gap-2.5 bg-[#efece4] border border-transparent rounded-full
-                           px-4 h-11 mr-2
+                className="hidden xl:flex items-center gap-2.5 bg-[#f0eee7] border border-transparent rounded-full
+                           px-4 h-11 mr-1 2xl:mr-3
                            transition-all duration-150
                            focus-within:border-[#24452a] focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(36,69,42,0.14)]"
                 role="search"
@@ -291,16 +229,16 @@ export default function Navbar() {
                   id="navbar-search"
                   type="search"
                   name="q"
-                  placeholder="Search for plants, pots, soil…"
+                  placeholder="Search plants, pots, soil…"
                   aria-label="Search for plants, pots, soil…"
                   autoComplete="off"
                   className="border-0 outline-none bg-transparent text-[0.875rem] text-[#1f241d]
-                             placeholder:text-[#8f8c82] w-48 min-w-0"
+                             placeholder:text-[#8f8c82] w-44 2xl:w-52 min-w-0"
                 />
               </form>
 
-              {/* Search icon — replaces the pill below 2xl */}
-              <Link href="/search" className={`${iconBtnClass} inline-flex 2xl:hidden`} aria-label="Search">
+              {/* Search icon — replaces the pill below xl */}
+              <Link href="/search" className={`${iconBtnClass} inline-flex xl:hidden`} aria-label="Search">
                 <span className="[&>svg]:w-[22px] [&>svg]:h-[22px]">
                   <SearchIcon />
                 </span>
