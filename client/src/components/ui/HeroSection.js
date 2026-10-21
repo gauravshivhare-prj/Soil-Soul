@@ -50,7 +50,7 @@ function LeafGradient({ id }) {
   return (
     <defs>
       <linearGradient id={id} x1="0" y1="0" x2="0" y2="-66" gradientUnits="userSpaceOnUse">
-        <stop offset="0" stopColor="#cfdcbf" />
+        <stop offset="0" stopColor="#c6d6b3" />
         <stop offset="1" stopColor="#e6eddb" />
       </linearGradient>
     </defs>
@@ -60,32 +60,31 @@ function LeafGradient({ id }) {
 /* Vine hanging down the left edge: leaves alternate right (visible) and
    left (partly cut off by the edge), like the reference artwork. */
 const VINE_LEAVES = [
-  { x: 8, y: 22, rotate: -55, scale: 1.2 },
-  { x: 14, y: 58, rotate: 105, scale: 1.3 },
-  { x: 16, y: 112, rotate: -78, scale: 1.15 },
-  { x: 12, y: 152, rotate: 80, scale: 1.35 },
-  { x: 11, y: 206, rotate: -95, scale: 1.2 },
-  { x: 16, y: 246, rotate: 112, scale: 1.3 },
-  { x: 20, y: 300, rotate: -70, scale: 1.1 },
-  { x: 18, y: 340, rotate: 76, scale: 1.25 },
-  { x: 15, y: 394, rotate: -100, scale: 1.05 },
-  { x: 15, y: 430, rotate: 100, scale: 1 },
+  { x: 8, y: 22, rotate: -55, scale: 1.44 },
+  { x: 14, y: 58, rotate: 105, scale: 1.56 },
+  { x: 16, y: 112, rotate: -78, scale: 1.38 },
+  { x: 12, y: 152, rotate: 80, scale: 1.62 },
+  { x: 11, y: 206, rotate: -95, scale: 1.44 },
+  { x: 16, y: 246, rotate: 112, scale: 1.56 },
+  { x: 20, y: 300, rotate: -70, scale: 1.32 },
+  { x: 18, y: 340, rotate: 76, scale: 1.5 },
+  { x: 15, y: 394, rotate: -100, scale: 1.26 },
+  { x: 15, y: 430, rotate: 100, scale: 1.2 },
 ];
 
 /* Branch rising diagonally from the bottom-left corner. */
 const BRANCH_LEAVES = [
-  { x: 12, y: 588, rotate: -80, scale: 1.15 },
-  { x: 30, y: 568, rotate: 10, scale: 1.1 },
-  { x: 50, y: 545, rotate: -75, scale: 1.05 },
-  { x: 70, y: 522, rotate: 15, scale: 1 },
-  { x: 90, y: 500, rotate: -62, scale: 0.9 },
-  { x: 120, y: 470, rotate: 40, scale: 0.85 },
+  { x: 10, y: 590, rotate: -80, scale: 1.25 },
+  { x: 28, y: 568, rotate: 10, scale: 1.2 },
+  { x: 46, y: 546, rotate: -72, scale: 1.1 },
+  { x: 64, y: 524, rotate: 18, scale: 1 },
+  { x: 86, y: 500, rotate: 35, scale: 0.9 },
 ];
 
 function LeafBorder() {
   return (
     <svg
-      className="hidden lg:block absolute left-0 top-0 h-full w-auto pointer-events-none z-[1] opacity-90"
+      className="hidden lg:block absolute left-0 top-0 h-full w-auto pointer-events-none z-[1]"
       viewBox="0 0 170 600"
       preserveAspectRatio="xMinYMid slice"
       fill="none"
@@ -94,7 +93,7 @@ function LeafBorder() {
     >
       <LeafGradient id="hero-leaf-fill" />
       <path d="M4-10C20 80 8 160 16 250S24 380 14 440" stroke="#9cb38b" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M-10 612C30 575 70 520 122 470" stroke="#9cb38b" strokeWidth="1.3" strokeLinecap="round" />
+      <path d="M-10 612C25 578 55 540 88 498" stroke="#9cb38b" strokeWidth="1.3" strokeLinecap="round" />
       {[...VINE_LEAVES, ...BRANCH_LEAVES].map((leaf) => (
         <Leaf key={`${leaf.x}-${leaf.y}`} {...leaf} fill="url(#hero-leaf-fill)" />
       ))}
