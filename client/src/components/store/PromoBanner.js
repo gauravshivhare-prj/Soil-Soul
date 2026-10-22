@@ -5,7 +5,7 @@
  * line-art leaves on its left third, so the copy is laid over that area.
  *
  * Layout:
- *   md and up — image fills a 3:1 banner, copy over the green panel.
+ *   md and up — image cropped to a 4:1 strip, copy over the green panel.
  *   below md  — copy on solid green first, then the photo cropped towards
  *               the products (a 3:1 banner would be too thin to read).
  */
@@ -42,10 +42,10 @@ function ArrowRight() {
 
 export default function PromoBanner() {
   return (
-    <section aria-labelledby="promo-banner-heading" className="bg-[#faf8f2] pb-6 lg:pb-8">
+    <section aria-labelledby="promo-banner-heading" className="bg-[#faf8f2] pb-5 lg:pb-6">
       <div className="max-w-[1536px] mx-auto px-4 sm:px-8 xl:px-10">
         <div
-          className="relative flex flex-col md:block overflow-hidden rounded-2xl md:aspect-[2170/725]"
+          className="relative flex flex-col md:block overflow-hidden rounded-2xl md:aspect-[4/1]"
           style={{ backgroundColor: PANEL_GREEN }}
         >
           {/* Photo */}
@@ -55,7 +55,7 @@ export default function PromoBanner() {
               alt="Potted plant, terracotta pots, organic compost, trowel and watering can on a wooden table"
               fill
               sizes="(min-width: 1536px) 1456px, 100vw"
-              className="object-cover object-[78%_center] md:object-center"
+              className="object-cover object-[78%_center] md:object-[center_60%]"
             />
             {/* Mobile: blend the photo's top edge into the green copy panel */}
             <div
@@ -73,21 +73,21 @@ export default function PromoBanner() {
               <h2
                 id="promo-banner-heading"
                 className={`${brandSerif.className} m-0 font-semibold leading-[1.12] text-[#f7f3e8]
-                            text-[1.85rem] sm:text-[2.2rem] md:text-[clamp(1.6rem,3.2vw,3.1rem)]`}
+                            text-[1.85rem] sm:text-[2.2rem] md:text-[clamp(1.5rem,2.8vw,2.7rem)]`}
               >
                 Make Room
                 <br />
                 for More Green
               </h2>
               <p
-                className="m-0 mt-3 md:mt-[1.1vw] max-w-[22em] text-[0.9375rem] md:text-[clamp(0.85rem,1.15vw,1.0625rem)]
+                className="m-0 mt-3 md:mt-[1.1vw] max-w-[22em] text-[0.9375rem] md:text-[clamp(0.8rem,1.05vw,0.9375rem)]
                            leading-relaxed text-[#f7f3e8]/85"
               >
                 Premium pots, rich soil, and all you need to help your plants thrive.
               </p>
               <Link
                 href="/gardening"
-                className="group mt-6 md:mt-[2vw] inline-flex items-center gap-2 h-11 md:h-[clamp(2.5rem,3.3vw,3rem)] px-6
+                className="group mt-6 md:mt-[1.6vw] inline-flex items-center gap-2 h-11 md:h-[clamp(2.4rem,3vw,2.75rem)] px-5
                            rounded-lg bg-[#faf8f2] text-[#1f3d24] text-[0.875rem] md:text-[clamp(0.8rem,1vw,0.9375rem)]
                            font-semibold no-underline whitespace-nowrap shadow-[0_4px_14px_rgba(0,0,0,0.15)]
                            transition-colors duration-200 hover:bg-white

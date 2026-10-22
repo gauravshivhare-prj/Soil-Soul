@@ -102,12 +102,12 @@ const FEATURES = [
 /* ─── Component ─────────────────────────────────────────────────── */
 export default function FindYourPlant() {
   return (
-    <section aria-labelledby="find-your-plant-heading" className="bg-[#faf8f2] pb-12 lg:pb-16">
+    <section aria-labelledby="find-your-plant-heading" className="bg-[#faf8f2] pb-8 lg:pb-10">
       <div className="max-w-[1536px] mx-auto px-4 sm:px-8 xl:px-10">
         <div
           className="flex flex-col gap-6 xl:flex-row xl:items-center xl:gap-0
                      rounded-2xl border border-[#e2e5d4] bg-[#eef0e3]
-                     px-5 py-6 sm:px-8 xl:py-6"
+                     px-5 py-5 sm:px-8 xl:py-5"
         >
           {/* Intro */}
           <div className="flex items-center gap-4 xl:pr-8 2xl:pr-10 xl:flex-shrink-0">

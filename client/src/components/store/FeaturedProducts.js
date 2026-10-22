@@ -94,7 +94,7 @@ function ProductCard({ product }) {
       </div>
 
       {/* Details */}
-      <div className="flex flex-1 flex-col px-2.5 pt-3 pb-3 sm:px-3">
+      <div className="flex flex-1 flex-col px-2.5 pt-2.5 pb-2.5 sm:px-3">
         <span
           className="self-start max-w-full truncate rounded-full bg-[#eef0e3] px-2 py-0.5
                      text-[0.625rem] sm:text-[0.6875rem] font-medium text-[#3d5a35]"
@@ -102,11 +102,11 @@ function ProductCard({ product }) {
           {category.name}
         </span>
 
-        <h3 className="m-0 mt-2 text-[0.8125rem] sm:text-sm 2xl:text-[0.9375rem] font-semibold leading-snug text-[#1b2a1c]">
+        <h3 className="m-0 mt-1.5 text-[0.8125rem] sm:text-sm font-semibold leading-snug text-[#1b2a1c]">
           {name}
         </h3>
 
-        <div className="mt-1.5 flex items-center gap-1.5">
+        <div className="mt-1 flex items-center gap-1.5">
           <Stars rating={rating} />
           <span className="text-[0.625rem] sm:text-[0.6875rem] text-[#8a8f84]">
             <span className="sr-only">Rated </span>
@@ -116,14 +116,14 @@ function ProductCard({ product }) {
           </span>
         </div>
 
-        <p className="m-0 mt-auto pt-2.5 text-base sm:text-lg font-bold text-[#1b2a1c]">
+        <p className="m-0 mt-auto pt-2 text-base font-bold text-[#1b2a1c]">
           {formatPrice(price)}
         </p>
 
         <button
           type="button"
-          className="mt-2.5 sm:mt-3 w-full h-9 rounded-md border-0 cursor-pointer
-                     bg-[#24452a] text-[#f4f1e8] text-[0.8125rem] font-medium
+          className="mt-2 sm:mt-2.5 w-full h-8 rounded-md border-0 cursor-pointer
+                     bg-[#24452a] text-[#f4f1e8] text-xs font-medium
                      transition-colors duration-200 hover:bg-[#1b3520]
                      focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#24452a]"
         >
@@ -151,16 +151,16 @@ export default function FeaturedProducts({
     <section aria-labelledby="featured-products-heading" className="bg-[#faf8f2] pb-8 lg:pb-10">
       <div className="max-w-[1536px] mx-auto px-4 sm:px-8 xl:px-10">
         {/* Header */}
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-5 sm:mb-6 lg:mb-7">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-4 sm:mb-5">
           <div className="min-w-0">
             <h2
               id="featured-products-heading"
               className={`${brandSerif.className} m-0 font-bold text-[#1f3d24] leading-tight
-                          text-[1.5rem] sm:text-[1.75rem] xl:text-[2rem]`}
+                          text-[1.375rem] sm:text-[1.5rem] xl:text-[1.75rem]`}
             >
               Featured Products
             </h2>
-            <p className="m-0 mt-1.5 text-[0.8125rem] sm:text-sm leading-relaxed text-[#5e6858]">
+            <p className="m-0 mt-1 text-[0.8125rem] sm:text-sm leading-relaxed text-[#5e6858]">
               Handpicked for a greener, healthier lifestyle.
             </p>
           </div>
@@ -180,8 +180,8 @@ export default function FeaturedProducts({
                   type="button"
                   aria-pressed={active}
                   onClick={() => setActiveId(filter.id)}
-                  className={`flex-shrink-0 h-9 px-4 sm:px-5 rounded-full border-0 cursor-pointer whitespace-nowrap
-                              text-[0.8125rem] font-medium transition-colors duration-200
+                  className={`flex-shrink-0 h-8 px-3.5 sm:px-4 rounded-full border-0 cursor-pointer whitespace-nowrap
+                              text-xs font-medium transition-colors duration-200
                               focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#24452a]
                               ${active
                                 ? "bg-[#24452a] text-[#f4f1e8]"

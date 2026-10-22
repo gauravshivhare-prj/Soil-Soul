@@ -11,7 +11,7 @@
 
 import { useState } from "react";
 import { brandSerif } from "@/app/fonts";
-import { Leaf } from "@/components/ui/LeafArt";
+import { Leaf, LeafDefs, Stem, leafShadow } from "@/components/ui/LeafArt";
 
 /* Sprigs at the band's left and right ends (lg+). */
 const LEFT_SPRIG = [
@@ -30,7 +30,7 @@ const RIGHT_SPRIG = [
   { x: 72, y: 114, rotate: 95, scale: 0.8 },
 ];
 
-function Sprig({ leaves, stem, className }) {
+function Sprig({ id, leaves, stem, className }) {
   return (
     <svg
       className={`hidden lg:block absolute top-1/2 -translate-y-1/2 h-[120%] w-auto pointer-events-none ${className}`}
@@ -39,10 +39,13 @@ function Sprig({ leaves, stem, className }) {
       aria-hidden="true"
       focusable="false"
     >
-      <path d={stem} stroke="#9cb38b" strokeWidth="1.2" strokeLinecap="round" />
-      {leaves.map((leaf) => (
-        <Leaf key={`${leaf.x}-${leaf.y}`} {...leaf} />
-      ))}
+      <LeafDefs id={id} />
+      <Stem d={stem} width={1.8} />
+      <g filter={leafShadow(id)}>
+        {leaves.map((leaf, i) => (
+          <Leaf key={`${leaf.x}-${leaf.y}`} ids={id} light={i % 2 === 1} {...leaf} />
+        ))}
+      </g>
     </svg>
   );
 }
@@ -79,17 +82,17 @@ export default function Newsletter() {
 
   return (
     <section aria-labelledby="newsletter-heading" className="relative overflow-hidden bg-[#eef0e3] border-y border-[#e2e5d4]">
-      <Sprig leaves={LEFT_SPRIG} stem="M10 135C30 100 55 60 85 20" className="-left-2" />
-      <Sprig leaves={RIGHT_SPRIG} stem="M100 135C80 100 55 60 25 20" className="-right-2" />
+      <Sprig id="news-left" leaves={LEFT_SPRIG} stem="M10 135C30 100 55 60 85 20" className="-left-2" />
+      <Sprig id="news-right" leaves={RIGHT_SPRIG} stem="M100 135C80 100 55 60 25 20" className="-right-2" />
 
       <div
-        className="relative max-w-[1536px] mx-auto px-4 sm:px-8 lg:px-28 xl:px-36 py-8 lg:py-9
+        className="relative max-w-[1536px] mx-auto px-4 sm:px-8 lg:px-28 xl:px-36 py-6 lg:py-6
                    flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-8"
       >
         <div className="min-w-0">
           <h2
             id="newsletter-heading"
-            className={`${brandSerif.className} m-0 font-bold leading-tight text-[#1f3d24] text-[1.35rem] sm:text-[1.5rem]`}
+            className={`${brandSerif.className} m-0 font-bold leading-tight text-[#1f3d24] text-[1.25rem] sm:text-[1.4rem]`}
           >
             Join Our Newsletter
           </h2>
@@ -111,13 +114,13 @@ export default function Newsletter() {
               autoComplete="email"
               placeholder="Enter your email address"
               onChange={() => notice && setNotice("")}
-              className="flex-1 min-w-0 h-11 px-4 rounded-lg sm:rounded-r-none border border-[#dfe2d2] sm:border-r-0
+              className="flex-1 min-w-0 h-10 px-4 rounded-lg sm:rounded-r-none border border-[#dfe2d2] sm:border-r-0
                          bg-white text-base sm:text-sm text-[#1f241d] placeholder:text-[#9a9a90]
                          outline-none focus:border-[#24452a] focus:ring-2 focus:ring-[#24452a]/15"
             />
             <button
               type="submit"
-              className="inline-flex flex-shrink-0 items-center gap-2 h-11 px-4 sm:px-6 rounded-lg sm:rounded-l-none border-0 cursor-pointer
+              className="inline-flex flex-shrink-0 items-center gap-2 h-10 px-4 sm:px-6 rounded-lg sm:rounded-l-none border-0 cursor-pointer
                          bg-[#24452a] text-[#f4f1e8] text-sm font-medium
                          transition-colors duration-200 hover:bg-[#1b3520]
                          focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#24452a]"

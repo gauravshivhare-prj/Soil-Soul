@@ -52,7 +52,7 @@ function NaturalCareCard({ product }) {
     >
       {/* Blank image area — product photos will be added later */}
       <div
-        className="flex-shrink-0 w-[38%] sm:w-full lg:w-[42%] aspect-square sm:aspect-[4/3] lg:aspect-[20/21]
+        className="flex-shrink-0 w-[38%] sm:w-full lg:w-[40%] aspect-square sm:aspect-[4/3] lg:aspect-square
                    rounded-lg bg-gradient-to-b from-[#f6f2e9] to-[#efe9dc]"
         aria-hidden="true"
       />
@@ -65,13 +65,13 @@ function NaturalCareCard({ product }) {
         <p className="m-0 mt-1.5 text-xs xl:text-[0.8125rem] leading-snug text-[#6a7264]">
           {benefits.join(" • ")}
         </p>
-        <p className="m-0 mt-3 xl:mt-4 text-lg xl:text-xl font-bold text-[#1b2a1c]">
+        <p className="m-0 mt-2.5 text-lg font-bold text-[#1b2a1c]">
           {formatPrice(price)}
         </p>
         <Link
           href="/natural-care"
-          className="group mt-3 xl:mt-4 self-start inline-flex items-center gap-1.5 h-9 px-4 rounded-md
-                     bg-[#24452a] text-[#f4f1e8] text-[0.8125rem] font-medium no-underline whitespace-nowrap
+          className="group mt-3 self-start inline-flex items-center gap-1.5 h-8 px-4 rounded-md
+                     bg-[#24452a] text-[#f4f1e8] text-xs font-medium no-underline whitespace-nowrap
                      transition-colors duration-200 hover:bg-[#1b3520]
                      focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#24452a]"
         >
@@ -87,19 +87,19 @@ function NaturalCareCard({ product }) {
 /* ─── Section ───────────────────────────────────────────────────── */
 export default function NaturalCare({ products = NATURAL_CARE_PRODUCTS }) {
   return (
-    <section aria-labelledby="natural-care-heading" className="bg-[#faf8f2] pb-12 lg:pb-16">
+    <section aria-labelledby="natural-care-heading" className="bg-[#faf8f2] pb-8 lg:pb-10">
       <div className="max-w-[1536px] mx-auto px-4 sm:px-8 xl:px-10">
         {/* Header */}
-        <div className="flex items-end justify-between gap-4 mb-5 sm:mb-6 lg:mb-7">
+        <div className="flex items-end justify-between gap-4 mb-4 sm:mb-5">
           <div className="min-w-0">
             <h2
               id="natural-care-heading"
               className={`${brandSerif.className} m-0 font-bold text-[#1f3d24] leading-tight
-                          text-[1.5rem] sm:text-[1.75rem] xl:text-[2rem]`}
+                          text-[1.375rem] sm:text-[1.5rem] xl:text-[1.75rem]`}
             >
               Natural Care, Rooted in Plants
             </h2>
-            <p className="m-0 mt-1.5 text-[0.8125rem] sm:text-sm leading-relaxed text-[#5e6858]">
+            <p className="m-0 mt-1 text-[0.8125rem] sm:text-sm leading-relaxed text-[#5e6858]">
               Skincare and personal care powered by nature&rsquo;s best.
             </p>
           </div>

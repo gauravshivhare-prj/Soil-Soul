@@ -91,7 +91,7 @@ function CategoryCard({ category }) {
       </div>
 
       {/* Text */}
-      <div className="flex flex-1 items-center gap-1.5 sm:gap-2 px-2.5 py-3 sm:px-3.5 sm:py-3.5">
+      <div className="flex flex-1 items-center gap-1.5 sm:gap-2 px-2.5 py-2.5 sm:px-3.5 sm:py-3">
         <div className="flex-1 min-w-0">
           <h3 className="m-0 text-[0.8125rem] sm:text-sm 2xl:text-[0.9375rem] font-semibold leading-snug text-[#1b2a1c]">
             {name}
@@ -117,19 +117,19 @@ function CategoryCard({ category }) {
 /* ─── Section ───────────────────────────────────────────────────── */
 export default function ShopByCategory({ categories = CATEGORIES }) {
   return (
-    <section aria-labelledby="shop-by-category-heading" className="bg-[#faf8f2] pt-10 pb-12 sm:pt-12 lg:pt-11 lg:pb-16">
+    <section aria-labelledby="shop-by-category-heading" className="bg-[#faf8f2] pt-8 pb-8 sm:pt-9 lg:pt-10 lg:pb-10">
       <div className="max-w-[1536px] mx-auto px-4 sm:px-8 xl:px-10">
         {/* Header */}
-        <div className="flex items-end justify-between gap-4 mb-5 sm:mb-6 lg:mb-7">
+        <div className="flex items-end justify-between gap-4 mb-4 sm:mb-5">
           <div className="min-w-0">
             <h2
               id="shop-by-category-heading"
               className={`${brandSerif.className} m-0 font-bold text-[#1f3d24] leading-tight
-                          text-[1.5rem] sm:text-[1.75rem] xl:text-[2rem]`}
+                          text-[1.375rem] sm:text-[1.5rem] xl:text-[1.75rem]`}
             >
               Shop by Category
             </h2>
-            <p className="m-0 mt-1.5 text-[0.8125rem] sm:text-sm leading-relaxed text-[#5e6858]">
+            <p className="m-0 mt-1 text-[0.8125rem] sm:text-sm leading-relaxed text-[#5e6858]">
               Explore our wide range of plants, gardening supplies and natural care products.
             </p>
           </div>

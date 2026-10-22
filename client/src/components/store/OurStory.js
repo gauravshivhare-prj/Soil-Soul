@@ -10,19 +10,19 @@
 import Image from "next/image";
 import Link from "next/link";
 import { brandSerif } from "@/app/fonts";
-import { Leaf } from "@/components/ui/LeafArt";
+import { Leaf, LeafDefs, Stem, leafShadow } from "@/components/ui/LeafArt";
 
 const STORY_IMAGE = "/images/Nurturing a Sunlit Seedling.png";
 
-/* ─── Line-art leaf branch (right edge, lg+) ────────────────────── */
+/* ─── Painted leaf branch (right edge, lg+) ─────────────────────── */
 const BRANCH_LEAVES = [
-  { x: 92, y: 30, rotate: -20, scale: 0.9 },
+  { x: 92, y: 30, rotate: -20, scale: 0.9, light: true },
   { x: 86, y: 70, rotate: -75, scale: 1 },
-  { x: 90, y: 104, rotate: 35, scale: 1.05 },
+  { x: 90, y: 104, rotate: 35, scale: 1.05, light: true },
   { x: 80, y: 150, rotate: -80, scale: 1.15 },
-  { x: 86, y: 190, rotate: 45, scale: 1.1 },
+  { x: 86, y: 190, rotate: 45, scale: 1.1, light: true },
   { x: 74, y: 240, rotate: -85, scale: 1.2 },
-  { x: 82, y: 282, rotate: 50, scale: 1.1 },
+  { x: 82, y: 282, rotate: 50, scale: 1.1, light: true },
   { x: 72, y: 330, rotate: -70, scale: 1 },
 ];
 
@@ -36,10 +36,13 @@ function LeafBranch() {
       aria-hidden="true"
       focusable="false"
     >
-      <path d="M104 -6C98 80 86 180 80 260S72 340 68 370" stroke="#9cb38b" strokeWidth="1.3" strokeLinecap="round" />
-      {BRANCH_LEAVES.map((leaf) => (
-        <Leaf key={leaf.y} {...leaf} />
-      ))}
+      <LeafDefs id="story-leaf" />
+      <Stem d="M104 -6C98 80 86 180 80 260S72 340 68 370" width={2} />
+      <g filter={leafShadow("story-leaf")}>
+        {BRANCH_LEAVES.map((leaf) => (
+          <Leaf key={leaf.y} ids="story-leaf" {...leaf} />
+        ))}
+      </g>
     </svg>
   );
 }
@@ -68,14 +71,14 @@ function ArrowRightIcon() {
 /* ─── Component ─────────────────────────────────────────────────── */
 export default function OurStory() {
   return (
-    <section aria-labelledby="our-story-heading" className="bg-[#faf8f2] pb-12 lg:pb-16">
+    <section aria-labelledby="our-story-heading" className="bg-[#faf8f2] pb-8 lg:pb-10">
       <div className="max-w-[1536px] mx-auto px-4 sm:px-8 xl:px-10">
         <div
           className="grid md:grid-cols-[1fr_1.1fr] overflow-hidden rounded-2xl
                      border border-[#ebe6da] bg-[#f4f0e6]"
         >
           {/* Photo */}
-          <div className="relative aspect-[16/10] md:aspect-auto md:min-h-[300px] lg:min-h-[340px]">
+          <div className="relative aspect-[16/10] md:aspect-auto md:min-h-[250px] lg:min-h-[270px]">
             <Image
               src={STORY_IMAGE}
               alt="Hands gently pressing soil around a young seedling in a sunlit garden bed"
@@ -86,7 +89,7 @@ export default function OurStory() {
           </div>
 
           {/* Copy */}
-          <div className="relative flex items-center px-6 py-8 sm:px-10 md:py-10 lg:px-12 xl:px-16 lg:pr-36 xl:pr-44">
+          <div className="relative flex items-center px-6 py-7 sm:px-10 md:py-8 lg:px-12 xl:px-14 lg:pr-36 xl:pr-44">
             <LeafBranch />
             <div className="relative max-w-[30rem]">
               <p className="m-0 text-[0.6875rem] sm:text-xs font-medium tracking-[0.2em] uppercase text-[#6d7f60]">
@@ -95,7 +98,7 @@ export default function OurStory() {
               <h2
                 id="our-story-heading"
                 className={`${brandSerif.className} m-0 mt-2 font-bold leading-tight text-[#1f3d24]
-                            text-[1.6rem] sm:text-[1.85rem] xl:text-[2.2rem]`}
+                            text-[1.5rem] sm:text-[1.7rem] xl:text-[1.9rem]`}
               >
                 Grow Good Things
               </h2>
@@ -106,7 +109,7 @@ export default function OurStory() {
               </p>
               <Link
                 href="/our-story"
-                className="group mt-6 inline-flex items-center gap-2 h-10 px-5 rounded-md
+                className="group mt-5 inline-flex items-center gap-2 h-9 px-5 rounded-md
                            bg-[#24452a] text-[#f4f1e8] text-[0.8125rem] font-medium no-underline whitespace-nowrap
                            transition-colors duration-200 hover:bg-[#1b3520]
                            focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#24452a]"

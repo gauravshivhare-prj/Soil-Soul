@@ -14,71 +14,32 @@
 import Image from "next/image";
 import Link from "next/link";
 import { brandSerif } from "@/app/fonts";
+import { Leaf, LeafDefs, Stem, leafShadow } from "@/components/ui/LeafArt";
 
 /* ─── Botanical leaf artwork ────────────────────────────────────── */
-/*
- * One leaf, base at (0,0), tip pointing up (-y), ~66 units long.
- * Slightly asymmetric with a curved tip so repeated leaves look natural.
- * `fill` is a gradient url defined in the parent <svg>.
- */
-function Leaf({ x, y, rotate, scale = 1, fill }) {
-  return (
-    <g transform={`translate(${x} ${y}) rotate(${rotate}) scale(${scale})`}>
-      {/* Petiole */}
-      <path d="M0 6V0" stroke="#9cb38b" strokeWidth="1.2" strokeLinecap="round" />
-      <path
-        d="M0 0C-14-6-22-26-14-44C-9-54-2-60 4-66C6-56 14-46 16-32C18-16 10-4 0 0Z"
-        fill={fill}
-        stroke="#9cb38b"
-        strokeWidth="0.9"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M0-1C2-20 2-40 4-63
-           M1-12C-4-16-9-20-12-26 M1-12C6-15 10-18 13-22
-           M2-26C-3-31-8-36-12-42 M2-26C7-29 11-33 15-36
-           M3-40C-1-45-4-50-7-54 M3-40C7-43 10-47 12-50"
-        stroke="#a9bd99"
-        strokeWidth="0.75"
-        strokeLinecap="round"
-      />
-    </g>
-  );
-}
-
-function LeafGradient({ id }) {
-  return (
-    <defs>
-      <linearGradient id={id} x1="0" y1="0" x2="0" y2="-66" gradientUnits="userSpaceOnUse">
-        <stop offset="0" stopColor="#c6d6b3" />
-        <stop offset="1" stopColor="#e6eddb" />
-      </linearGradient>
-    </defs>
-  );
-}
-
 /* Vine hanging down the left edge: leaves alternate right (visible) and
-   left (partly cut off by the edge), like the reference artwork. */
+   left (partly cut off by the edge), like the reference artwork. Leaves
+   further back are lighter. */
 const VINE_LEAVES = [
-  { x: 8, y: 22, rotate: -55, scale: 1.44 },
-  { x: 14, y: 58, rotate: 105, scale: 1.56 },
-  { x: 16, y: 112, rotate: -78, scale: 1.38 },
-  { x: 12, y: 152, rotate: 80, scale: 1.62 },
-  { x: 11, y: 206, rotate: -95, scale: 1.44 },
-  { x: 16, y: 246, rotate: 112, scale: 1.56 },
-  { x: 20, y: 300, rotate: -70, scale: 1.32 },
-  { x: 18, y: 340, rotate: 76, scale: 1.5 },
-  { x: 15, y: 394, rotate: -100, scale: 1.26 },
-  { x: 15, y: 430, rotate: 100, scale: 1.2 },
+  { x: 8, y: 22, rotate: -55, scale: 1.35, light: true },
+  { x: 14, y: 58, rotate: 105, scale: 1.5 },
+  { x: 16, y: 112, rotate: -78, scale: 1.3, light: true },
+  { x: 12, y: 152, rotate: 80, scale: 1.55 },
+  { x: 11, y: 206, rotate: -95, scale: 1.4, light: true },
+  { x: 16, y: 246, rotate: 112, scale: 1.5 },
+  { x: 20, y: 300, rotate: -70, scale: 1.28, light: true },
+  { x: 18, y: 340, rotate: 76, scale: 1.45 },
+  { x: 15, y: 394, rotate: -100, scale: 1.22, light: true },
+  { x: 15, y: 430, rotate: 100, scale: 1.18 },
 ];
 
 /* Branch rising diagonally from the bottom-left corner. */
 const BRANCH_LEAVES = [
-  { x: 10, y: 590, rotate: -80, scale: 1.25 },
-  { x: 28, y: 568, rotate: 10, scale: 1.2 },
-  { x: 46, y: 546, rotate: -72, scale: 1.1 },
-  { x: 64, y: 524, rotate: 18, scale: 1 },
-  { x: 86, y: 500, rotate: 35, scale: 0.9 },
+  { x: 10, y: 590, rotate: -80, scale: 1.2 },
+  { x: 28, y: 568, rotate: 10, scale: 1.15, light: true },
+  { x: 46, y: 546, rotate: -72, scale: 1.08 },
+  { x: 64, y: 524, rotate: 18, scale: 0.98, light: true },
+  { x: 86, y: 500, rotate: 35, scale: 0.88 },
 ];
 
 function LeafBorder() {
@@ -91,12 +52,14 @@ function LeafBorder() {
       aria-hidden="true"
       focusable="false"
     >
-      <LeafGradient id="hero-leaf-fill" />
-      <path d="M4-10C20 80 8 160 16 250S24 380 14 440" stroke="#9cb38b" strokeWidth="1.3" strokeLinecap="round" />
-      <path d="M-10 612C25 578 55 540 88 498" stroke="#9cb38b" strokeWidth="1.3" strokeLinecap="round" />
-      {[...VINE_LEAVES, ...BRANCH_LEAVES].map((leaf) => (
-        <Leaf key={`${leaf.x}-${leaf.y}`} {...leaf} fill="url(#hero-leaf-fill)" />
-      ))}
+      <LeafDefs id="hero-leaf" />
+      <Stem d="M4-10C20 80 8 160 16 250S24 380 14 440" width={2.2} />
+      <Stem d="M-10 612C25 578 55 540 88 498" width={2} />
+      <g filter={leafShadow("hero-leaf")}>
+        {[...VINE_LEAVES, ...BRANCH_LEAVES].map((leaf) => (
+          <Leaf key={`${leaf.x}-${leaf.y}`} ids="hero-leaf" {...leaf} />
+        ))}
+      </g>
     </svg>
   );
 }
@@ -105,18 +68,20 @@ function LeafBorder() {
 function MobileSprig() {
   return (
     <svg
-      className="lg:hidden absolute -right-4 top-0 w-28 h-28 pointer-events-none opacity-80"
+      className="lg:hidden absolute -right-4 top-0 w-28 h-28 pointer-events-none opacity-90"
       viewBox="0 0 130 130"
       fill="none"
       aria-hidden="true"
       focusable="false"
     >
-      <LeafGradient id="hero-sprig-fill" />
-      <path d="M140 -6C115 30 95 60 74 100" stroke="#9cb38b" strokeWidth="1.3" strokeLinecap="round" />
-      <Leaf x={122} y={14} rotate={-140} scale={0.8} fill="url(#hero-sprig-fill)" />
-      <Leaf x={108} y={40} rotate={-50} scale={0.75} fill="url(#hero-sprig-fill)" />
-      <Leaf x={95} y={64} rotate={-150} scale={0.7} fill="url(#hero-sprig-fill)" />
-      <Leaf x={82} y={86} rotate={-60} scale={0.6} fill="url(#hero-sprig-fill)" />
+      <LeafDefs id="hero-sprig" />
+      <Stem d="M140 -6C115 30 95 60 74 100" width={1.8} />
+      <g filter={leafShadow("hero-sprig")}>
+        <Leaf ids="hero-sprig" x={122} y={14} rotate={-140} scale={0.8} light />
+        <Leaf ids="hero-sprig" x={108} y={40} rotate={-50} scale={0.75} />
+        <Leaf ids="hero-sprig" x={95} y={64} rotate={-150} scale={0.7} light />
+        <Leaf ids="hero-sprig" x={82} y={86} rotate={-60} scale={0.6} />
+      </g>
     </svg>
   );
 }
@@ -150,7 +115,7 @@ export default function HeroSection() {
       id="hero"
       aria-label="Welcome to Soil & Soul"
       className="relative flex flex-col lg:block overflow-hidden bg-[#f4efe4]
-                 lg:h-[clamp(400px,37vw,640px)]"
+                 lg:h-[clamp(400px,33.5vw,600px)]"
     >
       {/* ── Photo ── */}
       <div className="relative order-2 aspect-[5/4] sm:aspect-[16/9] lg:aspect-auto lg:absolute lg:inset-0">
@@ -190,7 +155,7 @@ export default function HeroSection() {
 
           <h1
             className={`${brandSerif.className} mt-3 sm:mt-4 lg:mt-[0.9vw] mb-0 font-bold tracking-[-0.01em] text-[#1f3d24]
-                        text-[2.35rem] leading-[1.1] sm:text-[3rem] lg:text-[clamp(2.4rem,3.9vw,4rem)]`}
+                        text-[2.35rem] leading-[1.1] sm:text-[3rem] lg:text-[clamp(2.3rem,3.6vw,3.6rem)]`}
           >
             Bring Nature
             <br />

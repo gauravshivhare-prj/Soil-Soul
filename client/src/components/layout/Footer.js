@@ -172,13 +172,7 @@ function FooterSprig() {
       <svg width="96" height="160" viewBox="0 0 110 180" fill="none" focusable="false">
         <path d="M48 180C50 140 56 90 62 40" stroke="rgba(244,241,232,0.5)" strokeWidth="1.2" strokeLinecap="round" />
         {PLANT_LEAVES.map((leaf) => (
-          <Leaf
-            key={leaf.y}
-            {...leaf}
-            fill="none"
-            stroke="rgba(244,241,232,0.55)"
-            veinStroke="rgba(244,241,232,0.35)"
-          />
+          <Leaf key={leaf.y} variant="line" stroke="rgba(244,241,232,0.55)" {...leaf} />
         ))}
       </svg>
       <p
@@ -204,7 +198,7 @@ export default function Footer() {
     <footer className="mt-auto bg-[#24452a] text-[#f4f1e8] font-sans">
       <div className="max-w-[1536px] mx-auto px-5 sm:px-8 xl:px-10">
         <div
-          className="grid grid-cols-2 gap-x-6 gap-y-9 pt-12 pb-10 sm:grid-cols-4
+          className="grid grid-cols-2 gap-x-6 gap-y-8 pt-9 pb-7 sm:grid-cols-4
                      lg:grid-cols-[1.35fr_1fr_1fr_1.1fr_1.25fr] xl:grid-cols-[1.35fr_1fr_1fr_1.1fr_1.25fr_auto] lg:gap-x-8"
         >
           {/* Brand */}
@@ -254,7 +248,7 @@ export default function Footer() {
           {LINK_COLUMNS.map(({ title, links }) => (
             <nav key={title} aria-label={title}>
               <h2 className="m-0 text-sm font-semibold text-white">{title}</h2>
-              <ul role="list" className="list-none m-0 mt-3.5 p-0 grid gap-2">
+              <ul role="list" className="list-none m-0 mt-3 p-0 grid gap-1.5">
                 {links.map(({ label, href }) => (
                   <li key={label}>
                     <Link href={href} className={linkClass}>
@@ -299,7 +293,7 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-white/15 py-5">
+        <div className="border-t border-white/15 py-4">
           <p className="m-0 text-xs text-[#f4f1e8]/70">
             &copy; {COPYRIGHT_YEAR} Soil &amp; Soul. All rights reserved.
           </p>
