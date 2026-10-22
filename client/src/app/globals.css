@@ -12,6 +12,25 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
+  /* Brand palette — used by the shop, account and admin pages
+     (e.g. bg-forest, text-heading, border-line). */
+  --color-forest: #24452a;
+  --color-forest-dark: #1b3520;
+  --color-heading: #1f3d24;
+  --color-ink: #1b2a1c;
+  --color-body: #3f4a3a;
+  --color-muted: #5e6858;
+  --color-faint: #8a8f84;
+  --color-cream: #faf8f2;
+  --color-sand: #f4efe4;
+  --color-sage-50: #eef0e3;
+  --color-sage-100: #dfe6d0;
+  --color-sage-300: #b9c9a6;
+  --color-line: #ebe6da;
+  --color-line-sage: #e2e5d4;
+  --color-gold: #e5a43b;
+  --color-danger: #b42318;
+
   /* Entrance animation — CSS-only so content never waits on JS. */
   --animate-fade-up: fade-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
 

@@ -83,7 +83,6 @@ export default function HeroSection() {
           fill
           priority
           sizes="(min-width: 768px) 100vw, 170vw"
-          quality={85}
           className="object-cover object-[74%_center] sm:object-[70%_center] md:object-[center_60%]"
         />
         {/* Mobile: blend the photo's top edge into the cream copy area */}

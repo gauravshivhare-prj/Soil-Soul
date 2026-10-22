@@ -19,7 +19,7 @@ import { usePathname } from "next/navigation";
 
 const SECONDARY_LINKS = [
   { label: "My Account", href: "/account", icon: "user" },
-  { label: "Wishlist", href: "/wishlist", icon: "heart" },
+  { label: "Wishlist", href: "/account/wishlist", icon: "heart" },
   { label: "Cart", href: "/cart", icon: "cart" },
 ];
 
@@ -210,7 +210,7 @@ export default function MobileNav({ links, brandFontClass }) {
                        focus-within:border-[#24452a] focus-within:bg-white"
             role="search"
             aria-label="Search products"
-            action="/search"
+            action="/shop"
             method="get"
           >
             <span className="text-[#6b6a62] flex-shrink-0">

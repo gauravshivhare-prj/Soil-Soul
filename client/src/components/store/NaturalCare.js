@@ -2,7 +2,7 @@
  * NaturalCare — "Natural Care, Rooted in Plants" product spotlight.
  *
  * Server Component. Renders the product list it is given (defaults to the
- * local NATURAL_CARE_PRODUCTS mock data) so it can later take API results.
+ * catalog's natural-care spotlight) so it can later take API results.
  *
  * Card layout:
  *   below sm — one column, image beside details.
@@ -14,7 +14,8 @@
 
 import Link from "next/link";
 import { brandSerif } from "@/app/fonts";
-import { NATURAL_CARE_PRODUCTS } from "@/data/products";
+import { getNaturalCareSpotlight } from "@/services/catalog";
+import { productHref } from "@/lib/routes";
 import { formatPrice } from "@/lib/format";
 
 function ArrowRightIcon({ size = 14 }) {
@@ -40,7 +41,7 @@ function ArrowRightIcon({ size = 14 }) {
 
 /* ─── Card ──────────────────────────────────────────────────────── */
 function NaturalCareCard({ product }) {
-  const { name, price, benefits } = product;
+  const { slug, name, price, benefits } = product;
 
   return (
     <article
@@ -69,7 +70,7 @@ function NaturalCareCard({ product }) {
           {formatPrice(price)}
         </p>
         <Link
-          href="/natural-care"
+          href={productHref(slug)}
           className="group mt-3 self-start inline-flex items-center gap-1.5 h-8 px-4 rounded-md
                      bg-[#24452a] text-[#f4f1e8] text-xs font-medium no-underline whitespace-nowrap
                      transition-colors duration-200 hover:bg-[#1b3520]
@@ -85,7 +86,7 @@ function NaturalCareCard({ product }) {
 }
 
 /* ─── Section ───────────────────────────────────────────────────── */
-export default function NaturalCare({ products = NATURAL_CARE_PRODUCTS }) {
+export default function NaturalCare({ products = getNaturalCareSpotlight() }) {
   return (
     <section aria-labelledby="natural-care-heading" className="bg-[#faf8f2] pb-8 lg:pb-10">
       <div className="max-w-[1536px] mx-auto px-4 sm:px-8 xl:px-10">

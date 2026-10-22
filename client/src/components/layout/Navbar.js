@@ -22,6 +22,7 @@ import Link from "next/link";
 import { brandSerif } from "@/app/fonts";
 import DesktopNav from "./DesktopNav";
 import MobileNav from "./MobileNav";
+import CartLink from "./CartLink";
 
 
 /* ─── Navigation link definitions ─────────────────────────────────── */
@@ -142,12 +143,6 @@ function UserIcon() {
 
 /* ─── Component ─────────────────────────────────────────────────── */
 export default function Navbar() {
-  /**
-   * cartCount will be wired to real state in a later phase.
-   * Hardcoded 0 keeps the badge hidden and aria-label correct.
-   */
-  const cartCount = 0;
-
   const iconBtnClass =
     "relative items-center justify-center w-10 h-10 xl:w-11 xl:h-11 rounded-full flex-shrink-0 " +
     "text-[#1f241d] no-underline bg-transparent transition-colors duration-150 " +
@@ -219,7 +214,7 @@ export default function Navbar() {
                            focus-within:border-[#24452a] focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(36,69,42,0.14)]"
                 role="search"
                 aria-label="Search products"
-                action="/search"
+                action="/shop"
                 method="get"
               >
                 <span className="text-[#6b6a62] flex-shrink-0">
@@ -238,40 +233,21 @@ export default function Navbar() {
               </form>
 
               {/* Search icon — replaces the pill below xl */}
-              <Link href="/search" className={`${iconBtnClass} inline-flex xl:hidden`} aria-label="Search">
+              <Link href="/shop" className={`${iconBtnClass} inline-flex xl:hidden`} aria-label="Search">
                 <span className="[&>svg]:w-[22px] [&>svg]:h-[22px]">
                   <SearchIcon />
                 </span>
               </Link>
 
               {/* Wishlist */}
-              <Link href="/wishlist" className={`${iconBtnClass} hidden sm:inline-flex`} aria-label="Wishlist">
+              <Link href="/account/wishlist" className={`${iconBtnClass} hidden sm:inline-flex`} aria-label="Wishlist">
                 <HeartIcon />
               </Link>
 
               {/* Cart */}
-              <Link
-                href="/cart"
-                className={`${iconBtnClass} inline-flex`}
-                aria-label={
-                  cartCount > 0
-                    ? `Cart — ${cartCount} ${cartCount === 1 ? "item" : "items"}`
-                    : "Cart — empty"
-                }
-              >
+              <CartLink className={`${iconBtnClass} inline-flex`}>
                 <CartIcon />
-                {cartCount > 0 && (
-                  <span
-                    className="absolute top-0.5 right-0 min-w-[1.15rem] h-[1.15rem] px-1
-                               rounded-full bg-[#24452a] text-white
-                               text-[0.65rem] font-bold leading-none
-                               flex items-center justify-center pointer-events-none"
-                    aria-hidden="true"
-                  >
-                    {cartCount}
-                  </span>
-                )}
-              </Link>
+              </CartLink>
 
               {/* Account */}
               <Link href="/account" className={`${iconBtnClass} hidden sm:inline-flex`} aria-label="My account">

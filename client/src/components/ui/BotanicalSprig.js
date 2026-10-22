@@ -17,7 +17,8 @@ import Image from "next/image";
 export const SPRIG_SRC = "/images/botanical/leafy-branch.png";
 const SPRIG_RATIO = 681 / 1013; // width / height
 
-export default function BotanicalSprig({ className = "", style, flip = false, rotate = 0, sizes = "320px" }) {
+/* `eager`: set when the sprig sits above the fold (e.g. page banners). */
+export default function BotanicalSprig({ className = "", style, flip = false, rotate = 0, sizes = "320px", eager = false }) {
   const transform = `${flip ? "scaleX(-1) " : ""}rotate(${rotate}deg)`;
   return (
     <div
@@ -25,7 +26,7 @@ export default function BotanicalSprig({ className = "", style, flip = false, ro
       style={{ aspectRatio: SPRIG_RATIO, transform, ...style }}
       aria-hidden="true"
     >
-      <Image src={SPRIG_SRC} alt="" fill sizes={sizes} className="object-contain" draggable={false} />
+      <Image src={SPRIG_SRC} alt="" fill sizes={sizes} loading={eager ? "eager" : undefined} className="object-contain" draggable={false} />
     </div>
   );
 }

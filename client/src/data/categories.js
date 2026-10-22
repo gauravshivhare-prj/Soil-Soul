@@ -3,7 +3,9 @@
  *
  * Shaped like the future backend response so the array can be swapped for
  * an API call without touching the components that render it:
- *   { id, slug, name, tagline, image: { src, alt } }
+ *   { id, slug, name, shortName, tagline, image: { src, alt } }
+ *
+ * `shortName` is used on badges and filters ("Natural Care" for skincare).
  *
  * Images live in public/images/categories/ (square, 1254 × 1254).
  */
@@ -12,6 +14,7 @@ export const CATEGORIES = [
   {
     id: "live-plants",
     slug: "live-plants",
+    shortName: "Live Plants",
     name: "Live Plants",
     tagline: "Indoor, outdoor & more",
     image: {
@@ -22,6 +25,7 @@ export const CATEGORIES = [
   {
     id: "pots-planters",
     slug: "pots-planters",
+    shortName: "Pots & Planters",
     name: "Pots & Planters",
     tagline: "For every space",
     image: {
@@ -32,6 +36,7 @@ export const CATEGORIES = [
   {
     id: "soil-fertilizers",
     slug: "soil-fertilizers",
+    shortName: "Soil & Fertilizers",
     name: "Soil & Fertilizers",
     tagline: "Healthy soil, healthy plants",
     image: {
@@ -42,6 +47,7 @@ export const CATEGORIES = [
   {
     id: "seeds-tools",
     slug: "seeds-tools",
+    shortName: "Seeds & Tools",
     name: "Seeds & Tools",
     tagline: "Grow your own",
     image: {
@@ -52,6 +58,7 @@ export const CATEGORIES = [
   {
     id: "natural-skincare",
     slug: "natural-skincare",
+    shortName: "Natural Care",
     name: "Natural Skincare",
     tagline: "Pure plant power",
     image: {
@@ -62,6 +69,7 @@ export const CATEGORIES = [
   {
     id: "hair-body-care",
     slug: "hair-body-care",
+    shortName: "Hair & Body Care",
     name: "Hair & Body Care",
     tagline: "Gentle & natural",
     image: {
