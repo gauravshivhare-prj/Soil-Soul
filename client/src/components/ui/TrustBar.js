@@ -97,7 +97,7 @@ export default function TrustBar() {
           {TRUST_ITEMS.map(({ Icon, title, subtitle }, i) => (
             <li
               key={title}
-              className={`relative flex flex-col items-center text-center gap-2.5 px-3 py-5
+              className={`relative flex flex-col items-center text-center gap-2 px-2.5 py-4
                           sm:flex-row sm:text-left sm:gap-3.5 sm:px-5 lg:gap-3 lg:px-3
                           lg:justify-center lg:py-0 lg:border-0 border-[#dfe3cf]
                           ${gridBorderClass(i)}`}
@@ -111,7 +111,7 @@ export default function TrustBar() {
               )}
               <span
                 className="flex items-center justify-center flex-shrink-0 rounded-full
-                           w-12 h-12 lg:w-11 lg:h-11 2xl:w-14 2xl:h-14 bg-[#dfe6d0] text-[#24452a]"
+                           w-10 h-10 sm:w-12 sm:h-12 lg:w-11 lg:h-11 2xl:w-14 2xl:h-14 bg-[#dfe6d0] text-[#24452a]"
               >
                 <Icon />
               </span>

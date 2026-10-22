@@ -158,25 +158,24 @@ function LeafMark() {
 
 /* Line-art plant + handwritten tagline (shown xl+). */
 const PLANT_LEAVES = [
-  { x: 50, y: 150, rotate: -60, scale: 0.75 },
-  { x: 52, y: 132, rotate: 55, scale: 0.8 },
-  { x: 54, y: 108, rotate: -50, scale: 0.85 },
-  { x: 56, y: 86, rotate: 45, scale: 0.85 },
-  { x: 58, y: 64, rotate: -35, scale: 0.75 },
-  { x: 60, y: 46, rotate: 20, scale: 0.7 },
+  { x: 50, y: 150, rotate: -62, scale: 0.7 },
+  { x: 53, y: 124, rotate: 55, scale: 0.75 },
+  { x: 55, y: 96, rotate: -50, scale: 0.75 },
+  { x: 58, y: 70, rotate: 42, scale: 0.7 },
+  { x: 61, y: 46, rotate: -20, scale: 0.62 },
 ];
 
 function FooterSprig() {
   return (
-    <div className="flex items-start gap-1 text-[#f4f1e8]/80" aria-hidden="true">
-      <svg width="96" height="160" viewBox="0 0 110 180" fill="none" focusable="false">
+    <div className="flex items-start gap-0.5 text-[#f4f1e8]/80" aria-hidden="true">
+      <svg width="66" height="112" viewBox="0 0 110 180" fill="none" focusable="false">
         <path d="M48 180C50 140 56 90 62 40" stroke="rgba(244,241,232,0.5)" strokeWidth="1.2" strokeLinecap="round" />
         {PLANT_LEAVES.map((leaf) => (
-          <Leaf key={leaf.y} variant="line" stroke="rgba(244,241,232,0.55)" {...leaf} />
+          <Leaf key={leaf.y} {...leaf} />
         ))}
       </svg>
       <p
-        className={`${scriptFont.className} m-0 mt-2 -rotate-12 text-[1.55rem] xl:text-[1.75rem] leading-[1.05]`}
+        className={`${scriptFont.className} m-0 mt-1 -rotate-12 text-[1.3rem] 2xl:text-[1.45rem] leading-[1.05]`}
       >
         Good Choices,
         <br />
@@ -198,11 +197,11 @@ export default function Footer() {
     <footer className="mt-auto bg-[#24452a] text-[#f4f1e8] font-sans">
       <div className="max-w-[1536px] mx-auto px-5 sm:px-8 xl:px-10">
         <div
-          className="grid grid-cols-2 gap-x-6 gap-y-8 pt-9 pb-7 sm:grid-cols-4
-                     lg:grid-cols-[1.35fr_1fr_1fr_1.1fr_1.25fr] xl:grid-cols-[1.35fr_1fr_1fr_1.1fr_1.25fr_auto] lg:gap-x-8"
+          className="grid grid-cols-2 gap-x-5 gap-y-7 pt-9 pb-7 sm:grid-cols-4 sm:gap-x-6
+                     lg:flex lg:items-start lg:justify-between lg:gap-8"
         >
           {/* Brand */}
-          <div className="col-span-2 sm:col-span-4 lg:col-span-1">
+          <div className="col-span-2 sm:col-span-4 lg:w-[15.5rem] lg:flex-shrink-0">
             <Link
               href="/"
               aria-label="Soil & Soul — home"
@@ -217,9 +216,9 @@ export default function Footer() {
                 </span>
               </span>
             </Link>
-            <p className="m-0 mt-4 text-[0.8125rem] text-[#f4f1e8]/80">Greener homes. Healthier lives.</p>
+            <p className="m-0 mt-3 text-[0.8125rem] text-[#f4f1e8]/80">Greener homes. Healthier lives.</p>
 
-            <ul role="list" className="list-none m-0 mt-4 p-0 flex items-center gap-2">
+            <ul role="list" className="list-none m-0 mt-2.5 -ml-2 p-0 flex items-center gap-1">
               {SOCIAL_LINKS.map(({ label, icon, href }) => (
                 <li key={icon}>
                   {href ? (
@@ -247,8 +246,8 @@ export default function Footer() {
           {/* Link columns */}
           {LINK_COLUMNS.map(({ title, links }) => (
             <nav key={title} aria-label={title}>
-              <h2 className="m-0 text-sm font-semibold text-white">{title}</h2>
-              <ul role="list" className="list-none m-0 mt-3 p-0 grid gap-1.5">
+              <h2 className="m-0 text-xs font-semibold uppercase tracking-[0.12em] text-white">{title}</h2>
+              <ul role="list" className="list-none m-0 mt-4 p-0 grid gap-2 leading-snug lg:whitespace-nowrap">
                 {links.map(({ label, href }) => (
                   <li key={label}>
                     <Link href={href} className={linkClass}>
@@ -262,8 +261,8 @@ export default function Footer() {
 
           {/* Contact */}
           <div>
-            <h2 className="m-0 text-sm font-semibold text-white">Contact Us</h2>
-            <address className="not-italic mt-3.5 grid gap-2.5 text-[0.8125rem] text-[#f4f1e8]/80">
+            <h2 className="m-0 text-xs font-semibold uppercase tracking-[0.12em] text-white">Contact Us</h2>
+            <address className="not-italic mt-4 grid gap-2.5 text-[0.8125rem] leading-snug break-words lg:whitespace-nowrap text-[#f4f1e8]/80">
               <p className="m-0 flex gap-2.5">
                 <span className="mt-px flex-shrink-0"><PinIcon /></span>
                 <span>
@@ -288,7 +287,7 @@ export default function Footer() {
           </div>
 
           {/* Decorative sprig + tagline (xl+) */}
-          <div className="hidden xl:block">
+          <div className="hidden xl:flex flex-shrink-0 justify-end -mt-1">
             <FooterSprig />
           </div>
         </div>

@@ -10,40 +10,19 @@
 import Image from "next/image";
 import Link from "next/link";
 import { brandSerif } from "@/app/fonts";
-import { Leaf, LeafDefs, Stem, leafShadow } from "@/components/ui/LeafArt";
+import BotanicalSprig from "@/components/ui/BotanicalSprig";
 
 const STORY_IMAGE = "/images/Nurturing a Sunlit Seedling.png";
 
-/* ─── Painted leaf branch (right edge, lg+) ─────────────────────── */
-const BRANCH_LEAVES = [
-  { x: 92, y: 30, rotate: -20, scale: 0.9, light: true },
-  { x: 86, y: 70, rotate: -75, scale: 1 },
-  { x: 90, y: 104, rotate: 35, scale: 1.05, light: true },
-  { x: 80, y: 150, rotate: -80, scale: 1.15 },
-  { x: 86, y: 190, rotate: 45, scale: 1.1, light: true },
-  { x: 74, y: 240, rotate: -85, scale: 1.2 },
-  { x: 82, y: 282, rotate: 50, scale: 1.1, light: true },
-  { x: 72, y: 330, rotate: -70, scale: 1 },
-];
-
+/* ─── Botanical branch (right edge, lg+) ────────────────────────── */
 function LeafBranch() {
   return (
-    <svg
-      className="hidden lg:block absolute right-0 top-0 h-full w-auto pointer-events-none"
-      viewBox="0 0 130 360"
-      preserveAspectRatio="xMaxYMid meet"
-      fill="none"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <LeafDefs id="story-leaf" />
-      <Stem d="M104 -6C98 80 86 180 80 260S72 340 68 370" width={2} />
-      <g filter={leafShadow("story-leaf")}>
-        {BRANCH_LEAVES.map((leaf) => (
-          <Leaf key={leaf.y} ids="story-leaf" {...leaf} />
-        ))}
-      </g>
-    </svg>
+    <BotanicalSprig
+      className="hidden lg:block -right-[6%] -bottom-[8%] h-[112%] opacity-85"
+      flip
+      rotate={-6}
+      sizes="320px"
+    />
   );
 }
 
@@ -83,13 +62,13 @@ export default function OurStory() {
               src={STORY_IMAGE}
               alt="Hands gently pressing soil around a young seedling in a sunlit garden bed"
               fill
-              sizes="(min-width: 1536px) 700px, (min-width: 768px) 48vw, 100vw"
+              sizes="(min-width: 1024px) 70vw, (min-width: 768px) 120vw, 190vw"
               className="object-cover object-[52%_center]"
             />
           </div>
 
           {/* Copy */}
-          <div className="relative flex items-center px-6 py-7 sm:px-10 md:py-8 lg:px-12 xl:px-14 lg:pr-36 xl:pr-44">
+          <div className="relative flex items-center px-6 py-7 sm:px-10 md:py-8 lg:px-12 xl:px-14 lg:pr-32 xl:pr-40">
             <LeafBranch />
             <div className="relative max-w-[30rem]">
               <p className="m-0 text-[0.6875rem] sm:text-xs font-medium tracking-[0.2em] uppercase text-[#6d7f60]">

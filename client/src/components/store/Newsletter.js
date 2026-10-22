@@ -11,44 +11,7 @@
 
 import { useState } from "react";
 import { brandSerif } from "@/app/fonts";
-import { Leaf, LeafDefs, Stem, leafShadow } from "@/components/ui/LeafArt";
-
-/* Sprigs at the band's left and right ends (lg+). */
-const LEFT_SPRIG = [
-  { x: 38, y: 92, rotate: -40, scale: 0.85 },
-  { x: 52, y: 70, rotate: 25, scale: 0.9 },
-  { x: 62, y: 46, rotate: -55, scale: 0.75 },
-  { x: 76, y: 30, rotate: 40, scale: 0.7 },
-  { x: 30, y: 112, rotate: -95, scale: 0.8 },
-];
-
-const RIGHT_SPRIG = [
-  { x: 62, y: 96, rotate: 40, scale: 0.85 },
-  { x: 50, y: 72, rotate: -25, scale: 0.9 },
-  { x: 42, y: 48, rotate: 55, scale: 0.75 },
-  { x: 30, y: 30, rotate: -40, scale: 0.7 },
-  { x: 72, y: 114, rotate: 95, scale: 0.8 },
-];
-
-function Sprig({ id, leaves, stem, className }) {
-  return (
-    <svg
-      className={`hidden lg:block absolute top-1/2 -translate-y-1/2 h-[120%] w-auto pointer-events-none ${className}`}
-      viewBox="0 0 110 130"
-      fill="none"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <LeafDefs id={id} />
-      <Stem d={stem} width={1.8} />
-      <g filter={leafShadow(id)}>
-        {leaves.map((leaf, i) => (
-          <Leaf key={`${leaf.x}-${leaf.y}`} ids={id} light={i % 2 === 1} {...leaf} />
-        ))}
-      </g>
-    </svg>
-  );
-}
+import BotanicalSprig from "@/components/ui/BotanicalSprig";
 
 function ArrowRightIcon() {
   return (
@@ -82,11 +45,12 @@ export default function Newsletter() {
 
   return (
     <section aria-labelledby="newsletter-heading" className="relative overflow-hidden bg-[#eef0e3] border-y border-[#e2e5d4]">
-      <Sprig id="news-left" leaves={LEFT_SPRIG} stem="M10 135C30 100 55 60 85 20" className="-left-2" />
-      <Sprig id="news-right" leaves={RIGHT_SPRIG} stem="M100 135C80 100 55 60 25 20" className="-right-2" />
+      {/* Small sprigs at the band's outer corners (lg+) */}
+      <BotanicalSprig className="hidden lg:block left-2 -bottom-[12%] h-[125%] opacity-75" rotate={-8} sizes="320px" />
+      <BotanicalSprig className="hidden lg:block right-2 -bottom-[12%] h-[125%] opacity-75" flip rotate={-8} sizes="320px" />
 
       <div
-        className="relative max-w-[1536px] mx-auto px-4 sm:px-8 lg:px-28 xl:px-36 py-6 lg:py-6
+        className="relative max-w-[1536px] mx-auto px-4 sm:px-8 lg:px-28 xl:px-32 py-5 lg:py-5
                    flex flex-col gap-5 md:flex-row md:items-center md:justify-between md:gap-8"
       >
         <div className="min-w-0">
