@@ -1,0 +1,123 @@
+/**
+ * OurStory — "Grow Good Things" brand story teaser.
+ *
+ * Server Component. Layout:
+ *   md and up — photo on the left half, copy on a cream panel on the right
+ *               (line-art leaves along the right edge from lg).
+ *   below md  — photo on top, copy below.
+ */
+
+import Image from "next/image";
+import Link from "next/link";
+import { brandSerif } from "@/app/fonts";
+import { Leaf } from "@/components/ui/LeafArt";
+
+const STORY_IMAGE = "/images/Nurturing a Sunlit Seedling.png";
+
+/* ─── Line-art leaf branch (right edge, lg+) ────────────────────── */
+const BRANCH_LEAVES = [
+  { x: 92, y: 30, rotate: -20, scale: 0.9 },
+  { x: 86, y: 70, rotate: -75, scale: 1 },
+  { x: 90, y: 104, rotate: 35, scale: 1.05 },
+  { x: 80, y: 150, rotate: -80, scale: 1.15 },
+  { x: 86, y: 190, rotate: 45, scale: 1.1 },
+  { x: 74, y: 240, rotate: -85, scale: 1.2 },
+  { x: 82, y: 282, rotate: 50, scale: 1.1 },
+  { x: 72, y: 330, rotate: -70, scale: 1 },
+];
+
+function LeafBranch() {
+  return (
+    <svg
+      className="hidden lg:block absolute right-0 top-0 h-full w-auto pointer-events-none"
+      viewBox="0 0 130 360"
+      preserveAspectRatio="xMaxYMid meet"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M104 -6C98 80 86 180 80 260S72 340 68 370" stroke="#9cb38b" strokeWidth="1.3" strokeLinecap="round" />
+      {BRANCH_LEAVES.map((leaf) => (
+        <Leaf key={leaf.y} {...leaf} />
+      ))}
+    </svg>
+  );
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      className="transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
+    >
+      <line x1="5" y1="12" x2="19" y2="12" />
+      <polyline points="12 5 19 12 12 19" />
+    </svg>
+  );
+}
+
+/* ─── Component ─────────────────────────────────────────────────── */
+export default function OurStory() {
+  return (
+    <section aria-labelledby="our-story-heading" className="bg-[#faf8f2] pb-12 lg:pb-16">
+      <div className="max-w-[1536px] mx-auto px-4 sm:px-8 xl:px-10">
+        <div
+          className="grid md:grid-cols-[1fr_1.1fr] overflow-hidden rounded-2xl
+                     border border-[#ebe6da] bg-[#f4f0e6]"
+        >
+          {/* Photo */}
+          <div className="relative aspect-[16/10] md:aspect-auto md:min-h-[300px] lg:min-h-[340px]">
+            <Image
+              src={STORY_IMAGE}
+              alt="Hands gently pressing soil around a young seedling in a sunlit garden bed"
+              fill
+              sizes="(min-width: 1536px) 700px, (min-width: 768px) 48vw, 100vw"
+              className="object-cover object-[52%_center]"
+            />
+          </div>
+
+          {/* Copy */}
+          <div className="relative flex items-center px-6 py-8 sm:px-10 md:py-10 lg:px-12 xl:px-16 lg:pr-36 xl:pr-44">
+            <LeafBranch />
+            <div className="relative max-w-[30rem]">
+              <p className="m-0 text-[0.6875rem] sm:text-xs font-medium tracking-[0.2em] uppercase text-[#6d7f60]">
+                Our Story
+              </p>
+              <h2
+                id="our-story-heading"
+                className={`${brandSerif.className} m-0 mt-2 font-bold leading-tight text-[#1f3d24]
+                            text-[1.6rem] sm:text-[1.85rem] xl:text-[2.2rem]`}
+              >
+                Grow Good Things
+              </h2>
+              <p className="m-0 mt-3 text-sm xl:text-[0.9375rem] leading-relaxed text-[#3f4a3a]">
+                Soil &amp; Soul was born from a simple belief &mdash; that a greener planet starts
+                with small choices. We bring you plants, gardening essentials and natural care
+                products to help you live more consciously, beautifully and in harmony with nature.
+              </p>
+              <Link
+                href="/our-story"
+                className="group mt-6 inline-flex items-center gap-2 h-10 px-5 rounded-md
+                           bg-[#24452a] text-[#f4f1e8] text-[0.8125rem] font-medium no-underline whitespace-nowrap
+                           transition-colors duration-200 hover:bg-[#1b3520]
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#24452a]"
+              >
+                Our Story
+                <ArrowRightIcon />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
