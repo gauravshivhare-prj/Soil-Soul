@@ -6,15 +6,16 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "dev:nodemon": "node ./node_modules/nodemon/bin/nodemon.js server.js"
+    "test": "node --test \"tests/**/*.test.js\""
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "helmet": "^8.0.0"
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.0.0",
+    "mongoose": "^9.11.3"
   },
-  "devDependencies": {
-    "nodemon": "^3.1.9"
+  "engines": {
+    "node": ">=20.19.0"
   }
 }
