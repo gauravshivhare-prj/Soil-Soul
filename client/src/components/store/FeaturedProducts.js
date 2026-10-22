@@ -19,12 +19,7 @@
 import { useState } from "react";
 import { brandSerif } from "@/app/fonts";
 import { FEATURED_FILTERS, FEATURED_PRODUCTS } from "@/data/products";
-
-const rupees = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 });
-
-function formatPrice(amount) {
-  return `₹${rupees.format(amount)}`;
-}
+import { formatPrice } from "@/lib/format";
 
 /* ─── Icons ─────────────────────────────────────────────────────── */
 function HeartIcon() {
@@ -153,7 +148,7 @@ export default function FeaturedProducts({
     : products;
 
   return (
-    <section aria-labelledby="featured-products-heading" className="bg-[#faf8f2] pb-12 lg:pb-16">
+    <section aria-labelledby="featured-products-heading" className="bg-[#faf8f2] pb-8 lg:pb-10">
       <div className="max-w-[1536px] mx-auto px-4 sm:px-8 xl:px-10">
         {/* Header */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between mb-5 sm:mb-6 lg:mb-7">

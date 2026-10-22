@@ -1,0 +1,105 @@
+/**
+ * PromoBanner — "Make Room for More Green" gardening promotion.
+ *
+ * Server Component. The artwork already contains the dark-green panel and
+ * line-art leaves on its left third, so the copy is laid over that area.
+ *
+ * Layout:
+ *   md and up — image fills a 3:1 banner, copy over the green panel.
+ *   below md  — copy on solid green first, then the photo cropped towards
+ *               the products (a 3:1 banner would be too thin to read).
+ */
+
+import Image from "next/image";
+import Link from "next/link";
+import { brandSerif } from "@/app/fonts";
+
+const BANNER_IMAGE = "/images/Soil & Soul Garden Still Life.png";
+
+/* Matches the green panel baked into the artwork. */
+const PANEL_GREEN = "#1f4a2b";
+
+function ArrowRight() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+      className="transition-transform duration-200 group-hover:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
+    >
+      <line x1="5" y1="12" x2="19" y2="12" />
+      <polyline points="12 5 19 12 12 19" />
+    </svg>
+  );
+}
+
+export default function PromoBanner() {
+  return (
+    <section aria-labelledby="promo-banner-heading" className="bg-[#faf8f2] pb-6 lg:pb-8">
+      <div className="max-w-[1536px] mx-auto px-4 sm:px-8 xl:px-10">
+        <div
+          className="relative flex flex-col md:block overflow-hidden rounded-2xl md:aspect-[2170/725]"
+          style={{ backgroundColor: PANEL_GREEN }}
+        >
+          {/* Photo */}
+          <div className="relative order-2 aspect-[4/3] sm:aspect-[16/9] md:absolute md:inset-0 md:aspect-auto">
+            <Image
+              src={BANNER_IMAGE}
+              alt="Potted plant, terracotta pots, organic compost, trowel and watering can on a wooden table"
+              fill
+              sizes="(min-width: 1536px) 1456px, 100vw"
+              className="object-cover object-[78%_center] md:object-center"
+            />
+            {/* Mobile: blend the photo's top edge into the green copy panel */}
+            <div
+              className="md:hidden absolute inset-x-0 top-0 h-16"
+              style={{ backgroundImage: `linear-gradient(to bottom, ${PANEL_GREEN}, transparent)` }}
+            />
+          </div>
+
+          {/* Copy */}
+          <div
+            className="relative z-[1] order-1 px-6 pt-8 pb-5 sm:px-8
+                       md:absolute md:inset-y-0 md:left-0 md:w-[42%] md:p-0 md:pl-[7.5%] md:flex md:items-center"
+          >
+            <div>
+              <h2
+                id="promo-banner-heading"
+                className={`${brandSerif.className} m-0 font-semibold leading-[1.12] text-[#f7f3e8]
+                            text-[1.85rem] sm:text-[2.2rem] md:text-[clamp(1.6rem,3.2vw,3.1rem)]`}
+              >
+                Make Room
+                <br />
+                for More Green
+              </h2>
+              <p
+                className="m-0 mt-3 md:mt-[1.1vw] max-w-[22em] text-[0.9375rem] md:text-[clamp(0.85rem,1.15vw,1.0625rem)]
+                           leading-relaxed text-[#f7f3e8]/85"
+              >
+                Premium pots, rich soil, and all you need to help your plants thrive.
+              </p>
+              <Link
+                href="/gardening"
+                className="group mt-6 md:mt-[2vw] inline-flex items-center gap-2 h-11 md:h-[clamp(2.5rem,3.3vw,3rem)] px-6
+                           rounded-lg bg-[#faf8f2] text-[#1f3d24] text-[0.875rem] md:text-[clamp(0.8rem,1vw,0.9375rem)]
+                           font-semibold no-underline whitespace-nowrap shadow-[0_4px_14px_rgba(0,0,0,0.15)]
+                           transition-colors duration-200 hover:bg-white
+                           focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f7f3e8]"
+              >
+                Shop Gardening Essentials
+                <ArrowRight />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

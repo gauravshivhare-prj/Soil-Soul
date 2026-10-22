@@ -87,3 +87,38 @@ export const FEATURED_FILTERS = [
   { id: "soil-fertilizers", label: "Soil & Fertilizers", categories: ["soil-fertilizers"] },
   { id: "natural-care", label: "Natural Care", categories: ["natural-skincare", "hair-body-care"] },
 ];
+
+/**
+ * Natural care spotlight — products for the "Natural Care, Rooted in Plants"
+ * section. Same shape as FEATURED_PRODUCTS plus `benefits` (short labels
+ * shown as "Soothes • Hydrates • Repairs").
+ */
+export const NATURAL_CARE_PRODUCTS = [
+  {
+    id: "aloe-vera-gel",
+    slug: "aloe-vera-gel",
+    name: "Aloe Vera Gel",
+    category: { slug: "natural-skincare", name: "Natural Care" },
+    price: 399,
+    benefits: ["Soothes", "Hydrates", "Repairs"],
+    image: null,
+  },
+  {
+    id: "neem-face-wash",
+    slug: "neem-face-wash",
+    name: "Neem Face Wash",
+    category: { slug: "natural-skincare", name: "Natural Care" },
+    price: 249,
+    benefits: ["Purifies", "Refreshes", "Balances"],
+    image: null,
+  },
+  {
+    id: "herbal-shampoo",
+    slug: "herbal-shampoo",
+    name: "Herbal Shampoo",
+    category: { slug: "hair-body-care", name: "Hair & Body Care" },
+    price: 349,
+    benefits: ["Strengthens", "Nourishes", "Adds Shine"],
+    image: null,
+  },
+];
