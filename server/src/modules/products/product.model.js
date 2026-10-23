@@ -126,6 +126,37 @@ const productSchema = new mongoose.Schema(
         },
       ],
     },
+    restorationAudit: {
+      type: [
+        {
+          opKey: {
+            type: String,
+            required: true,
+          },
+          orderId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Order',
+            default: null,
+          },
+          orderNumber: {
+            type: String,
+            default: null,
+            trim: true,
+          },
+          quantity: {
+            type: Number,
+            required: true,
+            min: [1, 'Restored quantity must be at least 1.'],
+          },
+          restoredAt: {
+            type: Date,
+            default: Date.now,
+          },
+        },
+      ],
+      default: [],
+      select: false,
+    },
   },
   {
     timestamps: true,
@@ -134,6 +165,7 @@ const productSchema = new mongoose.Schema(
         ret.id = ret._id.toString();
         delete ret._id;
         delete ret.__v;
+        delete ret.restorationAudit;
         return ret;
       },
     },
@@ -146,6 +178,7 @@ productSchema.index({ categorySlug: 1, isActive: 1 });
 productSchema.index({ isActive: 1, isFeatured: 1 });
 productSchema.index({ isActive: 1, price: 1 });
 productSchema.index({ name: 'text', summary: 'text' });
+productSchema.index({ 'restorationAudit.opKey': 1 });
 
 export const Product = mongoose.model('Product', productSchema);
 export default Product;

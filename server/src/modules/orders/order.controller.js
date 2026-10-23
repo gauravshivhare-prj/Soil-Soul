@@ -83,3 +83,164 @@ export async function getOrderById(req, res, next) {
     next(err);
   }
 }
+
+/**
+ * Handle customer order cancellation.
+ */
+export async function cancelOrder(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body || {};
+
+    const result = await orderService.cancelOrder(req.user.id, id, {
+      reason,
+      actorRole: 'customer',
+    });
+
+    const order = result.order || result;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        order,
+        ...(result.warning ? { warning: result.warning } : {}),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Handle admin order list retrieval with filtering, search, sorting, and pagination.
+ */
+export async function getAdminOrders(req, res, next) {
+  try {
+    const {
+      page,
+      limit,
+      orderStatus,
+      paymentStatus,
+      paymentMethod,
+      startDate,
+      endDate,
+      search,
+      sortBy,
+      sortOrder,
+    } = req.query;
+
+    const result = await orderService.getAdminOrders({
+      page,
+      limit,
+      orderStatus,
+      paymentStatus,
+      paymentMethod,
+      startDate,
+      endDate,
+      search,
+      sortBy,
+      sortOrder,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Handle admin order detail retrieval by ObjectId or orderNumber.
+ */
+export async function getAdminOrderById(req, res, next) {
+  try {
+    const { id } = req.params;
+    const order = await orderService.getAdminOrderById(id);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        order,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Handle admin order status update.
+ */
+export async function updateOrderStatus(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { orderStatus, reason } = req.body || {};
+
+    const order = await orderService.updateOrderStatusByAdmin(id, {
+      orderStatus,
+      reason,
+      adminUserId: req.user.id,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        order,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Handle admin payment status update (e.g. COD collection on delivery or cash refund).
+ */
+export async function updatePaymentStatus(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { paymentStatus, note, amount, reason } = req.body || {};
+
+    const order = await orderService.updatePaymentStatusByAdmin(id, {
+      paymentStatus,
+      note,
+      amount,
+      reason,
+      adminUserId: req.user.id,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        order,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * Handle admin stock reconciliation for a cancelled order.
+ */
+export async function reconcileOrderStock(req, res, next) {
+  try {
+    const { id } = req.params;
+    const result = await orderService.reconcileStockForOrder(id, {
+      adminUserId: req.user.id,
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        order: result.order,
+        message: result.message,
+        alreadyCompleted: result.alreadyCompleted || false,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}

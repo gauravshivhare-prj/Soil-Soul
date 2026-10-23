@@ -12,5 +12,6 @@ router.get('/payment-methods', orderController.getPaymentMethods);
 router.post('/', orderController.createOrder);
 router.get('/', orderController.getOrderHistory);
 router.get('/:id', orderController.getOrderById);
+router.post('/:id/cancel', orderController.cancelOrder);
 
 export default router;

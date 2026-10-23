@@ -37,6 +37,34 @@ export async function authenticate(req, res, next) {
 }
 
 /**
+ * Role-based authorization middleware factory.
+ * Verifies that the authenticated user possesses one of the allowed roles.
+ * Must be used after `authenticate` middleware.
+ *
+ * @param {...string|string[]} roles - Allowed role(s) (e.g. 'admin' or 'admin', 'customer')
+ * @returns {import('express').RequestHandler}
+ */
+export function authorize(...roles) {
+  const allowed = roles.flat().filter(Boolean);
+
+  return (req, res, next) => {
+    try {
+      if (!req.user) {
+        throw createError(401, 'UNAUTHORIZED', 'Authentication token required.');
+      }
+
+      if (allowed.length > 0 && !allowed.includes(req.user.role)) {
+        throw createError(403, 'FORBIDDEN', 'Insufficient permissions.');
+      }
+
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
+/**
  * Stricter rate limiter specifically for authentication endpoints.
  */
 export const authLimiter = rateLimit({

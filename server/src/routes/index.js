@@ -5,6 +5,7 @@ import categoryRouter from '../modules/categories/category.routes.js';
 import productRouter from '../modules/products/product.routes.js';
 import cartRouter from '../modules/cart/cart.routes.js';
 import orderRouter from '../modules/orders/order.routes.js';
+import adminOrderRouter from '../modules/orders/admin.order.routes.js';
 
 const router = Router();
 
@@ -38,5 +39,8 @@ router.use('/cart', cartRouter);
 
 // Order routes (/api/v1/orders)
 router.use('/orders', orderRouter);
+
+// Admin order routes (/api/v1/admin/orders)
+router.use('/admin/orders', adminOrderRouter);
 
 export default router;

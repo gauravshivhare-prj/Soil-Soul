@@ -43,6 +43,14 @@ const orderItemSnapshotSchema = new mongoose.Schema(
       required: [true, 'Line total snapshot is required.'],
       min: [0, 'Line total cannot be negative.'],
     },
+    stockRestored: {
+      type: Boolean,
+      default: false,
+    },
+    restoredAt: {
+      type: Date,
+      default: null,
+    },
   },
   { _id: false }
 );
@@ -156,7 +164,7 @@ const orderSchema = new mongoose.Schema(
     },
     paymentStatus: {
       type: String,
-      enum: ['PENDING', 'PAID', 'FAILED', 'REFUNDED'],
+      enum: ['PENDING', 'PAID', 'FAILED', 'PARTIALLY_REFUNDED', 'REFUNDED'],
       default: 'PENDING',
       required: true,
     },
@@ -170,6 +178,184 @@ const orderSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: null,
+    },
+    cancellation: {
+      type: new mongoose.Schema(
+        {
+          reason: {
+            type: String,
+            default: null,
+            trim: true,
+            maxlength: [500, 'Cancellation reason cannot exceed 500 characters.'],
+          },
+          cancelledAt: {
+            type: Date,
+            default: null,
+          },
+          cancelledBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null,
+          },
+          actorRole: {
+            type: String,
+            enum: ['customer', 'admin'],
+            default: 'customer',
+          },
+          stockRestorationStatus: {
+            type: String,
+            enum: ['NOT_APPLICABLE', 'PENDING', 'PARTIAL', 'FAILED', 'COMPLETED'],
+            default: 'NOT_APPLICABLE',
+          },
+          restorationErrors: {
+            type: [
+              new mongoose.Schema(
+                {
+                  productId: {
+                    type: mongoose.Schema.Types.ObjectId,
+                    ref: 'Product',
+                  },
+                  name: {
+                    type: String,
+                    default: null,
+                  },
+                  quantity: {
+                    type: Number,
+                    default: 0,
+                  },
+                  error: {
+                    type: String,
+                    default: null,
+                  },
+                  failedAt: {
+                    type: Date,
+                    default: Date.now,
+                  },
+                },
+                { _id: false }
+              ),
+            ],
+            default: [],
+          },
+          isReconciling: {
+            type: Boolean,
+            default: false,
+          },
+          reconciliationToken: {
+            type: String,
+            default: null,
+          },
+          reconciliationLeaseExpiresAt: {
+            type: Date,
+            default: null,
+          },
+          reconciliationFencingToken: {
+            type: Number,
+            default: 0,
+          },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
+    paymentDetails: {
+      type: new mongoose.Schema(
+        {
+          collectedAt: {
+            type: Date,
+            default: null,
+          },
+          collectedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null,
+          },
+          note: {
+            type: String,
+            default: null,
+            trim: true,
+            maxlength: [500, 'Payment note cannot exceed 500 characters.'],
+          },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
+    refundDetails: {
+      type: new mongoose.Schema(
+        {
+          refundedAt: {
+            type: Date,
+            default: null,
+          },
+          refundedBy: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null,
+          },
+          amount: {
+            type: Number,
+            default: null,
+            min: [0, 'Refund amount cannot be negative.'],
+          },
+          reason: {
+            type: String,
+            default: null,
+            trim: true,
+            maxlength: [500, 'Refund reason cannot exceed 500 characters.'],
+          },
+          note: {
+            type: String,
+            default: null,
+            trim: true,
+            maxlength: [500, 'Refund note cannot exceed 500 characters.'],
+          },
+        },
+        { _id: false }
+      ),
+      default: null,
+    },
+    totalRefunded: {
+      type: Number,
+      default: 0,
+      min: [0, 'Total refunded amount cannot be negative.'],
+    },
+    refunds: {
+      type: [
+        new mongoose.Schema(
+          {
+            refundedAt: {
+              type: Date,
+              default: Date.now,
+              required: true,
+            },
+            refundedBy: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: 'User',
+              required: true,
+            },
+            amount: {
+              type: Number,
+              required: true,
+              min: [0.01, 'Refund amount must be greater than zero.'],
+            },
+            reason: {
+              type: String,
+              required: true,
+              trim: true,
+              maxlength: [500, 'Refund reason cannot exceed 500 characters.'],
+            },
+            note: {
+              type: String,
+              default: null,
+              trim: true,
+              maxlength: [500, 'Refund note cannot exceed 500 characters.'],
+            },
+          },
+          { _id: true }
+        ),
+      ],
+      default: [],
     },
   },
   {
@@ -187,6 +373,8 @@ const orderSchema = new mongoose.Schema(
 
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1 });
+orderSchema.index({ createdAt: -1 });
+orderSchema.index({ paymentStatus: 1 });
 orderSchema.index(
   { user: 1, idempotencyKey: 1 },
   { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } }
