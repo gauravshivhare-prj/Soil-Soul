@@ -1,0 +1,196 @@
+import mongoose from 'mongoose';
+
+const orderItemSnapshotSchema = new mongoose.Schema(
+  {
+    product: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Product',
+      required: [true, 'Product reference is required.'],
+    },
+    name: {
+      type: String,
+      required: [true, 'Product name snapshot is required.'],
+      trim: true,
+    },
+    slug: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    image: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    option: {
+      id: { type: String, default: null, trim: true },
+      name: { type: String, default: null, trim: true },
+      detail: { type: String, default: null, trim: true },
+      priceDelta: { type: Number, default: 0 },
+    },
+    unitPrice: {
+      type: Number,
+      required: [true, 'Unit price snapshot is required.'],
+      min: [0, 'Unit price cannot be negative.'],
+    },
+    quantity: {
+      type: Number,
+      required: [true, 'Quantity is required.'],
+      min: [1, 'Quantity must be at least 1.'],
+      max: [10, 'Quantity cannot exceed 10.'],
+    },
+    lineTotal: {
+      type: Number,
+      required: [true, 'Line total snapshot is required.'],
+      min: [0, 'Line total cannot be negative.'],
+    },
+  },
+  { _id: false }
+);
+
+const deliveryAddressSchema = new mongoose.Schema(
+  {
+    recipientName: {
+      type: String,
+      required: [true, 'Recipient name is required.'],
+      trim: true,
+      maxlength: [100, 'Recipient name cannot exceed 100 characters.'],
+    },
+    phone: {
+      type: String,
+      required: [true, 'Phone number is required.'],
+      trim: true,
+      maxlength: [20, 'Phone number cannot exceed 20 characters.'],
+    },
+    addressLine1: {
+      type: String,
+      required: [true, 'Address line 1 is required.'],
+      trim: true,
+      maxlength: [200, 'Address line 1 cannot exceed 200 characters.'],
+    },
+    addressLine2: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: [200, 'Address line 2 cannot exceed 200 characters.'],
+    },
+    city: {
+      type: String,
+      required: [true, 'City is required.'],
+      trim: true,
+      maxlength: [100, 'City cannot exceed 100 characters.'],
+    },
+    state: {
+      type: String,
+      required: [true, 'State is required.'],
+      trim: true,
+      maxlength: [100, 'State cannot exceed 100 characters.'],
+    },
+    postalCode: {
+      type: String,
+      required: [true, 'Postal code is required.'],
+      trim: true,
+      maxlength: [20, 'Postal code cannot exceed 20 characters.'],
+    },
+    country: {
+      type: String,
+      default: 'India',
+      trim: true,
+      maxlength: [50, 'Country cannot exceed 50 characters.'],
+    },
+  },
+  { _id: false }
+);
+
+const orderSchema = new mongoose.Schema(
+  {
+    orderNumber: {
+      type: String,
+      required: [true, 'Order number is required.'],
+      unique: true,
+      trim: true,
+      uppercase: true,
+    },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: [true, 'User reference is required.'],
+      index: true,
+    },
+    items: {
+      type: [orderItemSnapshotSchema],
+      required: [true, 'Order items are required.'],
+      validate: [
+        (val) => Array.isArray(val) && val.length > 0,
+        'Order must contain at least one item.',
+      ],
+    },
+    deliveryAddress: {
+      type: deliveryAddressSchema,
+      required: [true, 'Delivery address is required.'],
+    },
+    subtotal: {
+      type: Number,
+      required: [true, 'Subtotal is required.'],
+      min: [0, 'Subtotal cannot be negative.'],
+    },
+    shippingFee: {
+      type: Number,
+      default: 0,
+      min: [0, 'Shipping fee cannot be negative.'],
+    },
+    discount: {
+      type: Number,
+      default: 0,
+      min: [0, 'Discount cannot be negative.'],
+    },
+    total: {
+      type: Number,
+      required: [true, 'Total amount is required.'],
+      min: [0, 'Total amount cannot be negative.'],
+    },
+    paymentMethod: {
+      type: String,
+      enum: ['COD'],
+      default: 'COD',
+      required: true,
+    },
+    paymentStatus: {
+      type: String,
+      enum: ['PENDING', 'PAID', 'FAILED', 'REFUNDED'],
+      default: 'PENDING',
+      required: true,
+    },
+    orderStatus: {
+      type: String,
+      enum: ['PLACED', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'],
+      default: 'PLACED',
+      required: true,
+    },
+    idempotencyKey: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+  },
+  {
+    timestamps: true,
+    toJSON: {
+      transform: (_doc, ret) => {
+        ret.id = ret._id.toString();
+        delete ret._id;
+        delete ret.__v;
+        return ret;
+      },
+    },
+  }
+);
+
+orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index({ orderStatus: 1 });
+orderSchema.index(
+  { user: 1, idempotencyKey: 1 },
+  { unique: true, partialFilterExpression: { idempotencyKey: { $type: 'string' } } }
+);
+
+export const Order = mongoose.model('Order', orderSchema);
+export default Order;

@@ -4,6 +4,7 @@ import authRouter from '../modules/auth/auth.routes.js';
 import categoryRouter from '../modules/categories/category.routes.js';
 import productRouter from '../modules/products/product.routes.js';
 import cartRouter from '../modules/cart/cart.routes.js';
+import orderRouter from '../modules/orders/order.routes.js';
 
 const router = Router();
 
@@ -34,5 +35,8 @@ router.use('/products', productRouter);
 
 // Cart routes (/api/v1/cart)
 router.use('/cart', cartRouter);
+
+// Order routes (/api/v1/orders)
+router.use('/orders', orderRouter);
 
 export default router;
