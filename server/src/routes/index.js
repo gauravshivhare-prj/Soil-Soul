@@ -3,6 +3,7 @@ import { databaseStatus } from '../config/db.js';
 import authRouter from '../modules/auth/auth.routes.js';
 import categoryRouter from '../modules/categories/category.routes.js';
 import productRouter from '../modules/products/product.routes.js';
+import cartRouter from '../modules/cart/cart.routes.js';
 
 const router = Router();
 
@@ -30,5 +31,8 @@ router.use('/auth', authRouter);
 // Catalog routes (/api/v1/categories, /api/v1/products)
 router.use('/categories', categoryRouter);
 router.use('/products', productRouter);
+
+// Cart routes (/api/v1/cart)
+router.use('/cart', cartRouter);
 
 export default router;
