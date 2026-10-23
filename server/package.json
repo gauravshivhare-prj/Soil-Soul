@@ -9,10 +9,12 @@
     "test": "node --test \"tests/**/*.test.js\""
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.2.2",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "express-rate-limit": "^8.7.1",
     "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.11.3"
   },
   "engines": {

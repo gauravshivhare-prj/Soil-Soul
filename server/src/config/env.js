@@ -50,12 +50,27 @@ if (isProduction && /[?&](tlsInsecure|tlsAllowInvalidCertificates|tlsAllowInvali
   throw new Error('Invalid MONGODB_URI: production must not disable TLS certificate or hostname checks.');
 }
 
+// JWT signing secret: minimum 32 characters required for secure HS256 operations.
+const jwtSecret = (process.env.JWT_SECRET || (nodeEnv === 'test' ? 'test_jwt_secret_min_32_characters_long_for_testing_purposes_only' : '')).trim();
+if (!jwtSecret) {
+  throw new Error('Missing JWT_SECRET. Copy server/.env.example to server/.env and set it.');
+}
+if (jwtSecret.length < 32) {
+  throw new Error('Invalid JWT_SECRET: must be at least 32 characters long for secure HS256 signing.');
+}
+
+const jwtAccessExpiresIn = (process.env.JWT_ACCESS_EXPIRES_IN || '15m').trim();
+
 export const env = Object.freeze({
   env: nodeEnv,
   isProduction,
   port: int('PORT', 5000, 1, 65535),
   corsOrigins,
   mongoUri,
+  jwtSecret,
+  jwtAccessExpiresIn,
+  // Max auth requests per client IP per 15 minutes.
+  authRateLimitMax: int('AUTH_RATE_LIMIT_MAX', 20, 1, 10000),
   // Max API requests per client IP per 15 minutes.
   rateLimitMax: int('RATE_LIMIT_MAX', 300, 1, 100000),
   // Trusted reverse-proxy hops; only honoured in production so X-Forwarded-For can't be spoofed.

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { databaseStatus } from '../config/db.js';
+import authRouter from '../modules/auth/auth.routes.js';
 
 const router = Router();
 
@@ -20,5 +21,8 @@ router.get('/health/ready', (req, res) => {
   const ready = database === 'connected';
   res.status(ready ? 200 : 503).json({ status: ready ? 'ready' : 'not_ready', database });
 });
+
+// Authentication routes (/api/v1/auth)
+router.use('/auth', authRouter);
 
 export default router;

@@ -26,10 +26,12 @@ pnpm-debug.log*
 lerna-debug.log*
 *.log
 
-# Testing coverage
+# Testing coverage & local tests
 coverage/
 *.lcov
 .nyc_output
+server/tests/*
+!server/tests/.gitkeep
 
 # Operating System files
 .DS_Store

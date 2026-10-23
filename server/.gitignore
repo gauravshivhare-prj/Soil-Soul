@@ -18,5 +18,8 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Testing coverage
+# Testing coverage and local tests
 coverage/
+tests/*
+!tests/.gitkeep
+
