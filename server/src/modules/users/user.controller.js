@@ -14,3 +14,12 @@ export async function updateMe(req, res, next) {
     next(err);
   }
 }
+
+export async function getAdminCustomers(req, res, next) {
+  try {
+    const data = await userService.listCustomers(req.query);
+    res.status(200).json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}

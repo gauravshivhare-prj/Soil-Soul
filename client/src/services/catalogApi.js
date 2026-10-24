@@ -32,6 +32,7 @@ export function toUiProduct(p) {
     care: p.care ?? [],
     specs: (p.specs ?? []).map((s) => [s.label, s.value]),
     options: p.options?.choices?.length ? p.options : null,
+    soldCount: p.soldCount ?? 0,
     image: firstImage ? { src: firstImage.src, alt: firstImage.alt || p.name } : null,
     images: (p.images ?? []).filter((img) => img?.src),
     isFeatured: Boolean(p.isFeatured),
@@ -91,5 +92,6 @@ export const SHOP_SORT_OPTIONS = [
   { id: "featured", label: "Featured" },
   { id: "price-asc", label: "Price: Low to High" },
   { id: "price-desc", label: "Price: High to Low" },
+  { id: "popular", label: "Most Popular" },
   { id: "name", label: "Name: A to Z" },
 ];

@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Footer — site-wide footer, rendered from the root layout.
  *
@@ -14,9 +16,11 @@
  */
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { brandSerif, scriptFont } from "@/app/fonts";
-import { categoryHref } from "@/data/categories";
 import { Leaf } from "@/components/ui/LeafArt";
+
+const categoryHref = (slug) => `/shop/${slug}`;
 
 /* ─── Data ──────────────────────────────────────────────────────── */
 const LINK_COLUMNS = [
@@ -191,6 +195,9 @@ const linkClass =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f4f1e8] rounded-sm";
 
 export default function Footer() {
+  const pathname = usePathname();
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return null;
+
   return (
     <footer className="mt-auto bg-[#24452a] text-[#f4f1e8] font-sans">
       <div className="max-w-[1536px] mx-auto px-5 sm:px-8 xl:px-10">

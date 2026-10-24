@@ -15,7 +15,6 @@ import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } 
 import Link from "next/link";
 import { filterProducts, sortProducts } from "@/services/catalog";
 import { defaultOptionId, fetchAllProducts, fetchCategories, isInStock, SHOP_SORT_OPTIONS as SORT_OPTIONS } from "@/services/catalogApi";
-import { LIGHT_LEVELS, PRODUCT_TAGS, SIZES } from "@/data/catalog";
 import { productHref } from "@/lib/routes";
 import { useCart } from "@/features/cart/CartProvider";
 import { useToast } from "@/components/ui/Toast";
@@ -24,7 +23,6 @@ import ShopFilters from "./ShopFilters";
 import WishlistButton from "./WishlistButton";
 import Pagination from "@/components/ui/Pagination";
 import ProductImage from "@/components/ui/ProductImage";
-import Stars from "@/components/ui/Stars";
 import Price from "@/components/ui/Price";
 import Icon from "@/components/ui/Icon";
 import Button from "@/components/ui/Button";
@@ -53,7 +51,13 @@ function useCatalog() {
 
 function filterOptionsFor(products) {
   const maxPrice = products.reduce((m, p) => Math.max(m, p.price), 0);
-  return { tags: PRODUCT_TAGS, lightLevels: LIGHT_LEVELS, sizes: SIZES, priceMin: 0, priceMax: Math.max(100, Math.ceil(maxPrice / 100) * 100) };
+  return {
+    tags: [...new Set(products.flatMap((p) => p.tags ?? []))].sort(),
+    lightLevels: [...new Set(products.map((p) => p.light).filter(Boolean))].sort(),
+    sizes: [...new Set(products.map((p) => p.size).filter(Boolean))].sort(),
+    priceMin: 0,
+    priceMax: Math.max(100, Math.ceil(maxPrice / 100) * 100),
+  };
 }
 
 /* ─── ?q= from the URL ─────────────────────────────────────────── */
@@ -98,7 +102,6 @@ function ProductRow({ product }) {
             <Link href={productHref(product.slug)} className="text-inherit no-underline hover:text-forest">{product.name}</Link>
           </h3>
           <p className="m-0 mt-1 hidden sm:block text-sm text-muted line-clamp-2">{product.summary}</p>
-          <Stars rating={product.rating} count={product.reviewCount} className="mt-1.5" />
         </div>
         <div className="flex items-center gap-2 sm:flex-col sm:items-end sm:gap-3">
           <Price price={product.price} mrp={product.mrp} size="md" />

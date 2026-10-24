@@ -18,13 +18,13 @@ import Link from "next/link";
 import { brandSerif } from "@/app/fonts";
 import { fetchProducts } from "@/services/catalogApi";
 import { useProductList } from "@/features/catalog/useProductList";
-import { COLLECTIONS } from "@/data/catalog";
 import { productHref } from "@/lib/routes";
 import { formatPrice } from "@/lib/format";
 
 // The "natural-care" collection's categories; first products from each, up to three cards.
+const NATURAL_CARE_CATEGORIES = ["natural-skincare", "hair-body-care"];
 const loadSpotlight = (signal) =>
-  Promise.all(COLLECTIONS["natural-care"].categories.map((category) => fetchProducts({ category, limit: 3 }, { signal })))
+  Promise.all(NATURAL_CARE_CATEGORIES.map((category) => fetchProducts({ category, limit: 3 }, { signal })))
     .then((results) => results.flatMap((r) => r.products).slice(0, 3));
 
 function ArrowRightIcon({ size = 14 }) {

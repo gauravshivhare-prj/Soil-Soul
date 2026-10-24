@@ -11,9 +11,10 @@ import { isDuplicateKeyError } from '../utils/duplicateKeyError.js';
 /**
  * Create the first (and only) administrator account — there is no public admin registration.
  *
- *   npm run admin:bootstrap -- --email owner@example.com --name "Store Owner"
+ *   npm run admin:bootstrap -- --name "Store Owner"
  *
- * The password is read from a hidden prompt (or ADMIN_BOOTSTRAP_PASSWORD when not interactive)
+ * The email and password may be read from ADMIN_EMAIL and ADMIN_PASSWORD. The password
+ * may also be read from a hidden prompt (or ADMIN_BOOTSTRAP_PASSWORD when not interactive)
  * and is never printed. Refuses to run if any admin exists, if the email is already registered,
  * or if MONGODB_URI does not point at a local database (127.0.0.1, localhost or ::1).
  * Creating the first admin on a remote/production database is not supported by this tool.
@@ -83,6 +84,10 @@ function parseArgs(args) {
   return out;
 }
 
+function configuredAdminEmail() {
+  return process.env.ADMIN_EMAIL?.trim() || '';
+}
+
 /** Read a password without echoing it (TTY), confirmed twice. */
 async function promptHidden(question) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
@@ -104,8 +109,8 @@ async function readPassword() {
     if (first !== second) throw createError(400, 'VALIDATION_ERROR', 'Passwords do not match.');
     return first;
   }
-  const fromEnv = process.env.ADMIN_BOOTSTRAP_PASSWORD;
-  if (!fromEnv) throw createError(400, 'VALIDATION_ERROR', 'No terminal: set ADMIN_BOOTSTRAP_PASSWORD to provide the password.');
+  const fromEnv = process.env.ADMIN_PASSWORD || process.env.ADMIN_BOOTSTRAP_PASSWORD;
+  if (!fromEnv) throw createError(400, 'VALIDATION_ERROR', 'No terminal: set ADMIN_PASSWORD or ADMIN_BOOTSTRAP_PASSWORD to provide the password.');
   return fromEnv;
 }
 
@@ -115,9 +120,11 @@ export async function runCli(args = process.argv.slice(2)) {
     process.exitCode = 1;
     return;
   }
-  const { email, name } = parseArgs(args);
-  if (!email || !name) {
-    console.error('[admin:bootstrap] Usage: npm run admin:bootstrap -- --email <email> --name "<full name>"');
+  const parsed = parseArgs(args);
+  const email = parsed.email || configuredAdminEmail();
+  const name = parsed.name || 'Store Administrator';
+  if (!email) {
+    console.error('[admin:bootstrap] Usage: set ADMIN_EMAIL or provide --email <email>; optionally provide --name "<full name>".');
     process.exitCode = 1;
     return;
   }
@@ -126,8 +133,8 @@ export async function runCli(args = process.argv.slice(2)) {
     const password = await readPassword();
     await mongoose.connect(env.mongoUri, { serverSelectionTimeoutMS: 10000 });
     console.log(`[admin:bootstrap] Connected to local database "${mongoose.connection.name}".`);
-    const admin = await bootstrapAdmin({ name, email, password });
-    console.log(`[admin:bootstrap] Administrator created for ${admin.email}.`);
+    await bootstrapAdmin({ name, email, password });
+    console.log('[admin:bootstrap] Administrator created successfully.');
   } catch (err) {
     const known = err?.expose === true && err.status < 500;
     console.error(`[admin:bootstrap] ${known ? err.message : `Failed (${err?.name ?? 'Error'}).`}`);

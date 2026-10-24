@@ -83,8 +83,8 @@ function ForgotPassword({ onBack, initialEmail }) {
 
 const RULES = { email, password: required("Password") };
 
-export default function LoginForm() {
-  const { login } = useAuth();
+export default function LoginForm({ adminOnly = false }) {
+  const { login, logout } = useAuth();
   const router = useRouter();
   const [values, setValues] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState({});
@@ -107,6 +107,10 @@ export default function LoginForm() {
     setServerError(null);
     try {
       const user = await login(values.email.trim(), values.password);
+      if (adminOnly && user?.role !== "admin") {
+        await logout();
+        throw new Error("This sign-in is for store administrators only.");
+      }
       router.push(postLoginPath(user));
     } catch (err) {
       if (err.code === "EMAIL_NOT_VERIFIED") setServerError({ message: err.message, verifyEmail: values.email.trim() });
@@ -119,8 +123,12 @@ export default function LoginForm() {
 
   return (
     <div>
-      <h2 className={`${brandSerif.className} m-0 text-[1.6rem] sm:text-[1.8rem] font-bold text-heading`}>Welcome Back</h2>
-      <p className="m-0 mt-1.5 text-sm sm:text-[0.9375rem] text-muted">Sign in to continue your green journey</p>
+      <h2 className={`${brandSerif.className} m-0 text-[1.6rem] sm:text-[1.8rem] font-bold text-heading`}>
+        {adminOnly ? "Administrator Sign In" : "Welcome Back"}
+      </h2>
+      <p className="m-0 mt-1.5 text-sm sm:text-[0.9375rem] text-muted">
+        {adminOnly ? "Access the Soil & Soul management portal." : "Sign in to continue your green journey"}
+      </p>
 
       <form onSubmit={submit} noValidate className="mt-6 space-y-4">
         {serverError && (
@@ -148,10 +156,10 @@ export default function LoginForm() {
         </Button>
       </form>
 
-      <p className="m-0 mt-6 text-center text-sm text-muted">
+      {!adminOnly && <p className="m-0 mt-6 text-center text-sm text-muted">
         Don&rsquo;t have an account?{" "}
         <Link href="/register" className="font-semibold text-forest no-underline hover:underline">Create one</Link>
-      </p>
+      </p>}
     </div>
   );
 }

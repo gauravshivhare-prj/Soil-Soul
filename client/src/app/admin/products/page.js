@@ -4,6 +4,7 @@ import Icon from "@/components/ui/Icon";
 import ProductsTable from "@/features/admin/ProductsTable";
 
 export const metadata = { title: "Products | Admin | Soil & Soul" };
+export const instant = false;
 
 export default function AdminProductsPage() {
   return (

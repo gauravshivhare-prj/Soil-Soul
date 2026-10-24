@@ -3,6 +3,7 @@ import { databaseStatus } from '../config/db.js';
 import { isShuttingDown } from '../config/lifecycle.js';
 import authRouter from '../modules/auth/auth.routes.js';
 import userRouter from '../modules/users/user.routes.js';
+import adminUserRouter from '../modules/users/admin.user.routes.js';
 import categoryRouter from '../modules/categories/category.routes.js';
 import productRouter from '../modules/products/product.routes.js';
 import cartRouter from '../modules/cart/cart.routes.js';
@@ -38,6 +39,7 @@ router.use('/auth', authRouter);
 
 // Own-account routes (/api/v1/users/me)
 router.use('/users', userRouter);
+router.use('/admin/customers', adminUserRouter);
 
 // Catalog routes (/api/v1/categories, /api/v1/products)
 router.use('/categories', categoryRouter);

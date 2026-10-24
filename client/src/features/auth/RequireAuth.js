@@ -19,8 +19,14 @@ export default function RequireAuth({ role, children }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    if (isReady && !isAuthenticated) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-  }, [isReady, isAuthenticated, pathname, router]);
+    if (pathname === "/admin/login") return;
+    if (isReady && !isAuthenticated) {
+      const loginPath = role === "admin" ? "/admin/login" : "/login";
+      router.replace(`${loginPath}?next=${encodeURIComponent(pathname)}`);
+    }
+  }, [isReady, isAuthenticated, pathname, role, router]);
+
+  if (pathname === "/admin/login") return children;
 
   if (!isReady || !isAuthenticated) {
     return (

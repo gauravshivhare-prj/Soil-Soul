@@ -1,7 +1,24 @@
-import NotAvailable from "@/components/admin/NotAvailable";
+"use client";
 
-export const metadata = { title: "Customers | Admin | Soil & Soul" };
+import CustomersTable from "@/features/admin/CustomersTable";
+import PageHeader from "@/components/ui/PageHeader";
+import { FormMessage, Skeleton } from "@/components/ui/States";
+import { useAuthedResource } from "@/features/auth/useAuthedResource";
 
 export default function AdminCustomersPage() {
-  return <NotAvailable title="Customers" icon="users" description="Customer management isn't connected yet. Customer names and emails appear on each order in Orders." />;
+  const { status, data, error, reload } = useAuthedResource("/admin/customers");
+
+  return (
+    <>
+      <PageHeader title="Customers" subtitle="Customer accounts and their order totals." />
+      {status === "loading" && <Skeleton className="h-64" />}
+      {status === "error" && (
+        <div className="mt-4 space-y-3">
+          <FormMessage tone="error">{error?.message || "Customers could not be loaded."}</FormMessage>
+          <button type="button" onClick={reload} className="text-sm font-medium text-forest hover:underline">Try again</button>
+        </div>
+      )}
+      {status === "ready" && <CustomersTable customers={data?.customers ?? []} />}
+    </>
+  );
 }

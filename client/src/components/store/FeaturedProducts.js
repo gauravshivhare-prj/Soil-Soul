@@ -15,7 +15,6 @@
 
 import { useState } from "react";
 import { brandSerif } from "@/app/fonts";
-import { FEATURED_FILTERS } from "@/data/products";
 import { fetchProducts } from "@/services/catalogApi";
 import { useProductList } from "@/features/catalog/useProductList";
 import ProductCard from "@/components/store/ProductCard";
@@ -24,9 +23,17 @@ import { ProductGridSkeleton } from "@/components/ui/States";
 const loadFeatured = (signal) => fetchProducts({ featured: true, limit: 24 }, { signal }).then((d) => d.products);
 
 /* ─── Section ───────────────────────────────────────────────────── */
-export default function FeaturedProducts({ filters = FEATURED_FILTERS }) {
+export default function FeaturedProducts() {
   const { status, products } = useProductList(loadFeatured, "featured");
-  const [activeId, setActiveId] = useState(filters[0].id);
+  const filters = [
+    { id: "all", label: "All", categories: null },
+    ...[...new Map(products.map((p) => [p.category.slug, p.category.shortName || p.category.name])).entries()].map(([id, label]) => ({
+      id,
+      label,
+      categories: [id],
+    })),
+  ];
+  const [activeId, setActiveId] = useState("all");
 
   // Nothing featured (or the store is unreachable): hide the section rather than show placeholders.
   if (status === "error" || (status === "ready" && products.length === 0)) return null;

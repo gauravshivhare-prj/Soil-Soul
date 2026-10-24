@@ -4,6 +4,7 @@ import Icon from "@/components/ui/Icon";
 import ProductForm from "@/features/admin/ProductForm";
 
 export const metadata = { title: "Add Product | Admin | Soil & Soul" };
+export const instant = false;
 
 export default function NewProductPage() {
   return (

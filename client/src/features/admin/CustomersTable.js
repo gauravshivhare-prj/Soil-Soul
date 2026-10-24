@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * CustomersTable — searchable customer list (placeholder demo customers).
+ * CustomersTable — searchable customer list from the admin API.
  */
 
 import { useState } from "react";
@@ -15,7 +15,7 @@ import { formatDate, formatPrice } from "@/lib/format";
 export default function CustomersTable({ customers }) {
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
-  const visible = customers.filter((c) => !q || `${c.name} ${c.email} ${c.city}`.toLowerCase().includes(q));
+  const visible = customers.filter((c) => !q || `${c.name} ${c.email} ${c.phone ?? ""}`.toLowerCase().includes(q));
 
   return (
     <Card>
@@ -34,7 +34,7 @@ export default function CustomersTable({ customers }) {
       {visible.length === 0 ? (
         <EmptyState icon="users" title="No customers found" description="Try a different search." className="!py-10" />
       ) : (
-        <DataTable caption="Customers" head={["Customer", "City", "Orders", "Total Spent", "Joined", "Status"]} minWidth={760}>
+        <DataTable caption="Customers" head={["Customer", "Phone", "Orders", "Total Spent", "Joined", "Status"]} minWidth={760}>
           {visible.map((c) => (
             <tr key={c.id}>
               <td>
@@ -46,7 +46,7 @@ export default function CustomersTable({ customers }) {
                   </span>
                 </span>
               </td>
-              <td className="text-muted">{c.city}</td>
+              <td className="text-muted">{c.phone || "—"}</td>
               <td className="text-ink">{c.orders}</td>
               <td className="font-medium text-ink">{formatPrice(c.spent)}</td>
               <td className="text-muted whitespace-nowrap">{formatDate(c.joined)}</td>

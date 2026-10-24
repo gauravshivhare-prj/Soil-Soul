@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * ShopByCategory — homepage category grid.
  *
@@ -13,8 +15,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { brandSerif } from "@/app/fonts";
-import { CATEGORIES, categoryHref } from "@/data/categories";
+import { fetchCategories } from "@/services/catalogApi";
+import { FormMessage, Skeleton } from "@/components/ui/States";
+
+const categoryHref = (slug) => `/shop/${slug}`;
 
 /* ─── Icons ─────────────────────────────────────────────────────── */
 function HeartIcon() {
@@ -72,14 +78,16 @@ function CategoryCard({ category }) {
     >
       {/* Image */}
       <div className="relative aspect-square overflow-hidden bg-[#f1ece1]">
-        <Image
-          src={image.src}
-          alt={image.alt}
-          fill
-          sizes="(min-width: 1536px) 240px, (min-width: 1024px) 16vw, (min-width: 640px) 33vw, 50vw"
-          className="object-cover transition-transform duration-500 ease-out group-hover:scale-105
-                     motion-reduce:transition-none motion-reduce:group-hover:scale-100"
-        />
+        {image?.src ? (
+          <Image
+            src={image.src}
+            alt={image.alt || name}
+            fill
+            sizes="(min-width: 1536px) 240px, (min-width: 1024px) 16vw, (min-width: 640px) 33vw, 50vw"
+            className="object-cover transition-transform duration-500 ease-out group-hover:scale-105
+                       motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+          />
+        ) : <span className="absolute inset-0 bg-gradient-to-br from-sage-100 to-sand" aria-label={`${name} category`} />}
         <span
           className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 flex items-center justify-center
                      w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/90 text-[#24452a]
@@ -115,7 +123,25 @@ function CategoryCard({ category }) {
 }
 
 /* ─── Section ───────────────────────────────────────────────────── */
-export default function ShopByCategory({ categories = CATEGORIES }) {
+export default function ShopByCategory() {
+  const [state, setState] = useState({ status: "loading", categories: [], error: null });
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchCategories({ signal: controller.signal })
+      .then((categories) => setState({ status: "ready", categories, error: null }))
+      .catch((error) => {
+        if (!controller.signal.aborted) setState({ status: "error", categories: [], error });
+      });
+    return () => controller.abort();
+  }, []);
+
+  if (state.status === "loading") return <Skeleton className="mx-4 h-48 sm:mx-8 xl:mx-10" />;
+  if (state.status === "error") {
+    return <FormMessage tone="error" className="mx-4 sm:mx-8 xl:mx-10">Categories could not be loaded. Please try again later.</FormMessage>;
+  }
+  if (state.categories.length === 0) return null;
+  const categories = state.categories;
+
   return (
     <section aria-labelledby="shop-by-category-heading" className="bg-[#faf8f2] pt-8 pb-8 sm:pt-9 lg:pt-10 lg:pb-10">
       <div className="max-w-[1536px] mx-auto px-4 sm:px-8 xl:px-10">

@@ -15,7 +15,6 @@ import { useToast } from "@/components/ui/Toast";
 import { defaultOptionId, isInStock } from "@/services/catalogApi";
 import { productHref } from "@/lib/routes";
 import ProductImage from "@/components/ui/ProductImage";
-import Stars from "@/components/ui/Stars";
 import Price from "@/components/ui/Price";
 import Icon from "@/components/ui/Icon";
 import WishlistButton from "./WishlistButton";
@@ -62,8 +61,6 @@ export default function ProductCard({ product, imageAspect = "aspect-[25/24]", s
             {product.name}
           </Link>
         </h3>
-
-        <Stars rating={product.rating} count={product.reviewCount} size={11} className="mt-1" />
 
         <Price price={product.price} mrp={product.mrp} size="sm" showDiscount={false} className="mt-auto pt-2" />
 

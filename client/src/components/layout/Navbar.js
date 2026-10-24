@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Navbar component for Soil & Soul.
  *
@@ -19,6 +21,7 @@
  */
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { brandSerif } from "@/app/fonts";
 import DesktopNav from "./DesktopNav";
 import MobileNav from "./MobileNav";
@@ -143,6 +146,9 @@ function UserIcon() {
 
 /* ─── Component ─────────────────────────────────────────────────── */
 export default function Navbar() {
+  const pathname = usePathname();
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return null;
+
   const iconBtnClass =
     "relative items-center justify-center w-10 h-10 xl:w-11 xl:h-11 rounded-full flex-shrink-0 " +
     "text-[#1f241d] no-underline bg-transparent transition-colors duration-150 " +
