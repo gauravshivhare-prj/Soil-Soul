@@ -47,6 +47,10 @@ const orderItemSnapshotSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // true when placing the order incremented the product's soldCount for this line (absent on older orders)
+    soldCounted: {
+      type: Boolean,
+    },
     restoredAt: {
       type: Date,
       default: null,
@@ -177,6 +181,16 @@ const orderSchema = new mongoose.Schema(
     idempotencyKey: {
       type: String,
       trim: true,
+      default: null,
+    },
+    // SHA-256 of the checkout input bound to idempotencyKey (null without a key or for orders created before fingerprints)
+    requestFingerprint: {
+      type: String,
+      default: null,
+    },
+    // Cart version (__v) the order was built from; an idempotent replay clears the cart only if unchanged since
+    cartVersion: {
+      type: Number,
       default: null,
     },
     cancellation: {

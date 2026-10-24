@@ -2,7 +2,11 @@ import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { Order } from './order.model.js';
 import { Cart } from '../cart/cart.model.js';
+import { generateItemKey } from '../cart/cart.service.js';
+import { normalizeIndianMobile } from '../../utils/phone.js';
+import { recordMovement, recordMovementSafely } from '../inventory/inventory.service.js';
 import { Product } from '../products/product.model.js';
+import { User } from '../users/user.model.js';
 import { validatePaymentMethod } from './payment.strategy.js';
 import { createError } from '../../utils/createError.js';
 import { validateOrderLifecycleUpdate, validateOrderTransition, validateCODPaymentTransition, isTerminalOrderState, ORDER_STATUS, PAYMENT_STATUS } from './order.transitions.js';
@@ -16,6 +20,33 @@ export function isTransactionSupported() {
   const client = mongoose.connection.getClient ? mongoose.connection.getClient() : null;
   const topoType = client?.topology?.description?.type;
   return topoType === 'ReplicaSetWithPrimary' || topoType === 'Sharded';
+}
+
+/**
+ * Run `work(session)` in a transaction. `withTransaction` retries the whole
+ * callback on TransientTransactionError (e.g. a WriteConflict with a concurrent
+ * checkout or cancellation), so the retry re-evaluates its conditional filters
+ * and the loser gets a normal 4xx instead of a raw conflict error.
+ */
+async function runInTransaction(work) {
+  const session = await mongoose.startSession();
+  try {
+    let result;
+    await session.withTransaction(async () => {
+      result = await work(session);
+    });
+    return result;
+  } finally {
+    await session.endSession();
+  }
+}
+
+/**
+ * Summarize a restoration attempt: COMPLETED, PARTIAL (some items restored) or FAILED.
+ */
+function restorationStatusOf(items, restorationErrors) {
+  if (restorationErrors.length === 0) return 'COMPLETED';
+  return items.some((i) => i.stockRestored) ? 'PARTIAL' : 'FAILED';
 }
 
 /**
@@ -42,8 +73,9 @@ export function validateDeliveryAddress(address) {
     throw createError(400, 'VALIDATION_ERROR', 'Recipient name must be between 2 and 100 characters.');
   }
 
-  if (typeof phone !== 'string' || !/^\+?[0-9]{10,15}$/.test(phone.trim().replace(/[\s-]/g, ''))) {
-    throw createError(400, 'VALIDATION_ERROR', 'Valid phone number is required (10-15 digits).');
+  const normalizedPhone = normalizeIndianMobile(phone);
+  if (!normalizedPhone) {
+    throw createError(400, 'VALIDATION_ERROR', 'A valid Indian mobile number is required for delivery.');
   }
 
   if (typeof addressLine1 !== 'string' || addressLine1.trim().length < 3 || addressLine1.trim().length > 200) {
@@ -64,7 +96,7 @@ export function validateDeliveryAddress(address) {
 
   return {
     recipientName: recipientName.trim(),
-    phone: phone.trim().replace(/[\s-]/g, ''),
+    phone: normalizedPhone,
     addressLine1: addressLine1.trim(),
     addressLine2: typeof addressLine2 === 'string' ? addressLine2.trim().slice(0, 200) : '',
     city: city.trim(),
@@ -72,6 +104,26 @@ export function validateDeliveryAddress(address) {
     postalCode: postalCode.trim(),
     country: typeof country === 'string' && country.trim() ? country.trim().slice(0, 50) : 'India',
   };
+}
+
+const ORDER_NUMBER_ATTEMPTS = 3;
+
+// Customer-safe note when a cancellation succeeded but stock restoration is pending reconciliation.
+const RESTORATION_STATUS_FILTERS = Object.freeze(['PENDING', 'PARTIAL', 'FAILED', 'COMPLETED']);
+
+export const CANCELLATION_RECONCILIATION_PENDING =
+  'Your order has been cancelled. Some stock updates are still being processed; no action is needed from you.';
+
+/**
+ * Name the Order unique field a duplicate-key (E11000) error is about, or null.
+ */
+export function duplicateKeyField(err) {
+  if (err?.code !== 11000) return null;
+  const keys = Object.keys(err.keyPattern ?? err.keyValue ?? {});
+  const text = keys.length > 0 ? keys.join(' ') : String(err.errmsg ?? err.message ?? '');
+  if (text.includes('orderNumber')) return 'orderNumber';
+  if (text.includes('idempotencyKey')) return 'idempotencyKey';
+  return null;
 }
 
 // In-flight per-user checkout locking to prevent double-click / rapid concurrent checkout races (process-local)
@@ -102,6 +154,59 @@ export function validateIdempotencyKey(key) {
   return trimmed;
 }
 
+// Collapse runs of whitespace and ignore case: harmless typing differences only.
+const canonicalText = (value) => String(value ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+/**
+ * Fingerprint of the checkout input an Idempotency-Key is bound to: the payment method and the
+ * validated delivery address. The cart is deliberately excluded (it is server state and is
+ * emptied by a successful checkout, so a genuine retry could never match it).
+ */
+export function checkoutFingerprint(paymentMethod, address) {
+  const canonical = JSON.stringify([
+    String(paymentMethod).toUpperCase(),
+    canonicalText(address.recipientName),
+    String(address.phone),
+    canonicalText(address.addressLine1),
+    canonicalText(address.addressLine2),
+    canonicalText(address.city),
+    canonicalText(address.state),
+    String(address.postalCode),
+    canonicalText(address.country),
+  ]);
+  return crypto.createHash('sha256').update(canonical).digest('hex');
+}
+
+/**
+ * Return the order already created for this Idempotency-Key, or reject the key's reuse with
+ * different checkout details. Orders created before fingerprints existed always replay.
+ */
+async function replayIdempotentOrder(userId, existingOrder, fingerprint) {
+  if (existingOrder.requestFingerprint && existingOrder.requestFingerprint !== fingerprint) {
+    throw createError(
+      422,
+      'IDEMPOTENCY_KEY_REUSED',
+      'This Idempotency-Key was already used for a checkout with different details. Use a new key.'
+    );
+  }
+  // Finish a checkout whose cart-clear failed, but never touch a cart changed since: clear only if
+  // the cart still has items and is at exactly the version the order was built from. Every customer
+  // cart change goes through cart.save(), which bumps the optimistic-concurrency version; the order
+  // service's own updateOne clears do not, but they leave no items to match. Orders without a
+  // recorded version never clear.
+  let cartCleared = false;
+  if (Number.isInteger(existingOrder.cartVersion)) {
+    try {
+      const res = await Cart.updateOne(
+        { user: userId, __v: existingOrder.cartVersion, 'items.0': { $exists: true } },
+        { $set: { items: [] } }
+      );
+      cartCleared = res.modifiedCount > 0;
+    } catch (_) {}
+  }
+  return { order: existingOrder, isExisting: true, cartCleared, warning: null };
+}
+
 /**
  * Attempt to restore decremented stock for items after a checkout failure.
  * Retries up to 3 times for transient failures and aggregates unrecoverable failures.
@@ -118,7 +223,7 @@ export async function rollbackStock(decremented) {
       try {
         const res = await Product.updateOne(
           { _id: d.productId },
-          { $inc: { stock: d.quantity } }
+          { $inc: { stock: d.quantity, soldCount: -d.quantity } }
         );
         if (res.acknowledged && res.modifiedCount > 0) {
           restored = true;
@@ -141,6 +246,30 @@ export async function rollbackStock(decremented) {
   return rollbackErrors;
 }
 
+export const CART_CHANGED_DURING_CHECKOUT =
+  'Order placed. Your cart changed while the order was being placed, so items you added or changed were kept. Please review your cart.';
+
+/**
+ * Remove the ordered items from the cart after an order is created, without erasing changes the
+ * customer made in the meantime (e.g. from another tab). If the cart is still at the version
+ * checkout read, it is emptied; otherwise only lines still exactly as ordered (same key and
+ * quantity) are removed and everything else is kept. Both updates are single atomic operations.
+ *
+ * @returns {Promise<{ cartCleared: boolean, warning: string|null }>}
+ */
+async function clearCartAfterOrder(userId, cartVersion, orderedItems) {
+  if (Number.isInteger(cartVersion)) {
+    const res = await Cart.updateOne({ user: userId, __v: cartVersion }, { $set: { items: [] } });
+    if (res.matchedCount > 0) return { cartCleared: true, warning: null };
+  }
+  const orderedLines = orderedItems.map((item) => ({
+    key: generateItemKey(String(item.product), item.option?.id ?? null),
+    quantity: item.quantity,
+  }));
+  await Cart.updateOne({ user: userId }, { $pull: { items: { $or: orderedLines } } });
+  return { cartCleared: false, warning: CART_CHANGED_DURING_CHECKOUT };
+}
+
 /**
  * Execute order placement ensuring stock consistency across items.
  * Uses MongoDB transactions when supported (replica sets/sharded clusters),
@@ -148,15 +277,12 @@ export async function rollbackStock(decremented) {
  */
 async function executeOrderPlacement(orderData) {
   if (isTransactionSupported()) {
-    const session = await mongoose.startSession();
-    try {
-      session.startTransaction();
-
+    const order = await runInTransaction(async (session) => {
       // 1. Conditionally decrement stock for all items
       for (const item of orderData.items) {
         const updateRes = await Product.updateOne(
           { _id: item.product, stock: { $gte: item.quantity }, isActive: true },
-          { $inc: { stock: -item.quantity } },
+          { $inc: { stock: -item.quantity, soldCount: item.quantity } },
           { session }
         );
         if (updateRes.modifiedCount === 0) {
@@ -169,11 +295,13 @@ async function executeOrderPlacement(orderData) {
       }
 
       // 2. Create the order
-      const [order] = await Order.create(
+      const [created] = await Order.create(
         [
           {
             orderNumber: orderData.orderNumber,
             idempotencyKey: orderData.idempotencyKey,
+            requestFingerprint: orderData.requestFingerprint ?? null,
+            cartVersion: orderData.cartVersion ?? null,
             user: orderData.userId,
             items: orderData.items,
             deliveryAddress: orderData.deliveryAddress,
@@ -189,17 +317,27 @@ async function executeOrderPlacement(orderData) {
         { session }
       );
 
-      // 3. Clear user's cart
-      await Cart.updateOne({ user: orderData.userId }, { $set: { items: [] } }, { session });
+      // Stock history: one 'sale' record per line, committed together with the order.
+      for (const [i, item] of orderData.items.entries()) {
+        await recordMovement(
+          { product: item.product, delta: -item.quantity, reason: 'sale', order: created._id, opKey: `sale:${created._id}:${i}` },
+          session
+        );
+      }
+      return created;
+    });
 
-      // 4. Commit transaction
-      await session.commitTransaction();
-      return { order, isExisting: false, cartCleared: true, warning: null };
-    } catch (err) {
-      await session.abortTransaction();
-      throw err;
-    } finally {
-      session.endSession();
+    // 3. Clear the cart after commit, so a cart failure never undoes a placed order
+    try {
+      const cleared = await clearCartAfterOrder(orderData.userId, orderData.cartVersion, orderData.items);
+      return { order, isExisting: false, ...cleared };
+    } catch (_) {
+      return {
+        order,
+        isExisting: false,
+        cartCleared: false,
+        warning: 'Order placed successfully, but cart could not be cleared automatically.',
+      };
     }
   } else {
     // Standalone deployment: conditional atomic decrement with compensating rollback
@@ -208,7 +346,7 @@ async function executeOrderPlacement(orderData) {
       for (const item of orderData.items) {
         const updateRes = await Product.updateOne(
           { _id: item.product, stock: { $gte: item.quantity }, isActive: true },
-          { $inc: { stock: -item.quantity } }
+          { $inc: { stock: -item.quantity, soldCount: item.quantity } }
         );
         if (updateRes.modifiedCount === 0) {
           // Insufficient stock or concurrent race - rollback prior decrements
@@ -237,6 +375,8 @@ async function executeOrderPlacement(orderData) {
         order = await Order.create({
           orderNumber: orderData.orderNumber,
           idempotencyKey: orderData.idempotencyKey,
+          requestFingerprint: orderData.requestFingerprint ?? null,
+          cartVersion: orderData.cartVersion ?? null,
           user: orderData.userId,
           items: orderData.items,
           deliveryAddress: orderData.deliveryAddress,
@@ -262,21 +402,20 @@ async function executeOrderPlacement(orderData) {
           throw criticalErr;
         }
 
-        // Handle duplicate key race condition on idempotencyKey
-        if (orderErr.code === 11000 && orderData.idempotencyKey) {
-          const existingOrder = await Order.findOne({
-            user: orderData.userId,
-            idempotencyKey: orderData.idempotencyKey,
-          });
-          if (existingOrder) {
-            try {
-              await Cart.updateOne({ user: orderData.userId }, { $set: { items: [] } });
-            } catch (_) {}
-            return { order: existingOrder, isExisting: true, cartCleared: true, warning: null };
-          }
-        }
-
+        // Stock is rolled back; duplicate keys (order number or Idempotency-Key race) are
+        // resolved by createOrder, which retries or compares the request fingerprint.
         throw orderErr;
+      }
+
+      // Stock history (best-effort on standalone: the stock change and order already succeeded).
+      for (const [i, item] of orderData.items.entries()) {
+        await recordMovementSafely({
+          product: item.product,
+          delta: -item.quantity,
+          reason: 'sale',
+          order: order._id,
+          opKey: `sale:${order._id}:${i}`,
+        });
       }
 
       // Clear user's cart only after successful order creation
@@ -284,8 +423,7 @@ async function executeOrderPlacement(orderData) {
       let cartCleared = false;
       let warning = null;
       try {
-        await Cart.updateOne({ user: orderData.userId }, { $set: { items: [] } });
-        cartCleared = true;
+        ({ cartCleared, warning } = await clearCartAfterOrder(orderData.userId, orderData.cartVersion, orderData.items));
       } catch (cartErr) {
         warning = 'Order placed successfully, but cart could not be cleared automatically.';
       }
@@ -318,28 +456,27 @@ export async function createOrder(userId, { paymentMethod, deliveryAddress, idem
     );
   }
 
-  // If idempotency key provided, check for existing order
+  // 1–2. Validate payment method (only COD) and delivery address. Both checks are stateless
+  // (no cart or stock reads), so a valid retry of a completed checkout still replays below.
+  const validatedPaymentMethod = validatePaymentMethod(paymentMethod);
+  const validatedAddress = validateDeliveryAddress(deliveryAddress);
+  const requestFingerprint = cleanIdempotencyKey
+    ? checkoutFingerprint(validatedPaymentMethod, validatedAddress)
+    : null;
+
+  // If idempotency key provided, replay the existing order (or reject a changed request)
   if (cleanIdempotencyKey) {
     const existingOrder = await Order.findOne({
       user: userId,
       idempotencyKey: cleanIdempotencyKey,
     });
     if (existingOrder) {
-      try {
-        await Cart.updateOne({ user: userId }, { $set: { items: [] } });
-      } catch (_) {}
-      return { order: existingOrder, isExisting: true, cartCleared: true, warning: null };
+      return replayIdempotentOrder(userId, existingOrder, requestFingerprint);
     }
   }
 
   activeCheckouts.add(userLockKey);
   try {
-    // 1. Validate payment method (only COD enabled)
-    const validatedPaymentMethod = validatePaymentMethod(paymentMethod);
-
-    // 2. Validate delivery address
-    const validatedAddress = validateDeliveryAddress(deliveryAddress);
-
     // 3. Load user's cart from database
     const cart = await Cart.findOne({ user: userId });
     if (!cart || !Array.isArray(cart.items) || cart.items.length === 0) {
@@ -464,6 +601,7 @@ export async function createOrder(userId, { paymentMethod, deliveryAddress, idem
       unitPrice,
       quantity: item.quantity,
       lineTotal,
+      soldCounted: true, // soldCount is incremented with the stock decrement for this line
     });
   }
 
@@ -471,12 +609,11 @@ export async function createOrder(userId, { paymentMethod, deliveryAddress, idem
   const discount = 0;
   const total = Math.round((calculatedSubtotal + shippingFee - discount) * 100) / 100;
 
-    const orderNumber = generateOrderNumber();
-
-    return await executeOrderPlacement({
+    const placement = {
       userId,
-      orderNumber,
       idempotencyKey: cleanIdempotencyKey,
+      requestFingerprint,
+      cartVersion: cart.__v,
       items: orderItemSnapshots,
       deliveryAddress: validatedAddress,
       subtotal: calculatedSubtotal,
@@ -484,7 +621,27 @@ export async function createOrder(userId, { paymentMethod, deliveryAddress, idem
       discount,
       total,
       paymentMethod: validatedPaymentMethod,
-    });
+    };
+
+    // A failed attempt has already aborted (transaction) or rolled back its stock
+    // (standalone), so retrying with a fresh order number is safe.
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await executeOrderPlacement({ ...placement, orderNumber: generateOrderNumber() });
+      } catch (err) {
+        const field = duplicateKeyField(err);
+        if (field === 'orderNumber' && attempt < ORDER_NUMBER_ATTEMPTS) continue;
+
+        // A concurrent request with the same Idempotency-Key won the race (e.g. another instance)
+        if (field === 'idempotencyKey' && cleanIdempotencyKey) {
+          const existingOrder = await Order.findOne({ user: userId, idempotencyKey: cleanIdempotencyKey });
+          if (existingOrder) {
+            return replayIdempotentOrder(userId, existingOrder, requestFingerprint);
+          }
+        }
+        throw err;
+      }
+    }
   } finally {
     activeCheckouts.delete(userLockKey);
   }
@@ -574,6 +731,7 @@ export async function restoreStockForOrder(items, session = null, orderContext =
     const productId = item.product?._id || item.product;
     const quantity = item.quantity;
     let restored = false;
+    let appliedNow = false;
     let lastError = null;
 
     // Durable operation key ensuring exactly-once restoration on standalone MongoDB
@@ -586,7 +744,8 @@ export async function restoreStockForOrder(items, session = null, orderContext =
         const updateOptions = session ? { session } : {};
 
         const filter = { _id: productId };
-        const updateOps = { $inc: { stock: quantity } };
+        // soldCount is reversed only for lines that were counted as sold when the order was placed.
+        const updateOps = { $inc: { stock: quantity, ...(item.soldCounted ? { soldCount: -quantity } : {}) } };
 
         if (opKey) {
           filter['restorationAudit.opKey'] = { $ne: opKey };
@@ -606,6 +765,7 @@ export async function restoreStockForOrder(items, session = null, orderContext =
         if (res.acknowledged) {
           if (res.modifiedCount > 0) {
             restored = true;
+            appliedNow = true;
             item.stockRestored = true;
             item.restoredAt = new Date();
             break;
@@ -635,8 +795,18 @@ export async function restoreStockForOrder(items, session = null, orderContext =
           }
         }
       } catch (err) {
+        // A transient error has aborted the surrounding transaction; let it retry as a whole
+        if (session && err?.hasErrorLabel?.('TransientTransactionError')) throw err;
         lastError = err;
       }
+    }
+
+    // Stock history for a restore applied by this call (opKey shared with restorationAudit makes it
+    // exactly-once). Inside a transaction a failure aborts it; on standalone it is best-effort.
+    if (appliedNow && opKey) {
+      const movement = { product: productId, delta: quantity, reason: 'order_restore', order: orderContext.orderId ?? null, opKey };
+      if (session) await recordMovement(movement, session);
+      else await recordMovementSafely(movement);
     }
 
     if (!restored) {
@@ -722,91 +892,10 @@ export async function cancelOrder(userId, orderId, { reason, actorRole = 'custom
     reconciliationFencingToken: 0,
   };
 
-  if (isTransactionSupported()) {
-    const session = await mongoose.startSession();
-    try {
-      session.startTransaction();
-
-      // Atomic conditional update: only win if still in PLACED or CONFIRMED
-      const updatedOrder = await Order.findOneAndUpdate(
-        {
-          _id: existingOrder._id,
-          user: userId,
-          orderStatus: { $in: ['PLACED', 'CONFIRMED'] },
-        },
-        {
-          $set: {
-            orderStatus: ORDER_STATUS.CANCELLED,
-            cancellation: cancellationData,
-          },
-        },
-        { returnDocument: 'after', session }
-      );
-
-      if (!updatedOrder) {
-        // Lost race condition: order was transitioned or cancelled concurrently
-        const current = await Order.findById(existingOrder._id).session(session);
-        if (!current || current.user.toString() !== userId.toString()) {
-          throw createError(404, 'ORDER_NOT_FOUND', 'Order not found.');
-        }
-        throw createError(
-          400,
-          'VALIDATION_ERROR',
-          `Order cannot be cancelled in its current status ("${current.orderStatus}").`
-        );
-      }
-
-      // Restore stock for all items
-      const restorationErrors = await restoreStockForOrder(
-        updatedOrder.items,
-        session,
-        { orderId: updatedOrder._id, orderNumber: updatedOrder.orderNumber }
-      );
-      if (restorationErrors.length > 0) {
-        const criticalErr = createError(
-          500,
-          'STOCK_RESTORATION_FAILED',
-          `Order cancellation failed because inventory could not be restored for ${restorationErrors.length} item(s).`
-        );
-        criticalErr.restorationFailures = restorationErrors;
-        logError('[cancellation:stock_restoration_failed]', criticalErr);
-        throw criticalErr;
-      }
-
-      await Order.updateOne(
-        { _id: updatedOrder._id },
-        {
-          $set: {
-            items: updatedOrder.items,
-            'cancellation.stockRestorationStatus': 'COMPLETED',
-            'cancellation.restorationErrors': [],
-          },
-        },
-        { session }
-      );
-
-      await session.commitTransaction();
-
-      console.log(
-        JSON.stringify({
-          event: 'ORDER_STOCK_RESTORATION_COMPLETED',
-          orderId: updatedOrder._id.toString(),
-          orderNumber: updatedOrder.orderNumber,
-          restorationStatus: 'COMPLETED',
-          actorRole,
-          timestamp: now.toISOString(),
-        })
-      );
-
-      return { order: await Order.findById(updatedOrder._id), warning: null };
-    } catch (err) {
-      await session.abortTransaction();
-      throw err;
-    } finally {
-      session.endSession();
-    }
-  } else {
-    // Standalone MongoDB: atomic conditional status update first to ensure exactly-once execution
+  // Atomic conditional update: only the request that wins the transition from
+  // PLACED/CONFIRMED restores stock (exactly once, even under concurrency).
+  const cancelAndRestore = async (session) => {
+    const options = session ? { session } : {};
     const updatedOrder = await Order.findOneAndUpdate(
       {
         _id: existingOrder._id,
@@ -819,12 +908,12 @@ export async function cancelOrder(userId, orderId, { reason, actorRole = 'custom
           cancellation: cancellationData,
         },
       },
-      { returnDocument: 'after' }
+      { returnDocument: 'after', ...options }
     );
 
     if (!updatedOrder) {
       // Lost race to another concurrent request
-      const current = await Order.findById(existingOrder._id);
+      const current = await Order.findById(existingOrder._id, null, options);
       if (!current || current.user.toString() !== userId.toString()) {
         throw createError(404, 'ORDER_NOT_FOUND', 'Order not found.');
       }
@@ -835,70 +924,78 @@ export async function cancelOrder(userId, orderId, { reason, actorRole = 'custom
       );
     }
 
-    // Only the single request that won the transition restores stock
     const restorationErrors = await restoreStockForOrder(
       updatedOrder.items,
-      null,
+      session,
       { orderId: updatedOrder._id, orderNumber: updatedOrder.orderNumber }
     );
+    const restorationStatus = restorationStatusOf(updatedOrder.items, restorationErrors);
 
-    const hasAnyRestored = updatedOrder.items.some((i) => i.stockRestored);
-    const finalRestorationStatus =
-      restorationErrors.length === 0
-        ? 'COMPLETED'
-        : hasAnyRestored
-        ? 'PARTIAL'
-        : 'FAILED';
-
+    // Unrestorable items (e.g. a product deleted from the catalog) are recorded for
+    // admin reconciliation instead of blocking the cancellation.
     await Order.updateOne(
       { _id: updatedOrder._id },
       {
         $set: {
           items: updatedOrder.items,
-          'cancellation.stockRestorationStatus': finalRestorationStatus,
+          'cancellation.stockRestorationStatus': restorationStatus,
           'cancellation.restorationErrors': restorationErrors,
           'cancellation.isReconciling': false,
         },
-      }
+      },
+      options
     );
 
-    if (restorationErrors.length > 0) {
-      console.log(
-        JSON.stringify({
-          event: 'ORDER_STOCK_RESTORATION_FAILED',
-          orderId: updatedOrder._id.toString(),
-          orderNumber: updatedOrder.orderNumber,
-          restorationStatus: finalRestorationStatus,
-          failedCount: restorationErrors.length,
-          actorRole,
-          timestamp: new Date().toISOString(),
-        })
-      );
+    return { updatedOrder, restorationErrors, restorationStatus };
+  };
 
-      const criticalErr = createError(
-        500,
-        'STOCK_RESTORATION_FAILED',
-        `Order cancelled, but inventory restoration failed for ${restorationErrors.length} item(s). Manual reconciliation required.`
-      );
-      criticalErr.restorationFailures = restorationErrors;
-      criticalErr.order = await Order.findById(updatedOrder._id);
-      logError('[cancellation:stock_restoration_failed]', criticalErr);
-      throw criticalErr;
-    }
+  const { updatedOrder, restorationErrors, restorationStatus } = isTransactionSupported()
+    ? await runInTransaction(cancelAndRestore)
+    : await cancelAndRestore(null);
 
+  if (restorationErrors.length > 0) {
     console.log(
       JSON.stringify({
-        event: 'ORDER_STOCK_RESTORATION_COMPLETED',
+        event: 'ORDER_STOCK_RESTORATION_FAILED',
         orderId: updatedOrder._id.toString(),
         orderNumber: updatedOrder.orderNumber,
-        restorationStatus: 'COMPLETED',
+        restorationStatus,
+        failedCount: restorationErrors.length,
         actorRole,
         timestamp: new Date().toISOString(),
       })
     );
 
-    return { order: await Order.findById(updatedOrder._id), warning: null };
+    const alert = createError(
+      500,
+      'STOCK_RESTORATION_FAILED',
+      `Order cancelled, but inventory restoration failed for ${restorationErrors.length} item(s). Manual reconciliation required.`
+    );
+    logError('[cancellation:stock_restoration_failed]', alert);
+
+    // The cancellation and the failure are already durably recorded (PARTIAL/FAILED plus
+    // restorationErrors) and admins retry via reconcile-stock, so the customer gets a normal
+    // success with a generic note; the failure details stay internal.
+    return {
+      order: await Order.findById(updatedOrder._id),
+      warning: CANCELLATION_RECONCILIATION_PENDING,
+      restorationStatus,
+      restorationFailures: restorationErrors,
+    };
   }
+
+  console.log(
+    JSON.stringify({
+      event: 'ORDER_STOCK_RESTORATION_COMPLETED',
+      orderId: updatedOrder._id.toString(),
+      orderNumber: updatedOrder.orderNumber,
+      restorationStatus: 'COMPLETED',
+      actorRole,
+      timestamp: new Date().toISOString(),
+    })
+  );
+
+  return { order: await Order.findById(updatedOrder._id), warning: null };
 }
 
 /**
@@ -923,6 +1020,7 @@ export async function getAdminOrders({
   orderStatus,
   paymentStatus,
   paymentMethod,
+  restorationStatus,
   startDate,
   endDate,
   search,
@@ -985,6 +1083,19 @@ export async function getAdminOrders({
     query.paymentMethod = cleanMethod;
   }
 
+  // 4b. Filter: stock-restoration state of cancelled orders (finds failures awaiting reconcile-stock)
+  if (restorationStatus !== undefined && restorationStatus !== null && String(restorationStatus).trim() !== '') {
+    const cleanRestoration = String(restorationStatus).trim().toUpperCase();
+    if (!RESTORATION_STATUS_FILTERS.includes(cleanRestoration)) {
+      throw createError(
+        400,
+        'VALIDATION_ERROR',
+        `Invalid restoration status filter: "${restorationStatus}". Allowed: ${RESTORATION_STATUS_FILTERS.join(', ')}`
+      );
+    }
+    query['cancellation.stockRestorationStatus'] = cleanRestoration;
+  }
+
   // 5. Filter: Date Range (createdAt)
   let startMs = null;
   let endMs = null;
@@ -1014,14 +1125,24 @@ export async function getAdminOrders({
     if (endMs) query.createdAt.$lte = endMs;
   }
 
-  // 6. Search: orderNumber
+  // 6. Search: order number, customer email/name (bounded user lookup) or delivery phone
   if (search !== undefined && search !== null && String(search).trim() !== '') {
     const rawSearch = String(search).trim();
     if (rawSearch.length > 100) {
       throw createError(400, 'VALIDATION_ERROR', 'Search query cannot exceed 100 characters.');
     }
     const escaped = rawSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    query.orderNumber = { $regex: escaped, $options: 'i' };
+    const matchingUsers = await User.find({
+      $or: [{ email: { $regex: escaped, $options: 'i' } }, { name: { $regex: escaped, $options: 'i' } }],
+    })
+      .limit(200)
+      .distinct('_id');
+    const phone = normalizeIndianMobile(rawSearch);
+    query.$or = [
+      { orderNumber: { $regex: escaped, $options: 'i' } },
+      ...(matchingUsers.length ? [{ user: { $in: matchingUsers } }] : []),
+      ...(phone ? [{ 'deliveryAddress.phone': phone }] : []),
+    ];
   }
 
   // 7. Sorting
@@ -1169,87 +1290,8 @@ export async function updateOrderStatusByAdmin(orderId, { orderStatus, reason, a
       reconciliationFencingToken: 0,
     };
 
-    if (isTransactionSupported()) {
-      const session = await mongoose.startSession();
-      try {
-        session.startTransaction();
-
-        const updatedOrder = await Order.findOneAndUpdate(
-          {
-            _id: existingOrder._id,
-            orderStatus: existingOrder.orderStatus,
-          },
-          {
-            $set: {
-              orderStatus: ORDER_STATUS.CANCELLED,
-              cancellation: cancellationData,
-            },
-          },
-          { returnDocument: 'after', session }
-        );
-
-        if (!updatedOrder) {
-          const current = await Order.findById(existingOrder._id).session(session);
-          throw createError(
-            400,
-            'VALIDATION_ERROR',
-            `Order status was concurrently modified to "${current?.orderStatus}".`
-          );
-        }
-
-        const restorationErrors = await restoreStockForOrder(
-          updatedOrder.items,
-          session,
-          { orderId: updatedOrder._id, orderNumber: updatedOrder.orderNumber }
-        );
-        if (restorationErrors.length > 0) {
-          const criticalErr = createError(
-            500,
-            'STOCK_RESTORATION_FAILED',
-            `Order cancellation failed because inventory could not be restored for ${restorationErrors.length} item(s).`
-          );
-          criticalErr.restorationFailures = restorationErrors;
-          logError('[admin:stock_restoration_failed]', criticalErr);
-          throw criticalErr;
-        }
-
-        await Order.updateOne(
-          { _id: updatedOrder._id },
-          {
-            $set: {
-              items: updatedOrder.items,
-              'cancellation.stockRestorationStatus': 'COMPLETED',
-              'cancellation.restorationErrors': [],
-            },
-          },
-          { session }
-        );
-
-        await session.commitTransaction();
-
-        // Structured audit logging
-        console.log(
-          JSON.stringify({
-            event: 'ADMIN_ORDER_STATUS_UPDATED',
-            orderId: updatedOrder._id.toString(),
-            orderNumber: updatedOrder.orderNumber,
-            previousStatus: existingOrder.orderStatus,
-            newStatus: validatedStatus,
-            restorationStatus: 'COMPLETED',
-            adminId: adminUserId,
-            timestamp: now.toISOString(),
-          })
-        );
-
-        return await Order.findById(updatedOrder._id).populate('user', 'name email role');
-      } catch (err) {
-        await session.abortTransaction();
-        throw err;
-      } finally {
-        session.endSession();
-      }
-    } else {
-      // Standalone MongoDB
+    const cancelAndRestore = async (session) => {
+      const options = session ? { session } : {};
       const updatedOrder = await Order.findOneAndUpdate(
         {
           _id: existingOrder._id,
@@ -1261,11 +1303,11 @@ export async function updateOrderStatusByAdmin(orderId, { orderStatus, reason, a
             cancellation: cancellationData,
           },
         },
-        { returnDocument: 'after' }
+        { returnDocument: 'after', ...options }
       );
 
       if (!updatedOrder) {
-        const current = await Order.findById(existingOrder._id);
+        const current = await Order.findById(existingOrder._id, null, options);
         throw createError(
           400,
           'VALIDATION_ERROR',
@@ -1275,70 +1317,70 @@ export async function updateOrderStatusByAdmin(orderId, { orderStatus, reason, a
 
       const restorationErrors = await restoreStockForOrder(
         updatedOrder.items,
-        null,
+        session,
         { orderId: updatedOrder._id, orderNumber: updatedOrder.orderNumber }
       );
-
-      const hasAnyRestored = updatedOrder.items.some((i) => i.stockRestored);
-      const finalRestorationStatus =
-        restorationErrors.length === 0
-          ? 'COMPLETED'
-          : hasAnyRestored
-          ? 'PARTIAL'
-          : 'FAILED';
+      const restorationStatus = restorationStatusOf(updatedOrder.items, restorationErrors);
 
       await Order.updateOne(
         { _id: updatedOrder._id },
         {
           $set: {
             items: updatedOrder.items,
-            'cancellation.stockRestorationStatus': finalRestorationStatus,
+            'cancellation.stockRestorationStatus': restorationStatus,
             'cancellation.restorationErrors': restorationErrors,
             'cancellation.isReconciling': false,
           },
-        }
+        },
+        options
       );
 
-      if (restorationErrors.length > 0) {
-        console.log(
-          JSON.stringify({
-            event: 'ADMIN_STOCK_RESTORATION_FAILED',
-            orderId: updatedOrder._id.toString(),
-            orderNumber: updatedOrder.orderNumber,
-            restorationStatus: finalRestorationStatus,
-            failedCount: restorationErrors.length,
-            adminId: adminUserId,
-            timestamp: new Date().toISOString(),
-          })
-        );
+      return { updatedOrder, restorationErrors, restorationStatus };
+    };
 
-        const criticalErr = createError(
-          500,
-          'STOCK_RESTORATION_FAILED',
-          `Order cancelled, but inventory restoration failed for ${restorationErrors.length} item(s). Manual reconciliation required.`
-        );
-        criticalErr.restorationFailures = restorationErrors;
-        criticalErr.order = await Order.findById(updatedOrder._id);
-        logError('[admin:stock_restoration_failed]', criticalErr);
-        throw criticalErr;
-      }
+    const { updatedOrder, restorationErrors, restorationStatus } = isTransactionSupported()
+      ? await runInTransaction(cancelAndRestore)
+      : await cancelAndRestore(null);
 
-      // Structured audit logging
+    if (restorationErrors.length > 0) {
       console.log(
         JSON.stringify({
-          event: 'ADMIN_ORDER_STATUS_UPDATED',
+          event: 'ADMIN_STOCK_RESTORATION_FAILED',
           orderId: updatedOrder._id.toString(),
           orderNumber: updatedOrder.orderNumber,
-          previousStatus: existingOrder.orderStatus,
-          newStatus: validatedStatus,
-          restorationStatus: 'COMPLETED',
+          restorationStatus,
+          failedCount: restorationErrors.length,
           adminId: adminUserId,
-          timestamp: now.toISOString(),
+          timestamp: new Date().toISOString(),
         })
       );
 
-      return await Order.findById(updatedOrder._id).populate('user', 'name email role');
+      const criticalErr = createError(
+        500,
+        'STOCK_RESTORATION_FAILED',
+        `Order cancelled, but inventory restoration failed for ${restorationErrors.length} item(s). Manual reconciliation required.`
+      );
+      criticalErr.restorationFailures = restorationErrors;
+      criticalErr.order = await Order.findById(updatedOrder._id);
+      logError('[admin:stock_restoration_failed]', criticalErr);
+      throw criticalErr;
     }
+
+    // Structured audit logging
+    console.log(
+      JSON.stringify({
+        event: 'ADMIN_ORDER_STATUS_UPDATED',
+        orderId: updatedOrder._id.toString(),
+        orderNumber: updatedOrder.orderNumber,
+        previousStatus: existingOrder.orderStatus,
+        newStatus: validatedStatus,
+        restorationStatus: 'COMPLETED',
+        adminId: adminUserId,
+        timestamp: now.toISOString(),
+      })
+    );
+
+    return await Order.findById(updatedOrder._id).populate('user', 'name email role');
   }
 
   // Non-cancellation status transitions (CONFIRMED, PROCESSING, SHIPPED, DELIVERED)
@@ -1601,6 +1643,10 @@ export async function updatePaymentStatusByAdmin(
         throw createError(400, 'VALIDATION_ERROR', 'Refund amount must be greater than zero.');
       }
       cleanAmount = Math.round(amount * 100) / 100;
+      // Amounts below one paisa would round to a zero-value refund record
+      if (cleanAmount < 0.01) {
+        throw createError(400, 'VALIDATION_ERROR', 'Refund amount must be at least Rs. 0.01.');
+      }
       if (cleanAmount > remainingBalance) {
         throw createError(
           400,
