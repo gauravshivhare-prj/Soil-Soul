@@ -1,14 +1,7 @@
-import { AdminHeader } from "@/components/admin/AdminParts";
-import CustomersTable from "@/features/admin/CustomersTable";
-import { getCustomers } from "@/services/admin";
+import NotAvailable from "@/components/admin/NotAvailable";
 
 export const metadata = { title: "Customers | Admin | Soil & Soul" };
 
 export default function AdminCustomersPage() {
-  return (
-    <div>
-      <AdminHeader title="Customers" subtitle="Placeholder customers for the demo." />
-      <CustomersTable customers={getCustomers()} />
-    </div>
-  );
+  return <NotAvailable title="Customers" icon="users" description="Customer management isn't connected yet. Customer names and emails appear on each order in Orders." />;
 }

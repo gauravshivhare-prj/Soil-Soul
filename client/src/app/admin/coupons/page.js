@@ -1,14 +1,7 @@
-import { AdminHeader } from "@/components/admin/AdminParts";
-import CouponManager from "@/features/admin/CouponManager";
-import { getAdminCoupons } from "@/services/admin";
+import NotAvailable from "@/components/admin/NotAvailable";
 
 export const metadata = { title: "Coupons & Offers | Admin | Soil & Soul" };
 
 export default function AdminCouponsPage() {
-  return (
-    <div>
-      <AdminHeader title="Coupons & Offers" subtitle="Create and manage discount codes." />
-      <CouponManager initialCoupons={getAdminCoupons()} />
-    </div>
-  );
+  return <NotAvailable title="Coupons & Offers" icon="ticket" description="Coupons and offers aren't supported by checkout yet." />;
 }
