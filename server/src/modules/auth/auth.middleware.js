@@ -1,7 +1,7 @@
 import { rateLimit } from 'express-rate-limit';
 import env from '../../config/env.js';
 import { createError } from '../../utils/createError.js';
-import { verifyAccessToken, getUserProfile } from './auth.service.js';
+import { verifyAccessToken, getAuthState } from './auth.service.js';
 
 /**
  * Authentication middleware that verifies access token from Bearer Authorization header.
@@ -28,7 +28,17 @@ export async function authenticate(req, res, next) {
       throw createError(401, 'INVALID_TOKEN', 'Invalid access token.');
     }
 
-    const user = await getUserProfile(decoded.sub);
+    const { user, tokenVersion, status, emailVerified } = await getAuthState(decoded.sub);
+    if ((decoded.tv ?? 0) !== tokenVersion) {
+      throw createError(401, 'TOKEN_REVOKED', 'This session has ended. Please log in again.');
+    }
+    if (status === 'disabled') {
+      throw createError(403, 'ACCOUNT_DISABLED', 'This account has been disabled.');
+    }
+    if (!emailVerified) {
+      throw createError(403, 'EMAIL_NOT_VERIFIED', 'Please verify your email address before continuing.');
+    }
+
     req.user = user;
     next();
   } catch (err) {
