@@ -155,10 +155,8 @@ export default function Navbar() {
       <div className="bg-[#24452a] text-[#f4f1e8] font-sans">
         <p className="max-w-[1360px] mx-auto px-4 h-8 sm:h-9 m-0 flex items-center justify-center gap-2 text-xs sm:text-[0.8125rem] tracking-wide text-center">
           <span aria-hidden="true">🌿</span>
-          <span>Free shipping on orders above ₹499</span>
-          <span className="hidden sm:inline opacity-60" aria-hidden="true">|</span>
-          <span className="hidden sm:inline">Bring nature home</span>
-          <span className="hidden sm:inline" aria-hidden="true">🌱</span>
+          <span>Bring nature home</span>
+          <span aria-hidden="true">🌱</span>
         </p>
       </div>
 

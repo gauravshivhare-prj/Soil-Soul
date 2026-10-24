@@ -13,7 +13,7 @@
  *   - Drawer is `inert` while closed so hidden links are not tabbable.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -101,9 +101,22 @@ const SECONDARY_ICONS = {
 };
 
 /* ─── Component ─────────────────────────────────────────────────── */
-export default function MobileNav({ links, brandFontClass }) {
+// The pathname is only known at request time; until it streams in, the drawer renders
+// without an active link (and without the close-on-navigation tracking).
+export default function MobileNav(props) {
+  return (
+    <Suspense fallback={<MobileNavDrawer {...props} pathname="" />}>
+      <CurrentMobileNav {...props} />
+    </Suspense>
+  );
+}
+
+function CurrentMobileNav(props) {
+  return <MobileNavDrawer {...props} pathname={usePathname()} />;
+}
+
+function MobileNavDrawer({ links, brandFontClass, pathname }) {
   const [open, setOpen] = useState(false);
-  const pathname = usePathname();
   const buttonRef = useRef(null);
   const closeRef = useRef(null);
   const wasOpen = useRef(false);
@@ -274,7 +287,7 @@ export default function MobileNav({ links, brandFontClass }) {
 
         {/* Drawer footer */}
         <p className="m-0 px-5 py-3 text-xs text-center text-[#f4f1e8] bg-[#24452a] flex-shrink-0">
-          🌿 Free shipping on orders above ₹499
+          🌿 Bring nature home
         </p>
       </div>
     </>
