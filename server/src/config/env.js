@@ -1,10 +1,15 @@
 import { fileURLToPath } from 'node:url';
 
 // Load server/.env if present; variables already set in the environment win.
-try {
-  process.loadEnvFile(fileURLToPath(new URL('../../.env', import.meta.url)));
-} catch (err) {
-  if (err.code !== 'ENOENT') throw err;
+// Skipped under NODE_ENV=test, and when SKIP_DOTENV=1 (set by tests that spawn development or
+// production processes), so test runs are hermetic: they never inherit a developer's .env (email
+// provider, database URI, keys) and rely only on the variables they set.
+if (process.env.NODE_ENV !== 'test' && process.env.SKIP_DOTENV !== '1') {
+  try {
+    process.loadEnvFile(fileURLToPath(new URL('../../.env', import.meta.url)));
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
 }
 
 // Errors name the variable but never echo its value.
@@ -61,6 +66,22 @@ if (jwtSecret.length < 32) {
 
 const jwtAccessExpiresIn = (process.env.JWT_ACCESS_EXPIRES_IN || '15m').trim();
 
+// Transactional email (verification and password-reset codes).
+// disabled: nothing is sent (codes cannot be delivered); test: in-memory outbox for automated tests;
+// resend: Resend web API (needs a verified sending domain).
+const emailProvider = (process.env.EMAIL_PROVIDER || (nodeEnv === 'test' ? 'test' : 'disabled')).trim().toLowerCase();
+if (!['disabled', 'test', 'resend'].includes(emailProvider)) {
+  throw new Error('Invalid EMAIL_PROVIDER: expected disabled, test or resend.');
+}
+if (emailProvider === 'test' && isProduction) {
+  throw new Error('Invalid EMAIL_PROVIDER: the test provider cannot be used in production.');
+}
+const emailFrom = (process.env.EMAIL_FROM || '').trim();
+const emailApiKey = (process.env.EMAIL_API_KEY || '').trim();
+if (emailProvider === 'resend' && (!emailFrom || !emailApiKey)) {
+  throw new Error('Missing EMAIL_FROM or EMAIL_API_KEY: both are required when EMAIL_PROVIDER=resend.');
+}
+
 export const env = Object.freeze({
   env: nodeEnv,
   isProduction,
@@ -69,6 +90,9 @@ export const env = Object.freeze({
   mongoUri,
   jwtSecret,
   jwtAccessExpiresIn,
+  emailProvider,
+  emailFrom,
+  emailApiKey,
   // Max auth requests per client IP per 15 minutes.
   authRateLimitMax: int('AUTH_RATE_LIMIT_MAX', 20, 1, 10000),
   // Max API requests per client IP per 15 minutes.
