@@ -82,3 +82,11 @@ Before deployment:
 - Confirm production CORS and cookie settings.
 - Confirm no debug endpoints or verbose errors are exposed.
 - Confirm authorization tests cover customer/admin boundaries.
+
+## 10. Implemented session controls (backend)
+
+- Access tokens: HS256, 15-minute default lifetime, `type: access`, and a per-user token version (`tv`) checked on every authenticated request together with the account `status`.
+- Logout increments the token version, revoking every session for that user (there is no per-device logout yet).
+- A disabled account is refused on every request (`403 ACCOUNT_DISABLED`) and cannot obtain new tokens. There is no admin endpoint to disable accounts yet (planned in P8); today it is a database change.
+- Per-account login lockout: 5 attempts per 15-minute window per account key, then a 15-minute lock (`429 TOO_MANY_ATTEMPTS` with `Retry-After` and `retryAfterSeconds`). The key is an HMAC-SHA256 of the normalized email (keyed with `JWT_SECRET`); emails are never stored. Unknown and existing emails are counted identically, so the lockout reveals nothing. Each attempt is reserved atomically **before** the password is checked, so concurrent attempts cannot verify more passwords than the limit; a successful login clears the record (a disabled-account login does not). Records live in `login_attempts` with a TTL index, so the lockout works across instances. The unique `keyHash` index is required for that guarantee: run `npm run db:index` before deploying (production does not auto-create indexes).
+- The per-IP auth limiter (in memory, single instance, ADR-009) still applies on top of the account lockout.

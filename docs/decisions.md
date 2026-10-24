@@ -49,3 +49,17 @@ This document records current decisions and the reasons behind them. Revisit a d
 **Decision:** Document function contracts, module responsibilities, side effects, security assumptions, and complex business rules. Avoid comments that merely restate syntax.
 
 **Reason:** Meaningful comments improve maintainability; line-by-line narration often becomes noisy and stale.
+
+## ADR-008: Two-decimal rupee amounts for COD v1
+
+**Decision:** Monetary values (prices, totals, refunds) stay as rupee numbers rounded to two decimals (`Math.round(x * 100) / 100`) for the Cash-on-Delivery release. The order model is not converted to integer paise.
+
+**Reason:** All order, cart and refund logic and its tests already use this representation consistently; converting now would touch every money path without a functional need for COD.
+
+**Implications:** Every calculation must round to two decimals at each step; refunds below Rs. 0.01 are rejected. Revisit (integer paise at API boundaries) before integrating an online payment provider.
+
+## ADR-009: Single server instance for the initial release
+
+**Decision:** The first release runs one backend instance. Rate limiting (`express-rate-limit`) uses its in-memory store and the checkout lock is process-local.
+
+**Limitation:** Limits and the lock are per process and reset on restart. This is **not** suitable for multiple instances; scaling out requires a shared rate-limit store. Order/stock correctness does not depend on the lock (unique indexes and atomic conditional stock updates enforce it).

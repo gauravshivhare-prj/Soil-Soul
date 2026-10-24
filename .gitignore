@@ -60,3 +60,7 @@ Thumbs.db
 *.key
 *.cert
 *.crt
+
+
+# Local project plans, reports and documentation
+ssfiles/
