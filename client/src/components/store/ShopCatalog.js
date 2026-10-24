@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * ShopCatalog — search, filters, sorting, grid/list view and pagination
- * over the local catalog (services/catalog.js).
+ * ShopCatalog — search, filters, sorting, grid/list view and pagination over the live
+ * catalog (all active products loaded from the API; filtering happens in the browser).
  *
  * - `initialCategories` preselects categories (category/collection pages).
  * - A `?q=` search term in the URL (from the navbar search) seeds the search
@@ -13,7 +13,9 @@
 
 import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { defaultOptionId, filterProducts, getCategories, getFilterOptions, getProducts, isInStock, SORT_OPTIONS, sortProducts } from "@/services/catalog";
+import { filterProducts, sortProducts } from "@/services/catalog";
+import { defaultOptionId, fetchAllProducts, fetchCategories, isInStock, SHOP_SORT_OPTIONS as SORT_OPTIONS } from "@/services/catalogApi";
+import { LIGHT_LEVELS, PRODUCT_TAGS, SIZES } from "@/data/catalog";
 import { productHref } from "@/lib/routes";
 import { useCart } from "@/features/cart/CartProvider";
 import { useToast } from "@/components/ui/Toast";
@@ -26,9 +28,33 @@ import Stars from "@/components/ui/Stars";
 import Price from "@/components/ui/Price";
 import Icon from "@/components/ui/Icon";
 import Button from "@/components/ui/Button";
-import { EmptyState } from "@/components/ui/States";
+import { EmptyState, FormMessage, ProductGridSkeleton } from "@/components/ui/States";
 
 const PAGE_SIZE = 12;
+
+/* Live catalog: products + categories (with counts of active products) from the API. */
+function useCatalog() {
+  const [state, setState] = useState({ status: "loading", products: [], categories: [], truncated: false, error: null });
+  useEffect(() => {
+    const controller = new AbortController();
+    Promise.all([fetchAllProducts({ signal: controller.signal }), fetchCategories({ signal: controller.signal })])
+      .then(([{ products, truncated }, categories]) => {
+        const counts = new Map();
+        for (const p of products) counts.set(p.categorySlug, (counts.get(p.categorySlug) ?? 0) + 1);
+        setState({ status: "ready", products, truncated, error: null, categories: categories.map((c) => ({ ...c, productCount: counts.get(c.slug) ?? 0 })) });
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) setState((s) => ({ ...s, status: "error", error }));
+      });
+    return () => controller.abort();
+  }, []);
+  return state;
+}
+
+function filterOptionsFor(products) {
+  const maxPrice = products.reduce((m, p) => Math.max(m, p.price), 0);
+  return { tags: PRODUCT_TAGS, lightLevels: LIGHT_LEVELS, sizes: SIZES, priceMin: 0, priceMax: Math.max(100, Math.ceil(maxPrice / 100) * 100) };
+}
 
 /* ─── ?q= from the URL ─────────────────────────────────────────── */
 function subscribeToLocation(callback) {
@@ -81,7 +107,11 @@ function ProductRow({ product }) {
             <Button
               size="sm"
               disabled={!inStock}
-              onClick={() => addItem(product.slug, { optionId: defaultOptionId(product) }) && notify(`${product.name} added to your cart`)}
+              onClick={async () => {
+                const result = await addItem(product, { optionId: defaultOptionId(product) });
+                if (result.ok) notify(`${product.name} added to your cart`);
+                else if (result.error) notify(result.error.message, { tone: "error" });
+              }}
             >
               {inStock ? <><Icon name="cart" size={14} />Add to Cart</> : "Out of Stock"}
             </Button>
@@ -128,9 +158,24 @@ function FilterPanel({ isOpen, onClose, children }) {
 
 /* ─── Catalog ──────────────────────────────────────────────────── */
 export default function ShopCatalog({ initialCategories = [] }) {
-  const options = useMemo(() => getFilterOptions(), []);
-  const categories = useMemo(() => getCategories(), []);
-  const allProducts = getProducts();
+  const catalog = useCatalog();
+  if (catalog.status === "loading") {
+    return <ProductGridSkeleton count={8} />;
+  }
+  if (catalog.status === "error") {
+    return (
+      <div className="max-w-xl space-y-3">
+        <FormMessage tone="error">{catalog.error.message}</FormMessage>
+        <Button variant="outline" onClick={() => window.location.reload()}>Try again</Button>
+      </div>
+    );
+  }
+  return <CatalogBody initialCategories={initialCategories} allProducts={catalog.products} categories={catalog.categories} truncated={catalog.truncated} />;
+}
+
+/* Mounted once the catalog has loaded, so filter defaults come from real prices. */
+function CatalogBody({ initialCategories, allProducts, categories, truncated }) {
+  const options = useMemo(() => filterOptionsFor(allProducts), [allProducts]);
 
   const urlQuery = useSyncExternalStore(subscribeToLocation, readUrlQuery, serverUrlQuery);
   const [typedQuery, setTypedQuery] = useState(null);
@@ -251,6 +296,7 @@ export default function ShopCatalog({ initialCategories = [] }) {
           </div>
         </div>
 
+        {truncated && <FormMessage tone="info" className="mb-4">Showing the first 500 products. Use search or filters to narrow the list.</FormMessage>}
         <p className="m-0 mb-4 text-sm text-muted" aria-live="polite">
           {results.length > 0 ? (
             <>Showing <strong className="font-semibold text-ink">{from}–{to}</strong> of {results.length} products</>

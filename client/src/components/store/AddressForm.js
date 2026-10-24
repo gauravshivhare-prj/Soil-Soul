@@ -3,7 +3,8 @@
 /**
  * AddressForm — delivery address fields with client-side validation.
  * Used at checkout ("Add New Address") and in Account › Addresses.
- * Calls onSave(address) with a new id; nothing is sent to a server yet.
+ * Calls onSave(address) with a new id. `showSaveOptions={false}` hides the address-book-only
+ * fields (address type, default) where nothing is saved, e.g. checkout.
  */
 
 import { useState } from "react";
@@ -23,7 +24,7 @@ const RULES = {
   pincode,
 };
 
-export default function AddressForm({ initial, onSave, onCancel, submitLabel = "Save Address" }) {
+export default function AddressForm({ initial, onSave, onCancel, submitLabel = "Save Address", showSaveOptions = true }) {
   const [values, setValues] = useState({ ...EMPTY, ...initial });
   const [errors, setErrors] = useState({});
 
@@ -65,14 +66,18 @@ export default function AddressForm({ initial, onSave, onCancel, submitLabel = "
         options={[{ value: "", label: "Select state" }, ...INDIAN_STATES.map((s) => ({ value: s, label: s }))]}
       />
       <TextField label="PIN code" name="pincode" value={values.pincode} onChange={set("pincode")} error={errors.pincode} autoComplete="postal-code" inputMode="numeric" maxLength={6} required />
-      <SelectField
-        label="Address type"
-        name="label"
-        value={values.label}
-        onChange={set("label")}
-        options={["Home", "Work", "Other"].map((l) => ({ value: l, label: l }))}
-      />
-      <Checkbox label="Make this my default address" checked={values.isDefault} onChange={set("isDefault")} className="sm:col-span-2" />
+      {showSaveOptions && (
+        <>
+          <SelectField
+            label="Address type"
+            name="label"
+            value={values.label}
+            onChange={set("label")}
+            options={["Home", "Work", "Other"].map((l) => ({ value: l, label: l }))}
+          />
+          <Checkbox label="Make this my default address" checked={values.isDefault} onChange={set("isDefault")} className="sm:col-span-2" />
+        </>
+      )}
       <div className="sm:col-span-2 flex flex-wrap gap-2.5">
         <Button type="submit">{submitLabel}</Button>
         {onCancel && <Button variant="outline" onClick={onCancel}>Cancel</Button>}

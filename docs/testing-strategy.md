@@ -60,3 +60,12 @@ For each phase, report:
 - Known limitations.
 
 Do not claim a test passed based only on code inspection.
+
+## 6. Test database safety guard (backend)
+
+All database-backed backend tests resolve their connection through `server/tests/helpers/testDb.js`. It fails closed unless:
+- the URI uses plain `mongodb://` (never `mongodb+srv://`);
+- every host is `127.0.0.1`, `localhost` or `::1` (any port);
+- the database name contains `test`.
+
+Credentials are never echoed in the error. Replica-set runs use loopback URIs such as `mongodb://127.0.0.1:27027/<db>_test?replicaSet=rs0test`.

@@ -19,6 +19,8 @@ function Row({ size, className }) {
 }
 
 export default function Stars({ rating, count, size = 12, showValue = true, className = "" }) {
+  // No genuine rating (the API sends none until real reviews exist): render nothing.
+  if (typeof rating !== "number" || !Number.isFinite(rating)) return null;
   return (
     <span className={`inline-flex items-center gap-1.5 ${className}`}>
       <span className="relative inline-flex" aria-hidden="true">

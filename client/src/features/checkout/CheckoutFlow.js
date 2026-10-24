@@ -1,26 +1,29 @@
 "use client";
 
 /**
- * CheckoutFlow — Address → Payment → Review, then a demo confirmation.
+ * CheckoutFlow — Address → Payment → Review → real Cash-on-Delivery order (POST /orders).
  *
- * UI ONLY: no payment request is made, no payment details are collected,
- * and no real order is created. "Place Order" shows a clearly labelled
- * demo confirmation and clears the local cart. Real checkout must create
- * the order and verify payment on the server.
+ * - The server recalculates prices, checks stock and creates the order; the UI never clears
+ *   the cart itself — it re-reads the server cart after the server confirms.
+ * - One Idempotency-Key per checkout attempt, reused on retries (a timeout or network error
+ *   can be retried safely without a duplicate order). Changing the address or payment method
+ *   starts a new attempt with a new key.
+ * - Only Cash on Delivery is available; payment options come from the server.
  */
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { brandSerif } from "@/app/fonts";
 import { useCart } from "@/features/cart/CartProvider";
-import { getAddresses } from "@/services/account";
-import { PAYMENT_OPTIONS } from "@/data/commerce";
+import { useAuth } from "@/features/auth/AuthProvider";
+import { newIdempotencyKey, retryAfterText } from "@/lib/api";
 import { formatAddress, formatPrice } from "@/lib/format";
 import AddressForm from "@/components/store/AddressForm";
 import OrderSummary from "@/components/store/OrderSummary";
 import Button from "@/components/ui/Button";
 import Icon from "@/components/ui/Icon";
 import { Checkbox } from "@/components/ui/Field";
-import { DemoNotice, EmptyState, Skeleton } from "@/components/ui/States";
+import { EmptyState, FormMessage, Skeleton } from "@/components/ui/States";
 
 const STEPS = ["Address", "Payment", "Review"];
 
@@ -73,88 +76,59 @@ function Panel({ title, icon, children, headingRef }) {
 }
 
 /* ─── Steps ────────────────────────────────────────────────────── */
-function AddressStep({ addresses, selectedId, onSelect, onAdd }) {
-  const [mode, setMode] = useState(addresses.length ? "saved" : "new");
-  return (
-    <>
-      <div role="tablist" aria-label="Address source" className="grid grid-cols-2 gap-1 rounded-xl bg-sand p-1 mb-4">
-        {[["saved", "Saved Addresses"], ["new", "Add New Address"]].map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={mode === id}
-            onClick={() => setMode(id)}
-            className={`h-10 rounded-lg border-0 text-sm font-medium cursor-pointer transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-forest
-                        ${mode === id ? "bg-forest text-cream" : "bg-transparent text-ink hover:bg-white/60"}`}
-          >
-            {label}
-          </button>
-        ))}
+function AddressStep({ address, onSave }) {
+  const [isEditing, setIsEditing] = useState(!address);
+  if (address && !isEditing) {
+    return (
+      <div className="rounded-xl border border-forest bg-sage-50/50 p-4 text-sm">
+        <p className="m-0 font-semibold text-ink">{address.name}</p>
+        <p className="m-0 mt-1 text-muted">{formatAddress(address)}</p>
+        <p className="m-0 mt-0.5 text-muted">{address.phone}</p>
+        <button type="button" onClick={() => setIsEditing(true)} className="mt-3 inline-flex items-center gap-1.5 bg-transparent border-0 p-0 text-sm font-medium text-forest cursor-pointer hover:underline">
+          <Icon name="edit" size={15} /> Change address
+        </button>
       </div>
-
-      {mode === "saved" ? (
-        <fieldset className="m-0 p-0 border-0 grid gap-3">
-          <legend className="sr-only">Choose a delivery address</legend>
-          {addresses.map((a) => (
-            <label
-              key={a.id}
-              className={`flex gap-3 rounded-xl border p-4 cursor-pointer transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-forest
-                          ${selectedId === a.id ? "border-forest bg-sage-50/50" : "border-line hover:border-sage-300"}`}
-            >
-              <input type="radio" name="address" checked={selectedId === a.id} onChange={() => onSelect(a.id)} className="mt-1 w-4 h-4 accent-forest" />
-              <span className="flex-1 min-w-0 text-sm">
-                <span className="flex flex-wrap items-center gap-2 font-semibold text-ink">
-                  {a.name}
-                  <span className="rounded-full bg-sand px-2 py-0.5 text-[0.6875rem] font-medium text-muted">{a.label}</span>
-                  {a.isDefault && <span className="rounded-full bg-sage-50 px-2 py-0.5 text-[0.6875rem] font-medium text-[#3d5a35]">Default</span>}
-                </span>
-                <span className="block mt-1 text-muted">{formatAddress(a)}</span>
-                <span className="block mt-0.5 text-muted">{a.phone}</span>
-              </span>
-            </label>
-          ))}
-          <button type="button" onClick={() => setMode("new")} className="justify-self-start inline-flex items-center gap-1.5 bg-transparent border-0 p-0 text-sm font-medium text-forest cursor-pointer hover:underline">
-            <Icon name="plus" size={16} /> Add a new address
-          </button>
-        </fieldset>
-      ) : (
-        <AddressForm
-          submitLabel="Save & Use This Address"
-          onCancel={addresses.length ? () => setMode("saved") : undefined}
-          onSave={(address) => {
-            onAdd(address);
-            setMode("saved");
-          }}
-        />
-      )}
-    </>
+    );
+  }
+  return (
+    <AddressForm
+      initial={address ?? undefined}
+      showSaveOptions={false}
+      submitLabel="Use This Address"
+      onCancel={address ? () => setIsEditing(false) : undefined}
+      onSave={(a) => {
+        onSave(a);
+        setIsEditing(false);
+      }}
+    />
   );
 }
 
-function PaymentStep({ selected, onSelect }) {
+function PaymentStep({ methods, loadError, selected, onSelect }) {
+  if (loadError) return <FormMessage tone="error">{loadError}</FormMessage>;
+  if (!methods) return <Skeleton className="h-28 rounded-xl" />;
   return (
     <fieldset className="m-0 p-0 border-0 grid gap-3">
       <legend className="sr-only">Choose a payment method</legend>
-      {PAYMENT_OPTIONS.map((o) => (
+      {methods.map((m) => (
         <label
-          key={o.id}
-          className={`flex items-center gap-3.5 rounded-xl border p-4 cursor-pointer transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-forest
-                      ${selected === o.id ? "border-forest bg-sage-50/50" : "border-line hover:border-sage-300"}`}
+          key={m.id}
+          className={`flex items-center gap-3.5 rounded-xl border p-4 transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-forest
+                      ${!m.enabled ? "opacity-60 cursor-not-allowed border-line" : selected === m.id ? "border-forest bg-sage-50/50 cursor-pointer" : "border-line hover:border-sage-300 cursor-pointer"}`}
         >
-          <input type="radio" name="payment" checked={selected === o.id} onChange={() => onSelect(o.id)} className="w-4 h-4 accent-forest" />
+          <input type="radio" name="payment" disabled={!m.enabled} checked={selected === m.id} onChange={() => onSelect(m.id)} className="w-4 h-4 accent-forest" />
           <span className="flex items-center justify-center w-11 h-11 rounded-lg bg-sand text-forest flex-shrink-0">
-            {o.icon === "upi" ? <span className="text-[0.8125rem] font-black italic tracking-tight">UPI</span> : <Icon name={o.icon} size={22} />}
+            <Icon name={m.id === "COD" ? "cash" : "card"} size={22} />
           </span>
           <span className="flex-1 min-w-0">
-            <span className="block text-sm font-semibold text-ink">{o.name}</span>
-            <span className="block text-xs text-muted">{o.detail}</span>
+            <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+              {m.name}
+              {m.badge && <span className="rounded-full bg-sand px-2 py-0.5 text-[0.6875rem] font-medium text-muted">{m.badge}</span>}
+            </span>
+            <span className="block text-xs text-muted">{m.description}</span>
           </span>
         </label>
       ))}
-      <DemoNotice>
-        Payments aren&rsquo;t connected yet. No card, UPI or bank details are collected and no money is charged in this demo.
-      </DemoNotice>
     </fieldset>
   );
 }
@@ -172,7 +146,7 @@ function ReviewStep({ address, payment, lines, agreed, onAgree, error }) {
         <div className="rounded-xl border border-line p-4">
           <p className="m-0 text-xs font-semibold uppercase tracking-wide text-muted">Payment</p>
           <p className="m-0 mt-1.5 text-sm font-semibold text-ink">{payment.name}</p>
-          <p className="m-0 mt-0.5 text-sm text-muted">{payment.detail}</p>
+          <p className="m-0 mt-0.5 text-sm text-muted">{payment.description}</p>
         </div>
       </div>
       <ul className="list-none m-0 p-0 rounded-xl border border-line divide-y divide-line">
@@ -183,29 +157,33 @@ function ReviewStep({ address, payment, lines, agreed, onAgree, error }) {
               {l.option && <span className="text-muted"> · {l.option.name}</span>}
               <span className="text-muted"> × {l.qty}</span>
             </span>
-            <span className="font-medium text-ink">{formatPrice(l.unitPrice * l.qty)}</span>
+            <span className="font-medium text-ink">{formatPrice(l.lineTotal)}</span>
           </li>
         ))}
       </ul>
+      <p className="m-0 text-xs text-muted">Final prices and stock are confirmed by the store when you place the order.</p>
       <div>
         <Checkbox label="I agree to the Terms & Conditions and Privacy Policy" checked={agreed} onChange={(e) => onAgree(e.target.checked)} />
-        {error && <p className="m-0 mt-1.5 text-xs text-danger" role="alert">{error}</p>}
       </div>
+      <FormMessage tone="error">{error}</FormMessage>
     </div>
   );
 }
 
-function Confirmation({ order }) {
+function Confirmation({ order, warning }) {
   return (
     <div className="rounded-2xl border border-line bg-white">
       <EmptyState
         icon="check-circle"
-        title="Order placed (demo)"
-        description={`Thank you! This was a demonstration checkout — no payment was taken and no real order was created. Reference: ${order.id}. Total ${formatPrice(order.total)}.`}
+        title="Order placed"
+        description={`Thank you! Your order ${order.orderNumber} for ${formatPrice(order.total)} has been placed. Pay in cash when it is delivered.`}
         action={
-          <div className="flex flex-wrap justify-center gap-2.5">
-            <Button href="/shop">Continue Shopping</Button>
-            <Button href="/account/orders" variant="outline">View My Orders</Button>
+          <div className="grid justify-items-center gap-3">
+            {warning && <FormMessage tone="info">{warning}</FormMessage>}
+            <div className="flex flex-wrap justify-center gap-2.5">
+              <Button href={`/account/orders/${order.orderNumber}`}>View Order</Button>
+              <Button href="/shop" variant="outline">Continue Shopping</Button>
+            </div>
           </div>
         }
       />
@@ -213,33 +191,65 @@ function Confirmation({ order }) {
   );
 }
 
+const toApiAddress = (a) => ({
+  recipientName: a.name.trim(),
+  phone: a.phone.trim(),
+  addressLine1: a.line1.trim(),
+  addressLine2: (a.line2 ?? "").trim(),
+  city: a.city.trim(),
+  state: a.state,
+  postalCode: a.pincode.trim(),
+  country: "India",
+});
+
 /* ─── Flow ─────────────────────────────────────────────────────── */
 export default function CheckoutFlow() {
-  const { isReady, lines, totals, coupon, clearCart } = useCart();
-  const [addresses, setAddresses] = useState(() => getAddresses());
-  const [addressId, setAddressId] = useState(() => (getAddresses().find((a) => a.isDefault) ?? getAddresses()[0])?.id ?? null);
-  const [paymentId, setPaymentId] = useState("cod");
+  const { authRequest } = useAuth();
+  const { isReady, isAuthenticated, lines, totals, refresh } = useCart();
+  const [address, setAddress] = useState(null);
+  const [paymentId, setPaymentId] = useState("COD");
+  const [methods, setMethods] = useState(null);
+  const [methodsError, setMethodsError] = useState("");
   const [step, setStep] = useState(0);
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState("");
   const [isPlacing, setIsPlacing] = useState(false);
-  const [placedOrder, setPlacedOrder] = useState(null);
+  const [placed, setPlaced] = useState(null); // { order, warning }
   const headingRef = useRef(null);
+  const attemptKey = useRef(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    let cancelled = false;
+    authRequest("/orders/payment-methods")
+      .then((data) => !cancelled && setMethods(data.paymentMethods))
+      .catch((err) => !cancelled && setMethodsError(err.message));
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, authRequest]);
 
   function goTo(next) {
     setError("");
     setStep(next);
-    // Move focus to the new step heading after it renders.
     requestAnimationFrame(() => headingRef.current?.focus());
   }
 
-  if (placedOrder) return <Confirmation order={placedOrder} />;
+  if (placed) return <Confirmation order={placed.order} warning={placed.warning} />;
 
   if (!isReady) {
     return (
       <div className="grid gap-6 lg:grid-cols-[1fr_380px]" role="status" aria-label="Loading checkout">
         <Skeleton className="h-96 rounded-2xl" />
         <Skeleton className="h-96 rounded-2xl" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="rounded-2xl border border-line bg-white">
+        <EmptyState icon="lock" title="Sign in to check out" description="Checkout needs an account so you can track your order." action={<Button href="/login?next=/checkout">Sign In</Button>} />
       </div>
     );
   }
@@ -252,24 +262,46 @@ export default function CheckoutFlow() {
     );
   }
 
-  const address = addresses.find((a) => a.id === addressId);
-  const payment = PAYMENT_OPTIONS.find((p) => p.id === paymentId);
+  if (totals.hasUnavailable) {
+    return (
+      <div className="rounded-2xl border border-line bg-white">
+        <EmptyState icon="cart" title="Your cart needs attention" description="Some items are unavailable or exceed the available stock." action={<Button href="/cart">Review Cart</Button>} />
+      </div>
+    );
+  }
+
+  const payment = methods?.find((m) => m.id === paymentId && m.enabled) ?? null;
 
   function next() {
-    if (step === 0 && !address) return setError("Please choose or add a delivery address.");
+    if (step === 0 && !address) return setError("Please enter a delivery address.");
     if (step === 1 && !payment) return setError("Please choose a payment method.");
     goTo(step + 1);
   }
 
-  function placeOrder() {
+  async function placeOrder() {
     if (!agreed) return setError("Please accept the terms to place your order.");
+    if (!attemptKey.current) attemptKey.current = newIdempotencyKey();
     setIsPlacing(true);
-    // Simulated processing delay — no network request is made.
-    setTimeout(() => {
-      setPlacedOrder({ id: `DEMO-${String(Date.now()).slice(-6)}`, total: totals.total });
-      clearCart();
+    setError("");
+    try {
+      const data = await authRequest("/orders", {
+        method: "POST",
+        headers: { "Idempotency-Key": attemptKey.current },
+        body: { paymentMethod: payment.id, deliveryAddress: toApiAddress(address) },
+        timeoutMs: 30000,
+      });
+      setPlaced({ order: data.order, warning: data.warning ?? null });
+      attemptKey.current = null;
+      refresh();
       window.scrollTo({ top: 0, behavior: "smooth" });
-    }, 900);
+    } catch (err) {
+      if (err.code === "IDEMPOTENCY_KEY_REUSED") attemptKey.current = null;
+      if (err.code === "INSUFFICIENT_STOCK" || err.code === "VALIDATION_ERROR") refresh();
+      // Network errors and timeouts keep the same key: retrying cannot create a second order.
+      setError(`${err.message}${err.status === 429 ? retryAfterText(err) : ""}`);
+    } finally {
+      setIsPlacing(false);
+    }
   }
 
   return (
@@ -282,12 +314,10 @@ export default function CheckoutFlow() {
         {step === 0 && (
           <Panel title="1. Delivery Address" icon="pin" headingRef={headingRef}>
             <AddressStep
-              addresses={addresses}
-              selectedId={addressId}
-              onSelect={setAddressId}
-              onAdd={(a) => {
-                setAddresses((list) => [...list.map((x) => (a.isDefault ? { ...x, isDefault: false } : x)), a]);
-                setAddressId(a.id);
+              address={address}
+              onSave={(a) => {
+                setAddress(a);
+                attemptKey.current = null; // new details → new checkout attempt
                 setError("");
               }}
             />
@@ -295,7 +325,15 @@ export default function CheckoutFlow() {
         )}
         {step === 1 && (
           <Panel title="2. Payment Method" icon="card" headingRef={headingRef}>
-            <PaymentStep selected={paymentId} onSelect={setPaymentId} />
+            <PaymentStep
+              methods={methods}
+              loadError={methodsError}
+              selected={paymentId}
+              onSelect={(id) => {
+                setPaymentId(id);
+                attemptKey.current = null;
+              }}
+            />
           </Panel>
         )}
         {step === 2 && (
@@ -304,7 +342,7 @@ export default function CheckoutFlow() {
           </Panel>
         )}
 
-        {error && step < 2 && <p className="m-0 text-sm text-danger" role="alert">{error}</p>}
+        {error && step < 2 && <FormMessage tone="error">{error}</FormMessage>}
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           {step > 0 ? (
@@ -319,17 +357,19 @@ export default function CheckoutFlow() {
           ) : (
             <Button size="lg" onClick={placeOrder} disabled={isPlacing} aria-busy={isPlacing}>
               <Icon name="lock" size={16} />
-              {isPlacing ? "Placing order…" : `Place Order (Demo) · ${formatPrice(totals.total)}`}
+              {isPlacing ? "Placing order…" : `Place Order · ${formatPrice(totals.total)}`}
             </Button>
           )}
         </div>
+        {step === 2 && (
+          <p className="m-0 text-xs text-muted">
+            Problems with an earlier attempt? <Link href="/account/orders" className="text-forest">Check your orders</Link> before trying again.
+          </p>
+        )}
       </div>
 
       <div className="lg:sticky lg:top-28 space-y-3">
-        <OrderSummary totals={totals} coupon={coupon} lines={lines} />
-        <p className="m-0 flex items-center justify-center gap-1.5 text-xs text-muted">
-          <Icon name="lock" size={13} /> Demo checkout — no payment is processed
-        </p>
+        <OrderSummary totals={totals} lines={lines} />
       </div>
     </div>
   );

@@ -15,7 +15,9 @@ export default function ProductImage({ image, sizes = "(min-width: 1024px) 25vw,
   return (
     <div className={`relative overflow-hidden bg-gradient-to-b from-[#f6f2e9] to-[#efe9dc] ${rounded} ${className}`}>
       {image?.src && (
-        <Image src={image.src} alt={image.alt ?? ""} fill sizes={sizes} preload={priority} className="object-cover" />
+        // Remote (admin-entered https) images are not run through the optimizer, so no host
+        // allowlist is needed; local /images/ files are optimized as before.
+        <Image src={image.src} alt={image.alt ?? ""} fill sizes={sizes} preload={priority} unoptimized={/^https:\/\//.test(image.src)} className="object-cover" />
       )}
       {children}
     </div>

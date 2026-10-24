@@ -1,14 +1,7 @@
-import { AdminHeader } from "@/components/admin/AdminParts";
-import ReviewsModeration from "@/features/admin/ReviewsModeration";
-import { getAdminReviews } from "@/services/admin";
+import NotAvailable from "@/components/admin/NotAvailable";
 
 export const metadata = { title: "Reviews | Admin | Soil & Soul" };
 
 export default function AdminReviewsPage() {
-  return (
-    <div>
-      <AdminHeader title="Reviews" subtitle="Approve or hide customer reviews." />
-      <ReviewsModeration initialReviews={getAdminReviews()} />
-    </div>
-  );
+  return <NotAvailable title="Reviews" icon="star" description="Product reviews aren't enabled yet, so there is nothing to moderate. Ratings are hidden in the shop." />;
 }

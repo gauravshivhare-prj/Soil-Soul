@@ -2,7 +2,7 @@
 
 /**
  * CartLink — navbar cart icon with the live item-count badge.
- * The count appears after the cart loads from localStorage (post-mount).
+ * The count appears once the signed-in cart has loaded from the API.
  */
 
 import Link from "next/link";

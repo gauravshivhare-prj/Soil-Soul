@@ -8,6 +8,7 @@
  */
 
 import Link from "next/link";
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 
 function ChevronDownIcon() {
@@ -33,9 +34,21 @@ function isActive(pathname, href) {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 }
 
+// The pathname is only known at request time, so the list first renders (and prerenders)
+// without an active item and highlights the current route once it streams in.
 export default function DesktopNav({ links }) {
-  const pathname = usePathname();
+  return (
+    <Suspense fallback={<NavList links={links} pathname="" />}>
+      <CurrentNavList links={links} />
+    </Suspense>
+  );
+}
 
+function CurrentNavList({ links }) {
+  return <NavList links={links} pathname={usePathname()} />;
+}
+
+function NavList({ links, pathname }) {
   return (
     <ul
       className="hidden lg:flex self-stretch items-stretch gap-0 xl:gap-1 list-none m-0 p-0 flex-1 min-w-0 justify-center"

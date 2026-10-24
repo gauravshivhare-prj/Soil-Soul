@@ -50,3 +50,21 @@ export function DemoNotice({ children, className = "" }) {
     </p>
   );
 }
+
+/* Inline status for forms and API results: tone "error" | "success" | "info". */
+const TONES = {
+  error: { cls: "border-danger/30 bg-danger/5 text-danger", icon: "info", role: "alert" },
+  success: { cls: "border-forest/25 bg-sage-100/60 text-forest", icon: "check", role: "status" },
+  info: { cls: "border-line bg-sand/60 text-body", icon: "info", role: "status" },
+};
+
+export function FormMessage({ tone = "info", children, className = "" }) {
+  if (!children) return null;
+  const t = TONES[tone] ?? TONES.info;
+  return (
+    <p role={t.role} className={`m-0 flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm ${t.cls} ${className}`}>
+      <span className="mt-px flex-shrink-0"><Icon name={t.icon} size={16} /></span>
+      <span>{children}</span>
+    </p>
+  );
+}

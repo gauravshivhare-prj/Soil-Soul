@@ -75,7 +75,7 @@ const TRUST_ITEMS = [
   { Icon: LeafIcon, title: "Thoughtfully Chosen", subtitle: "Only the best for your home & garden" },
   { Icon: SproutIcon, title: "Plant Care Essentials", subtitle: "Everything your plants need" },
   { Icon: DropIcon, title: "Natural Ingredients", subtitle: "Pure, plant-based goodness" },
-  { Icon: PackageIcon, title: "Carefully Packed", subtitle: "Safe & eco-friendly packaging" },
+  { Icon: PackageIcon, title: "Carefully Packed", subtitle: "Packed with care for the journey" },
 ];
 
 /* Grid lines between cells in the 2 × 2 layout (below lg). */

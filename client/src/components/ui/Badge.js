@@ -25,6 +25,14 @@ export default function Badge({ tone = "sage", icon, className = "", children })
 }
 
 const STATUS = {
+  placed: { tone: "neutral", icon: "check", label: "Placed" },
+  confirmed: { tone: "blue", icon: "check", label: "Confirmed" },
+  paid: { tone: "sage", icon: "check", label: "Paid" },
+  failed: { tone: "danger", icon: "x", label: "Failed" },
+  refunded: { tone: "neutral", icon: "refresh", label: "Refunded" },
+  partially_refunded: { tone: "gold", icon: "refresh", label: "Partly Refunded" },
+  inactive: { tone: "neutral", icon: "eye-off", label: "Inactive" },
+  archived: { tone: "neutral", icon: "folder", label: "Archived" },
   delivered: { tone: "sage", icon: "check-circle", label: "Delivered" },
   shipped: { tone: "blue", icon: "truck", label: "Shipped" },
   processing: { tone: "gold", icon: "clock", label: "Processing" },

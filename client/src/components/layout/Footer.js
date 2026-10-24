@@ -6,9 +6,11 @@
  *   sm–lg    — brand on top, then link columns in a 4-column grid.
  *   below sm — brand on top, then link and contact columns in 2 columns.
  *
- * Contact details and social profiles are placeholders from the design —
- * replace them in FOOTER_CONTACT / SOCIAL_LINKS. Social icons only render
- * as links once a real `href` is set.
+ * Only links to pages that exist are listed. About, Blog, Contact, FAQs,
+ * Shipping, Returns, Privacy and Terms pages await the owner's content; add
+ * them back here once those pages exist. The Contact column renders only when
+ * real details are set in FOOTER_CONTACT (no placeholder phone or email).
+ * Social icons only render as links once a real `href` is set.
  */
 
 import Link from "next/link";
@@ -33,29 +35,25 @@ const LINK_COLUMNS = [
     title: "Quick Links",
     links: [
       { label: "Home", href: "/" },
-      { label: "About Us", href: "/our-story" },
-      { label: "Blog", href: "/blog" },
-      { label: "Contact", href: "/contact" },
-      { label: "FAQs", href: "/faqs" },
+      { label: "Shop All", href: "/shop" },
+      { label: "Plants", href: "/plants" },
+      { label: "Gardening", href: "/gardening" },
+      { label: "Natural Care", href: "/natural-care" },
     ],
   },
   {
     title: "Customer Care",
     links: [
-      { label: "Shipping & Delivery", href: "/shipping" },
-      { label: "Returns & Refunds", href: "/returns" },
-      { label: "Track Order", href: "/track-order" },
-      { label: "Privacy Policy", href: "/privacy-policy" },
-      { label: "Terms & Conditions", href: "/terms" },
+      { label: "My Account", href: "/account" },
+      { label: "Track Orders", href: "/account/orders" },
+      { label: "Wishlist", href: "/account/wishlist" },
+      { label: "Cart", href: "/cart" },
     ],
   },
 ];
 
-const FOOTER_CONTACT = {
-  address: ["Green Park, Bhopal,", "Madhya Pradesh, India"],
-  phone: "+91 98765 43210",
-  email: "hello@soilandsoul.in",
-};
+/* Owner to provide: { address: [line1, line2], phone, email }. Null hides the column. */
+const FOOTER_CONTACT = null;
 
 /* Set `href` to the real profile URL to turn each icon into a link. */
 const SOCIAL_LINKS = [
@@ -260,31 +258,33 @@ export default function Footer() {
           ))}
 
           {/* Contact */}
-          <div>
-            <h2 className="m-0 text-xs font-semibold uppercase tracking-[0.12em] text-white">Contact Us</h2>
-            <address className="not-italic mt-4 grid gap-2.5 text-[0.8125rem] leading-snug break-words lg:whitespace-nowrap text-[#f4f1e8]/80">
-              <p className="m-0 flex gap-2.5">
-                <span className="mt-px flex-shrink-0"><PinIcon /></span>
-                <span>
-                  {FOOTER_CONTACT.address[0]}
-                  <br />
-                  {FOOTER_CONTACT.address[1]}
-                </span>
-              </p>
-              <p className="m-0 flex items-center gap-2.5">
-                <span className="flex-shrink-0"><PhoneIcon /></span>
-                <a href={`tel:${FOOTER_CONTACT.phone.replace(/\s/g, "")}`} className={linkClass}>
-                  {FOOTER_CONTACT.phone}
-                </a>
-              </p>
-              <p className="m-0 flex items-center gap-2.5">
-                <span className="flex-shrink-0"><MailIcon /></span>
-                <a href={`mailto:${FOOTER_CONTACT.email}`} className={linkClass}>
-                  {FOOTER_CONTACT.email}
-                </a>
-              </p>
-            </address>
-          </div>
+          {FOOTER_CONTACT && (
+            <div>
+              <h2 className="m-0 text-xs font-semibold uppercase tracking-[0.12em] text-white">Contact Us</h2>
+              <address className="not-italic mt-4 grid gap-2.5 text-[0.8125rem] leading-snug break-words lg:whitespace-nowrap text-[#f4f1e8]/80">
+                <p className="m-0 flex gap-2.5">
+                  <span className="mt-px flex-shrink-0"><PinIcon /></span>
+                  <span>
+                    {FOOTER_CONTACT.address[0]}
+                    <br />
+                    {FOOTER_CONTACT.address[1]}
+                  </span>
+                </p>
+                <p className="m-0 flex items-center gap-2.5">
+                  <span className="flex-shrink-0"><PhoneIcon /></span>
+                  <a href={`tel:${FOOTER_CONTACT.phone.replace(/\s/g, "")}`} className={linkClass}>
+                    {FOOTER_CONTACT.phone}
+                  </a>
+                </p>
+                <p className="m-0 flex items-center gap-2.5">
+                  <span className="flex-shrink-0"><MailIcon /></span>
+                  <a href={`mailto:${FOOTER_CONTACT.email}`} className={linkClass}>
+                    {FOOTER_CONTACT.email}
+                  </a>
+                </p>
+              </address>
+            </div>
+          )}
 
           {/* Decorative sprig + tagline (xl+) */}
           <div className="hidden xl:flex flex-shrink-0 justify-end -mt-1">

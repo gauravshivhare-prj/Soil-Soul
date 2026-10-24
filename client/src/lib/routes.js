@@ -15,6 +15,7 @@ export function adminOrderHref(id) {
   return `/admin/orders/${id}`;
 }
 
-export function adminProductHref(slug) {
-  return `/admin/products/${slug}`;
+/* Admin product pages are keyed by the product id (the admin API looks products up by id). */
+export function adminProductHref(id) {
+  return `/admin/products/${id}`;
 }
