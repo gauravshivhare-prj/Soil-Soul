@@ -5,6 +5,7 @@ import { rateLimit } from 'express-rate-limit';
 import env from './config/env.js';
 import apiRouter from './routes/index.js';
 import { logError } from './utils/logError.js';
+import { isDuplicateKeyError, toDuplicateKeyError } from './utils/duplicateKeyError.js';
 
 const app = express();
 
@@ -59,8 +60,10 @@ const BODY_ERRORS = {
 
 // Only 4xx errors marked `expose: true` (as body-parser does) show their message/code, e.g.
 // throw Object.assign(new Error('Product not found'), { status: 404, expose: true, code: 'PRODUCT_NOT_FOUND' })
-app.use((err, req, res, next) => {
-  if (res.headersSent) return next(err);
+app.use((rawErr, req, res, next) => {
+  if (res.headersSent) return next(rawErr);
+  // A unique-index conflict that no service mapped: safe 409, never the index name or value.
+  const err = isDuplicateKeyError(rawErr) && rawErr.status === undefined ? toDuplicateKeyError(rawErr) : rawErr;
 
   const raw = Number(err.status ?? err.statusCode);
   const status = raw >= 400 && raw < 600 ? raw : 500;
@@ -72,6 +75,11 @@ app.use((err, req, res, next) => {
       : status < 500
         ? { code: 'REQUEST_ERROR', message: 'The request could not be processed.' }
         : { code: 'INTERNAL_ERROR', message: 'Internal Server Error' };
+  // Errors that know when a retry may succeed (e.g. login lockout) advertise it.
+  if (status === 429 && error.code !== 'INTERNAL_ERROR' && Number.isInteger(err.retryAfterSeconds)) {
+    res.set('Retry-After', String(err.retryAfterSeconds));
+    error.retryAfterSeconds = err.retryAfterSeconds;
+  }
   res.status(status).json({ success: false, error });
 });
 

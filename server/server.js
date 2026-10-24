@@ -1,6 +1,7 @@
 import env from './src/config/env.js';
 import app from './src/app.js';
 import { connectDatabase, disconnectDatabase } from './src/config/db.js';
+import { markShuttingDown } from './src/config/lifecycle.js';
 import { logError } from './src/utils/logError.js';
 
 let server;
@@ -10,6 +11,7 @@ let shutdownCode = null; // set once shutdown starts
 function shutdown(reason, exitCode = 0) {
   if (shutdownCode !== null) return;
   shutdownCode = exitCode;
+  markShuttingDown(); // readiness reports 503 while in-flight requests drain
   console.log(`[server] ${reason}. Shutting down...`);
   setTimeout(() => {
     console.error('[server] Shutdown timed out after 10s. Forcing exit.');

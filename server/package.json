@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test \"tests/**/*.test.js\""
+    "test": "node --test \"tests/**/*.test.js\"",
+    "db:index": "node src/scripts/syncIndexes.js",
+    "admin:bootstrap": "node src/scripts/adminBootstrap.js"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",
