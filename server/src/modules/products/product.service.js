@@ -7,11 +7,15 @@ const SORT_MAP = Object.freeze({
   'featured': { isFeatured: -1, createdAt: -1 },
   'price-asc': { price: 1 },
   'price-desc': { price: -1 },
-  'rating': { rating: -1, reviewCount: -1 },
+  // 'rating' is not offered until genuine reviews exist (P9); it falls back to the default sort.
   'popular': { soldCount: -1 },
   'newest': { createdAt: -1 },
   'name': { name: 1 },
 });
+
+// Hand-entered rating/reviewCount stay stored but are not public until genuine reviews exist (P9).
+// archivedAt and sku are admin-only catalog fields.
+const PUBLIC_DETAIL_EXCLUDED_FIELDS = '-isActive -rating -reviewCount -archivedAt -sku';
 
 /**
  * Escape regex special characters to prevent ReDoS or query injection.
@@ -134,7 +138,7 @@ export async function listProducts(queryParams = {}) {
       .skip(skip)
       .limit(limit)
       .select(
-        '_id name slug summary category categorySlug price mrp stock images tags rating reviewCount soldCount isFeatured light size highlights options'
+        '_id name slug summary category categorySlug price mrp stock images tags soldCount isFeatured light size highlights options'
       ),
     Product.countDocuments(filter),
   ]);
@@ -180,7 +184,7 @@ export async function getProductBySlugOrId(slugOrId) {
         match: { isActive: true },
         select: 'name slug shortName',
       })
-      .select('-isActive');
+      .select(PUBLIC_DETAIL_EXCLUDED_FIELDS);
   } catch {
     throw createError(400, 'VALIDATION_ERROR', 'Invalid product identifier.');
   }

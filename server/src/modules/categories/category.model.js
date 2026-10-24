@@ -45,6 +45,11 @@ const categorySchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Set when archived by an admin (archived categories are also inactive); null otherwise.
+    archivedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

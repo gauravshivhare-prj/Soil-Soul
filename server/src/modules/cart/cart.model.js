@@ -44,6 +44,8 @@ const cartSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    // __v changes on every cart.save() that modifies the cart. Idempotent checkout replays rely on it
+    // to detect changes since an order, so add/modify items only via cart.save() (never positional updates).
     optimisticConcurrency: true,
     toJSON: {
       transform: (_doc, ret) => {
@@ -56,7 +58,7 @@ const cartSchema = new mongoose.Schema(
   }
 );
 
-cartSchema.index({ user: 1 }, { unique: true });
+// The unique { user: 1 } index is declared on the `user` field above.
 
 // Export
 export const Cart = mongoose.model('Cart', cartSchema);

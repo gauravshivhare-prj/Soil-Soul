@@ -92,6 +92,18 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    // Set when archived by an admin (archived products are also inactive); null otherwise.
+    archivedAt: {
+      type: Date,
+      default: null,
+    },
+    // Optional stock-keeping unit; unique when present.
+    sku: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      maxlength: [40, 'SKU cannot exceed 40 characters.'],
+    },
     light: {
       type: String,
       enum: ['low', 'bright-indirect', 'full-sun', null],
@@ -179,6 +191,8 @@ productSchema.index({ isActive: 1, isFeatured: 1 });
 productSchema.index({ isActive: 1, price: 1 });
 productSchema.index({ name: 'text', summary: 'text' });
 productSchema.index({ 'restorationAudit.opKey': 1 });
+productSchema.index({ sku: 1 }, { unique: true, partialFilterExpression: { sku: { $type: 'string' } } });
+productSchema.index({ stock: 1, isActive: 1 });
 
 export const Product = mongoose.model('Product', productSchema);
 export default Product;
