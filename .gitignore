@@ -30,8 +30,8 @@ lerna-debug.log*
 coverage/
 *.lcov
 .nyc_output
-server/tests/*
-!server/tests/.gitkeep
+server/tests/
+ssfiles/
 
 # Operating System files
 .DS_Store
