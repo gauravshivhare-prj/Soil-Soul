@@ -16,15 +16,20 @@
 import { useState } from "react";
 import { brandSerif } from "@/app/fonts";
 import { FEATURED_FILTERS } from "@/data/products";
-import { getFeaturedProducts } from "@/services/catalog";
+import { fetchProducts } from "@/services/catalogApi";
+import { useProductList } from "@/features/catalog/useProductList";
 import ProductCard from "@/components/store/ProductCard";
+import { ProductGridSkeleton } from "@/components/ui/States";
+
+const loadFeatured = (signal) => fetchProducts({ featured: true, limit: 24 }, { signal }).then((d) => d.products);
 
 /* ─── Section ───────────────────────────────────────────────────── */
-export default function FeaturedProducts({
-  products = getFeaturedProducts(),
-  filters = FEATURED_FILTERS,
-}) {
+export default function FeaturedProducts({ filters = FEATURED_FILTERS }) {
+  const { status, products } = useProductList(loadFeatured, "featured");
   const [activeId, setActiveId] = useState(filters[0].id);
+
+  // Nothing featured (or the store is unreachable): hide the section rather than show placeholders.
+  if (status === "error" || (status === "ready" && products.length === 0)) return null;
 
   const activeFilter = filters.find((f) => f.id === activeId) ?? filters[0];
   const visible = activeFilter.categories
@@ -84,7 +89,9 @@ export default function FeaturedProducts({
         </p>
 
         {/* Grid */}
-        {visible.length > 0 ? (
+        {status === "loading" ? (
+          <ProductGridSkeleton count={6} className="sm:grid-cols-3 lg:grid-cols-6" />
+        ) : visible.length > 0 ? (
           <ul
             role="list"
             className="list-none m-0 p-0 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6 xl:gap-5"

@@ -1,8 +1,10 @@
+"use client";
+
 /**
  * NaturalCare — "Natural Care, Rooted in Plants" product spotlight.
  *
- * Server Component. Renders the product list it is given (defaults to the
- * catalog's natural-care spotlight) so it can later take API results.
+ * Client Component. Loads up to three live products from the natural-care
+ * collection's categories; hidden while loading, on error, or when empty.
  *
  * Card layout:
  *   below sm — one column, image beside details.
@@ -14,9 +16,16 @@
 
 import Link from "next/link";
 import { brandSerif } from "@/app/fonts";
-import { getNaturalCareSpotlight } from "@/services/catalog";
+import { fetchProducts } from "@/services/catalogApi";
+import { useProductList } from "@/features/catalog/useProductList";
+import { COLLECTIONS } from "@/data/catalog";
 import { productHref } from "@/lib/routes";
 import { formatPrice } from "@/lib/format";
+
+// The "natural-care" collection's categories; first products from each, up to three cards.
+const loadSpotlight = (signal) =>
+  Promise.all(COLLECTIONS["natural-care"].categories.map((category) => fetchProducts({ category, limit: 3 }, { signal })))
+    .then((results) => results.flatMap((r) => r.products).slice(0, 3));
 
 function ArrowRightIcon({ size = 14 }) {
   return (
@@ -41,7 +50,8 @@ function ArrowRightIcon({ size = 14 }) {
 
 /* ─── Card ──────────────────────────────────────────────────────── */
 function NaturalCareCard({ product }) {
-  const { slug, name, price, benefits } = product;
+  const { slug, name, price } = product;
+  const benefits = (product.highlights ?? []).slice(0, 3);
 
   return (
     <article
@@ -86,7 +96,10 @@ function NaturalCareCard({ product }) {
 }
 
 /* ─── Section ───────────────────────────────────────────────────── */
-export default function NaturalCare({ products = getNaturalCareSpotlight() }) {
+export default function NaturalCare() {
+  const { status, products } = useProductList(loadSpotlight, "natural-care-spotlight");
+  // Only real products: hide the section while loading, on error, or when there are none.
+  if (status !== "ready" || products.length === 0) return null;
   return (
     <section aria-labelledby="natural-care-heading" className="bg-[#faf8f2] pb-8 lg:pb-10">
       <div className="max-w-[1536px] mx-auto px-4 sm:px-8 xl:px-10">

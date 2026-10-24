@@ -12,7 +12,7 @@
 import Link from "next/link";
 import { useCart } from "@/features/cart/CartProvider";
 import { useToast } from "@/components/ui/Toast";
-import { defaultOptionId, isInStock } from "@/services/catalog";
+import { defaultOptionId, isInStock } from "@/services/catalogApi";
 import { productHref } from "@/lib/routes";
 import ProductImage from "@/components/ui/ProductImage";
 import Stars from "@/components/ui/Stars";
@@ -26,10 +26,10 @@ export default function ProductCard({ product, imageAspect = "aspect-[25/24]", s
   const inStock = isInStock(product);
   const href = productHref(product.slug);
 
-  function handleAdd() {
-    if (addItem(product.slug, { optionId: defaultOptionId(product) })) {
-      notify(`${product.name} added to your cart`);
-    }
+  async function handleAdd() {
+    const result = await addItem(product, { optionId: defaultOptionId(product) });
+    if (result.ok) notify(`${product.name} added to your cart`);
+    else if (result.error) notify(result.error.message, { tone: "error" });
   }
 
   return (
