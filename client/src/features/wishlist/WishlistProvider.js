@@ -2,12 +2,11 @@
 
 /**
  * Wishlist state — a list of product slugs persisted to localStorage.
- * Starts empty for first-time visitors; the backend will own wishlists
- * once accounts are connected.
+ * Saved on this device only (there is no account wishlist API yet); product
+ * details are loaded from the catalog API when the list is shown.
  */
 
 import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from "react";
-import { getProduct } from "@/services/catalog";
 import { createPersistedStore, hydrationStore } from "@/lib/persistedStore";
 
 const STORAGE_KEY = "soilsoul.wishlist.v1";
@@ -15,7 +14,7 @@ const WishlistContext = createContext(null);
 
 const EMPTY = [];
 const wishlistStore = createPersistedStore(STORAGE_KEY, EMPTY, (saved) =>
-  Array.isArray(saved) ? saved.filter((slug) => getProduct(slug)) : null
+  Array.isArray(saved) ? saved.filter((slug) => typeof slug === "string" && /^[a-z0-9-]{1,120}$/.test(slug)) : null
 );
 
 export function WishlistProvider({ children }) {

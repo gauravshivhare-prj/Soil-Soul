@@ -1,129 +1,173 @@
 "use client";
 
 /**
- * Cart state — React Context over a localStorage-backed external store
- * (useSyncExternalStore), so it survives reloads and syncs across tabs.
+ * Cart state backed by the server cart (GET/POST/PATCH/DELETE /cart).
  *
- * Stores only { slug, optionId, qty } per line plus the applied coupon
- * code; product details and prices are looked up from the catalog service
- * on every render so they never go stale. Totals are display estimates —
- * the backend will recalculate everything at checkout.
+ * The server is authoritative for prices, stock and availability; the UI only displays what
+ * it returns. Guests have no server cart: "Add to cart" sends them to sign in first (nothing is
+ * stored for them), then they return to the page they were on.
  */
 
-import { createContext, useCallback, useContext, useMemo, useSyncExternalStore } from "react";
-import { getProduct, isInStock } from "@/services/catalog";
-import { COUPONS } from "@/data/commerce";
-import { calculateTotals, validateCoupon } from "@/lib/pricing";
-import { createPersistedStore, hydrationStore } from "@/lib/persistedStore";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/features/auth/AuthProvider";
 
-const STORAGE_KEY = "soilsoul.cart.v1";
 export const MAX_QTY_PER_LINE = 10;
 
 const CartContext = createContext(null);
+const EMPTY_CART = { items: [], itemCount: 0, subtotal: 0, total: 0 };
 
-const lineKey = (slug, optionId) => `${slug}:${optionId ?? ""}`;
-
-function maxQtyFor(product) {
-  return Math.max(0, Math.min(MAX_QTY_PER_LINE, product.stock));
-}
-
-function reducer(state, action) {
-  switch (action.type) {
-    case "add": {
-      const { slug, optionId, qty, max } = action;
-      const key = lineKey(slug, optionId);
-      const existing = state.items.find((i) => i.key === key);
-      const items = existing
-        ? state.items.map((i) => (i.key === key ? { ...i, qty: Math.min(max, i.qty + qty) } : i))
-        : [...state.items, { key, slug, optionId: optionId ?? null, qty: Math.min(max, qty) }];
-      return { ...state, items };
-    }
-    case "setQty":
-      return {
-        ...state,
-        items: state.items.map((i) => (i.key === action.key ? { ...i, qty: Math.max(1, Math.min(action.max, action.qty)) } : i)),
-      };
-    case "remove":
-      return { ...state, items: state.items.filter((i) => i.key !== action.key) };
-    case "clear":
-      return { items: [], couponCode: null };
-    case "coupon":
-      return { ...state, couponCode: action.code };
-    default:
-      return state;
-  }
-}
-
-const EMPTY = { items: [], couponCode: null };
-
-// Drop lines whose product no longer exists in the catalog.
-function sanitize(saved) {
-  if (!saved || !Array.isArray(saved.items)) return null;
-  return { items: saved.items.filter((i) => getProduct(i?.slug)), couponCode: saved.couponCode ?? null };
-}
-
-const cartStore = createPersistedStore(STORAGE_KEY, EMPTY, sanitize);
-
-function dispatch(action) {
-  cartStore.set(reducer(cartStore.getSnapshot(), action));
+/** Server cart line → component line shape. */
+function toLine(item) {
+  return {
+    key: item.key,
+    slug: item.slug,
+    optionId: item.option?.id ?? null,
+    option: item.option ?? null,
+    qty: item.quantity,
+    unitPrice: item.unitPrice,
+    lineTotal: item.lineTotal,
+    maxQty: Math.max(1, Math.min(MAX_QTY_PER_LINE, item.stock ?? 0)),
+    isAvailable: item.isAvailable !== false,
+    availabilityReason: item.availabilityReason ?? null,
+    product: {
+      id: item.productId,
+      slug: item.slug,
+      name: item.name,
+      stock: item.stock ?? 0,
+      image: item.image?.src ? { src: item.image.src, alt: item.image.alt || item.name } : null,
+      category: { shortName: "" },
+    },
+  };
 }
 
 export function CartProvider({ children }) {
-  const state = useSyncExternalStore(cartStore.subscribe, cartStore.getSnapshot, cartStore.getServerSnapshot);
-  // The server can't see localStorage; consumers can wait for this before showing counts.
-  const isReady = useSyncExternalStore(hydrationStore.subscribe, hydrationStore.getSnapshot, hydrationStore.getServerSnapshot);
+  const { isReady: authReady, isAuthenticated, authRequest, token } = useAuth();
+  const router = useRouter();
+  const [cart, setCart] = useState(null); // server cart for the current session, or null
+  const [loadedFor, setLoadedFor] = useState(null); // token the cart was loaded for
+  const [error, setError] = useState(null);
 
-  const lines = useMemo(
-    () =>
-      state.items.map((item) => {
-        const product = getProduct(item.slug);
-        const option = product.options?.choices.find((c) => c.id === item.optionId) ?? null;
-        return {
-          ...item,
-          product,
-          option,
-          unitPrice: product.price + (option?.priceDelta ?? 0),
-          maxQty: maxQtyFor(product),
-        };
-      }),
-    [state.items]
+  // Load the cart whenever a new session becomes ready (and forget it on logout).
+  useEffect(() => {
+    if (!authReady || !isAuthenticated || loadedFor === token) return undefined;
+    let cancelled = false;
+    authRequest("/cart")
+      .then((data) => {
+        if (!cancelled) {
+          setCart(data.cart);
+          setError(null);
+        }
+      })
+      .catch((err) => !cancelled && setError(err))
+      .finally(() => !cancelled && setLoadedFor(token));
+    return () => {
+      cancelled = true;
+    };
+  }, [authReady, isAuthenticated, token, loadedFor, authRequest]);
+
+  const activeCart = isAuthenticated && loadedFor === token ? cart ?? EMPTY_CART : EMPTY_CART;
+
+  const lines = useMemo(() => activeCart.items.map(toLine), [activeCart]);
+  const totals = useMemo(
+    () => ({
+      itemCount: activeCart.itemCount,
+      subtotal: activeCart.subtotal,
+      discount: 0,
+      shipping: 0,
+      total: activeCart.total,
+      hasUnavailable: activeCart.items.some((i) => i.isAvailable === false),
+    }),
+    [activeCart]
   );
 
-  const coupon = COUPONS.find((c) => c.code === state.couponCode) ?? null;
-  const totals = useMemo(() => calculateTotals(lines, coupon), [lines, coupon]);
+  const mutate = useCallback(
+    async (path, options) => {
+      const data = await authRequest(path, options);
+      setCart(data.cart);
+      setError(null);
+      return data.cart;
+    },
+    [authRequest]
+  );
 
-  /* Returns true if anything was added. */
-  const addItem = useCallback((slug, { qty = 1, optionId = null } = {}) => {
-    const product = getProduct(slug);
-    if (!product || !isInStock(product)) return false;
-    dispatch({ type: "add", slug, optionId, qty, max: maxQtyFor(product) });
-    return true;
-  }, []);
+  const signInFirst = useCallback(() => {
+    const here = `${window.location.pathname}${window.location.search}`;
+    router.push(`/login?next=${encodeURIComponent(here)}`);
+  }, [router]);
+
+  /**
+   * Add a product (needs `product.id`). Resolves to { ok: true } or { ok: false, error? };
+   * guests are redirected to sign in and nothing is stored.
+   */
+  const addItem = useCallback(
+    async (product, { qty = 1, optionId = null } = {}) => {
+      if (!isAuthenticated) {
+        signInFirst();
+        return { ok: false, redirected: true };
+      }
+      try {
+        await mutate("/cart/items", { method: "POST", body: { productId: product.id, quantity: qty, ...(optionId ? { optionId } : {}) } });
+        return { ok: true };
+      } catch (err) {
+        return { ok: false, error: err };
+      }
+    },
+    [isAuthenticated, mutate, signInFirst]
+  );
 
   const setQty = useCallback(
-    (key, qty) => {
-      const line = lines.find((l) => l.key === key);
-      if (line) dispatch({ type: "setQty", key, qty, max: line.maxQty });
+    async (key, qty) => {
+      try {
+        await mutate(`/cart/items/${encodeURIComponent(key)}`, { method: "PATCH", body: { quantity: qty } });
+        return { ok: true };
+      } catch (err) {
+        setError(err);
+        return { ok: false, error: err };
+      }
     },
-    [lines]
+    [mutate]
   );
 
-  const removeItem = useCallback((key) => dispatch({ type: "remove", key }), []);
-  const clearCart = useCallback(() => dispatch({ type: "clear" }), []);
-
-  const applyCoupon = useCallback(
-    (code) => {
-      const result = validateCoupon(code, totals.subtotal);
-      if (result.ok) dispatch({ type: "coupon", code: result.coupon.code });
-      return result;
+  const removeItem = useCallback(
+    async (key) => {
+      try {
+        await mutate(`/cart/items/${encodeURIComponent(key)}`, { method: "DELETE" });
+        return { ok: true };
+      } catch (err) {
+        setError(err);
+        return { ok: false, error: err };
+      }
     },
-    [totals.subtotal]
+    [mutate]
   );
-  const removeCoupon = useCallback(() => dispatch({ type: "coupon", code: null }), []);
+
+  /** Re-read the server cart (e.g. after checkout, which clears it on the server). */
+  const refresh = useCallback(async () => {
+    if (!isAuthenticated) return;
+    try {
+      const data = await authRequest("/cart");
+      setCart(data.cart);
+      setError(null);
+    } catch (err) {
+      setError(err);
+    }
+  }, [isAuthenticated, authRequest]);
 
   const value = useMemo(
-    () => ({ isReady, lines, totals, coupon, addItem, setQty, removeItem, clearCart, applyCoupon, removeCoupon }),
-    [isReady, lines, totals, coupon, addItem, setQty, removeItem, clearCart, applyCoupon, removeCoupon]
+    () => ({
+      // Ready once we know whether there is a session and, if so, its cart has loaded.
+      isReady: authReady && (!isAuthenticated || loadedFor === token),
+      isAuthenticated,
+      lines,
+      totals,
+      error,
+      addItem,
+      setQty,
+      removeItem,
+      refresh,
+    }),
+    [authReady, isAuthenticated, loadedFor, token, lines, totals, error, addItem, setQty, removeItem, refresh]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

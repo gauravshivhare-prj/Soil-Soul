@@ -1,65 +1,23 @@
 "use client";
 
 /**
- * ProductPurchase — option picker, quantity, Add to Cart / Buy Now,
- * availability and a demo delivery check for the product details page.
+ * ProductPurchase — option picker, quantity, Add to Cart / Buy Now and availability for the
+ * product details page. Prices shown come from the API; the server re-checks price and stock
+ * when the item is added and again at checkout. No delivery, tax or shipping promises are shown
+ * until the store owner approves those policies.
  */
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCart, MAX_QTY_PER_LINE } from "@/features/cart/CartProvider";
 import { useToast } from "@/components/ui/Toast";
-import { defaultOptionId, isInStock } from "@/services/catalog";
+import { defaultOptionId, isInStock } from "@/services/catalogApi";
 import { formatPrice } from "@/lib/format";
-import { FREE_SHIPPING_THRESHOLD } from "@/data/commerce";
 import QuantitySelector from "@/components/ui/QuantitySelector";
 import Button from "@/components/ui/Button";
 import Icon from "@/components/ui/Icon";
 import Price from "@/components/ui/Price";
 import { StatusBadge, stockStatus } from "@/components/ui/Badge";
-
-function DeliveryCheck() {
-  const [pincode, setPincode] = useState("");
-  const [result, setResult] = useState(null);
-
-  function check(e) {
-    e.preventDefault();
-    if (!/^[1-9]\d{5}$/.test(pincode)) {
-      setResult({ ok: false, text: "Enter a valid 6-digit PIN code." });
-      return;
-    }
-    // Demo only — real serviceability will come from the shipping partner.
-    setResult({ ok: true, text: `Delivery to ${pincode} in 3–5 business days (estimate).` });
-  }
-
-  return (
-    <form onSubmit={check} className="mt-5 rounded-xl border border-line bg-cream p-3.5">
-      <label htmlFor="pincode" className="flex items-center gap-2 text-sm font-medium text-ink">
-        <Icon name="truck" size={18} className="text-forest" />
-        Check delivery
-      </label>
-      <div className="mt-2 flex gap-2">
-        <input
-          id="pincode"
-          inputMode="numeric"
-          maxLength={6}
-          value={pincode}
-          onChange={(e) => {
-            setPincode(e.target.value.replace(/\D/g, ""));
-            setResult(null);
-          }}
-          placeholder="Enter PIN code"
-          aria-describedby="pincode-result"
-          className="flex-1 min-w-0 h-10 rounded-lg border border-line bg-white px-3 text-base sm:text-sm outline-none focus:border-forest focus:ring-2 focus:ring-forest/15"
-        />
-        <Button type="submit" variant="outline">Check</Button>
-      </div>
-      <p id="pincode-result" aria-live="polite" className={`m-0 text-xs ${result ? "mt-2" : ""} ${result?.ok === false ? "text-danger" : "text-muted"}`}>
-        {result?.text ?? ""}
-      </p>
-    </form>
-  );
-}
 
 export default function ProductPurchase({ product }) {
   const router = useRouter();
@@ -67,6 +25,7 @@ export default function ProductPurchase({ product }) {
   const { notify } = useToast();
   const [optionId, setOptionId] = useState(defaultOptionId(product));
   const [qty, setQty] = useState(1);
+  const [isBusy, setIsBusy] = useState(false);
 
   const inStock = isInStock(product);
   const maxQty = Math.max(1, Math.min(MAX_QTY_PER_LINE, product.stock));
@@ -74,18 +33,24 @@ export default function ProductPurchase({ product }) {
   const unitPrice = product.price + (option?.priceDelta ?? 0);
   const status = stockStatus(product.stock);
 
-  function add() {
-    return addItem(product.slug, { qty, optionId });
+  async function add({ thenCheckout = false } = {}) {
+    setIsBusy(true);
+    const result = await addItem(product, { qty, optionId });
+    setIsBusy(false);
+    if (result.ok) {
+      if (thenCheckout) router.push("/checkout");
+      else notify(`${qty} × ${product.name} added to your cart`);
+    } else if (result.error) {
+      notify(result.error.message, { tone: "error" });
+    }
   }
 
   return (
     <div>
       <Price price={unitPrice} mrp={product.mrp ? product.mrp + (option?.priceDelta ?? 0) : null} size="lg" />
-      <p className="m-0 mt-1 text-xs text-muted">Inclusive of all taxes</p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
         <StatusBadge status={status} label={status === "low-stock" ? `Only ${product.stock} left` : undefined} />
-        {inStock && <span className="text-muted">Free shipping above {formatPrice(FREE_SHIPPING_THRESHOLD)}</span>}
       </div>
 
       {product.options && (
@@ -103,8 +68,8 @@ export default function ProductPurchase({ product }) {
                 >
                   <input type="radio" name="product-option" value={c.id} checked={selected} onChange={() => setOptionId(c.id)} className="sr-only" />
                   <span className="text-[0.8125rem] font-semibold text-ink">{c.name}</span>
-                  <span className="text-[0.6875rem] text-muted">{c.detail}</span>
-                  <span className="mt-1.5 text-sm font-semibold text-ink">{formatPrice(product.price + c.priceDelta)}</span>
+                  {c.detail && <span className="text-[0.6875rem] text-muted">{c.detail}</span>}
+                  <span className="mt-1.5 text-sm font-semibold text-ink">{formatPrice(product.price + (c.priceDelta ?? 0))}</span>
                   {selected && <span className="absolute top-2 right-2 text-forest"><Icon name="check-circle" size={16} /></span>}
                 </label>
               );
@@ -119,20 +84,11 @@ export default function ProductPurchase({ product }) {
           <QuantitySelector value={qty} onChange={setQty} max={maxQty} />
         </div>
         <div className="flex-1 grid grid-cols-2 gap-2.5">
-          <Button
-            size="lg"
-            disabled={!inStock}
-            onClick={() => add() && notify(`${qty} × ${product.name} added to your cart`)}
-          >
+          <Button size="lg" disabled={!inStock || isBusy} onClick={() => add()}>
             <Icon name="cart" size={18} />
             {inStock ? "Add to Cart" : "Out of Stock"}
           </Button>
-          <Button
-            size="lg"
-            variant="outline"
-            disabled={!inStock}
-            onClick={() => add() && router.push("/checkout")}
-          >
+          <Button size="lg" variant="outline" disabled={!inStock || isBusy} onClick={() => add({ thenCheckout: true })}>
             <Icon name="bolt" size={17} />
             Buy Now
           </Button>
@@ -140,10 +96,8 @@ export default function ProductPurchase({ product }) {
       </div>
 
       {!inStock && (
-        <p className="m-0 mt-3 text-sm text-muted">This item is currently out of stock. Save it to your wishlist and check back soon.</p>
+        <p className="m-0 mt-3 text-sm text-muted">This item is currently out of stock. Please check back soon.</p>
       )}
-
-      <DeliveryCheck />
     </div>
   );
 }
