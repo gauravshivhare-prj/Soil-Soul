@@ -33,6 +33,7 @@ const STATUS = {
   partially_refunded: { tone: "gold", icon: "refresh", label: "Partly Refunded" },
   inactive: { tone: "neutral", icon: "eye-off", label: "Inactive" },
   archived: { tone: "neutral", icon: "folder", label: "Archived" },
+  draft: { tone: "gold", icon: "edit", label: "Draft" },
   delivered: { tone: "sage", icon: "check-circle", label: "Delivered" },
   shipped: { tone: "blue", icon: "truck", label: "Shipped" },
   processing: { tone: "gold", icon: "clock", label: "Processing" },

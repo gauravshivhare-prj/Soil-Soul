@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { primaryImage } from '../products/primaryImage.js';
 import { Cart } from './cart.model.js';
 import { Product } from '../products/product.model.js';
 import { createError } from '../../utils/createError.js';
@@ -116,7 +117,7 @@ export async function formatCartResponse(cartDoc) {
       path: 'category',
       select: 'name slug isActive',
     })
-    .select('_id name slug price mrp stock images options isActive category');
+    .select('_id name slug price mrp stock images options isActive status category');
 
   const productMap = new Map();
   for (const prod of products) {
@@ -129,7 +130,7 @@ export async function formatCartResponse(cartDoc) {
 
   for (const item of cartDoc.items) {
     const prod = productMap.get(item.product?.toString());
-    const isProductActive = Boolean(prod && prod.isActive);
+    const isProductActive = Boolean(prod && prod.isActive && prod.status === 'active');
     const isCategoryActive = Boolean(prod?.category && prod.category.isActive);
 
     let unitPrice = 0;
@@ -143,24 +144,33 @@ export async function formatCartResponse(cartDoc) {
         const choice = prod.options?.choices?.find(
           (c) => c.id && c.id.trim().toLowerCase() === item.optionId.trim().toLowerCase()
         );
-        if (choice) {
+        if (choice && choice.isActive !== false) {
           selectedOption = {
             id: choice.id,
             name: choice.name,
             detail: choice.detail,
             priceDelta: choice.priceDelta || 0,
+            sku: choice.sku ?? null,
+            price: choice.price ?? null,
+            mrp: choice.mrp ?? null,
+            stock: choice.stock ?? null,
+            weight: choice.weight ?? null,
+            volume: choice.volume ?? null,
           };
-          unitPrice = Math.max(0, unitPrice + (choice.priceDelta || 0));
+          unitPrice = choice.price ?? (unitPrice === null ? null : Math.max(0, unitPrice + (choice.priceDelta || 0)));
         } else {
           isOptionValid = false;
         }
       }
     }
 
-    unitPrice = Math.round(unitPrice * 100) / 100;
-    const availableStock = prod ? prod.stock : 0;
+    // A missing price stays null (never rounds to 0), so the line is reported as not purchasable.
+    unitPrice = typeof unitPrice === 'number' && Number.isFinite(unitPrice) ? Math.round(unitPrice * 100) / 100 : null;
+    const selectedChoice = selectedOption && prod?.options?.choices?.find((c) => c.id === selectedOption.id);
+    const availableStock = selectedChoice?.stock ?? (prod ? prod.stock : 0) ?? 0;
     const hasEnoughStock = availableStock >= item.quantity;
-    const isAvailable = Boolean(isProductActive && isCategoryActive && isOptionValid && hasEnoughStock);
+    const hasPrice = typeof unitPrice === 'number' && Number.isFinite(unitPrice);
+    const isAvailable = Boolean(isProductActive && isCategoryActive && isOptionValid && hasPrice && hasEnoughStock);
 
     let availabilityReason = null;
     if (!prod) {
@@ -169,11 +179,13 @@ export async function formatCartResponse(cartDoc) {
       availabilityReason = 'Product is currently unavailable.';
     } else if (!isOptionValid) {
       availabilityReason = 'Selected option is no longer available.';
+    } else if (!hasPrice) {
+      availabilityReason = 'This product is not ready for purchase.';
     } else if (!hasEnoughStock) {
       availabilityReason = availableStock <= 0 ? 'Out of stock.' : `Only ${availableStock} units available in stock.`;
     }
 
-    const lineTotal = Math.round(unitPrice * item.quantity * 100) / 100;
+    const lineTotal = hasPrice ? Math.round(unitPrice * item.quantity * 100) / 100 : 0;
 
     if (isAvailable) {
       calculatedSubtotal = Math.round((calculatedSubtotal + lineTotal) * 100) / 100;
@@ -185,7 +197,7 @@ export async function formatCartResponse(cartDoc) {
       productId: prod ? prod._id.toString() : (item.product ? item.product.toString() : ''),
       name: prod ? prod.name : 'Unavailable Product',
       slug: prod ? prod.slug : null,
-      image: prod?.images?.[0] || null,
+      image: primaryImage(prod?.images),
       option: selectedOption,
       unitPrice,
       quantity: item.quantity,
@@ -237,7 +249,7 @@ export async function addItem(userId, { productId, optionId, quantity = 1 } = {}
   const trimmedProdId = productId.trim().toLowerCase();
   const isObjectId = mongoose.Types.ObjectId.isValid(trimmedProdId);
 
-  const productFilter = { isActive: true };
+  const productFilter = { isActive: true, status: { $in: ['active', null] } };
   if (isObjectId) {
     productFilter.$or = [{ _id: trimmedProdId }, { slug: trimmedProdId }];
   } else {
@@ -264,7 +276,7 @@ export async function addItem(userId, { productId, optionId, quantity = 1 } = {}
     const choice = product.options?.choices?.find(
       (c) => c.id && c.id.trim().toLowerCase() === cleanOptionId
     );
-    if (!choice) {
+    if (!choice || choice.isActive === false) {
       throw createError(400, 'VALIDATION_ERROR', 'Invalid option selected for product.');
     }
     validatedOptionId = choice.id.trim().toLowerCase();
@@ -293,11 +305,21 @@ export async function addItem(userId, { productId, optionId, quantity = 1 } = {}
       );
     }
 
-    if (targetQty > product.stock) {
+    const selectedChoice = validatedOptionId
+      ? product.options?.choices?.find((choice) => choice.id.trim().toLowerCase() === validatedOptionId)
+      : null;
+    const availableStock = selectedChoice?.stock ?? product.stock ?? 0;
+    // Effective price: the variant's own price, else the base price plus the variant's delta.
+    const basePrice = typeof product.price === 'number' ? product.price : null;
+    const effectivePrice = selectedChoice?.price ?? (basePrice === null ? null : basePrice + (selectedChoice?.priceDelta || 0));
+    if (typeof effectivePrice !== 'number' || !Number.isFinite(effectivePrice)) {
+      throw createError(400, 'PRODUCT_NOT_PURCHASABLE', 'This product is not ready for purchase.');
+    }
+    if (targetQty > availableStock) {
       throw createError(
         400,
         'VALIDATION_ERROR',
-        `Cannot add ${addQty} more. Only ${product.stock} units are currently available.`
+        `Cannot add ${addQty} more. Only ${availableStock} units are currently available.`
       );
     }
 
@@ -340,7 +362,7 @@ export async function updateItemQuantity(userId, key, quantity) {
       }
 
       // Verify stock and active category
-      const product = await Product.findOne({ _id: item.product, isActive: true }).populate({
+      const product = await Product.findOne({ _id: item.product, isActive: true, status: { $in: ['active', null] } }).populate({
         path: 'category',
         match: { isActive: true },
         select: 'isActive',
@@ -353,16 +375,18 @@ export async function updateItemQuantity(userId, key, quantity) {
         const choice = product.options?.choices?.find(
           (c) => c.id && c.id.trim().toLowerCase() === item.optionId.trim().toLowerCase()
         );
-        if (!choice) {
+        if (!choice || choice.isActive === false) {
           throw createError(400, 'VALIDATION_ERROR', 'Selected option is no longer available.');
         }
       }
 
-      if (newQty > product.stock) {
+      const choice = item.optionId ? product.options?.choices?.find((c) => c.id.trim().toLowerCase() === item.optionId.trim().toLowerCase()) : null;
+      const availableStock = choice?.stock ?? product.stock ?? 0;
+      if (newQty > availableStock) {
         throw createError(
           400,
           'VALIDATION_ERROR',
-          `Requested quantity (${newQty}) exceeds available stock (${product.stock}).`
+          `Requested quantity (${newQty}) exceeds available stock (${availableStock}).`
         );
       }
 

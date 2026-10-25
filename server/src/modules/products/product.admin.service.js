@@ -14,10 +14,10 @@ import * as v from '../../utils/input.js';
 
 const EDITABLE = [
   'name', 'sku', 'summary', 'description', 'categoryId', 'price', 'mrp', 'images', 'tags',
-  'isFeatured', 'isActive', 'light', 'size', 'highlights', 'care', 'specs', 'options',
+  'status', 'isFeatured', 'isActive', 'light', 'size', 'highlights', 'care', 'specs', 'options',
 ];
 const CREATE_ONLY = ['slug', 'stock'];
-const STATUS_FILTERS = ['all', 'active', 'inactive', 'archived'];
+const STATUS_FILTERS = ['all', 'active', 'draft', 'inactive', 'archived'];
 const SORTS = Object.freeze({
   newest: { createdAt: -1 },
   name: { name: 1 },
@@ -45,7 +45,7 @@ function readOptions(value) {
     max: 10,
     item: (choice, l) => {
       if (!choice || typeof choice !== 'object' || Array.isArray(choice)) throw createError(400, 'VALIDATION_ERROR', `${l} must be an object.`);
-      v.requireBody(choice, ['id', 'name', 'detail', 'priceDelta']);
+      v.requireBody(choice, ['id', 'name', 'detail', 'priceDelta', 'sku', 'price', 'mrp', 'stock', 'weight', 'volume', 'attributes', 'isActive']);
       const id = v.slug(choice.id, `${l} id`, { max: 40 });
       if (ids.has(id)) throw createError(400, 'VALIDATION_ERROR', `${l} id is duplicated.`);
       ids.add(id);
@@ -54,6 +54,16 @@ function readOptions(value) {
         name: v.text(choice.name, `${l} name`, { min: 1, max: 60 }),
         detail: v.text(choice.detail, `${l} detail`, { max: 120 }) || undefined,
         priceDelta: choice.priceDelta === undefined ? 0 : signedMoney(choice.priceDelta, `${l} price change`),
+        sku: choice.sku ? v.text(choice.sku, `${l} SKU`, { min: 2, max: 40 }).toUpperCase() : undefined,
+        price: choice.price === undefined || choice.price === null || choice.price === '' ? null : v.money(choice.price, `${l} price`),
+        mrp: choice.mrp === undefined || choice.mrp === null || choice.mrp === '' ? null : v.money(choice.mrp, `${l} MRP`),
+        stock: choice.stock === undefined || choice.stock === null || choice.stock === '' ? null : v.integer(choice.stock, `${l} stock`, { min: 0, max: 100000 }),
+        weight: choice.weight ? v.text(choice.weight, `${l} weight`, { max: 40 }) : undefined,
+        volume: choice.volume ? v.text(choice.volume, `${l} volume`, { max: 40 }) : undefined,
+        attributes: choice.attributes && typeof choice.attributes === 'object' && !Array.isArray(choice.attributes)
+          ? Object.fromEntries(Object.entries(choice.attributes).map(([key, val]) => [v.slug(key, `${l} attribute`, { max: 30 }), v.text(val, `${l} attribute value`, { min: 1, max: 60 })]))
+          : undefined,
+        isActive: choice.isActive === undefined ? true : v.boolean(choice.isActive, `${l} active flag`),
       };
     },
   });
@@ -67,9 +77,16 @@ function readFields(body, { creating }) {
   if ('sku' in body) out.sku = body.sku === null || body.sku === '' ? null : v.text(body.sku, 'SKU', { min: 2, max: 40 }).toUpperCase();
   if ('summary' in body) out.summary = v.text(body.summary, 'Summary', { max: 300 });
   if ('description' in body) out.description = v.text(body.description, 'Description', { max: 5000 });
-  if (creating || 'price' in body) out.price = v.money(body.price, 'Price', { max: 1_000_000 });
+  if (creating || 'price' in body) out.price = body.price === null || body.price === '' ? null : v.money(body.price, 'Price', { max: 1_000_000 });
   if ('mrp' in body) out.mrp = body.mrp === null ? null : v.money(body.mrp, 'MRP', { max: 1_000_000 });
-  if ('images' in body) out.images = v.list(body.images, 'Images', { max: 10, item: (img, l) => v.image(img, l) });
+  if ('images' in body) {
+    out.images = v.list(body.images, 'Images', { max: 10, item: (img, l) => v.image(img, l) });
+    const primaryCount = out.images.filter((img) => img.isPrimary).length;
+    if (primaryCount > 1) throw createError(400, 'VALIDATION_ERROR', 'Only one image can be primary.');
+    // Exactly one primary image: the one marked primary, otherwise the first.
+    const primaryIndex = primaryCount === 1 ? out.images.findIndex((img) => img.isPrimary) : 0;
+    out.images = out.images.map((img, index) => ({ ...img, sortOrder: img.sortOrder ?? index, isPrimary: index === primaryIndex }));
+  }
   if ('tags' in body) out.tags = v.list(body.tags, 'Tags', { max: 20, item: (t, l) => v.text(t, l, { min: 1, max: 40 }).toLowerCase() });
   if ('isFeatured' in body) out.isFeatured = v.boolean(body.isFeatured, 'isFeatured');
   if ('isActive' in body) out.isActive = v.boolean(body.isActive, 'isActive');
@@ -95,6 +112,7 @@ function readFields(body, { creating }) {
     });
   }
   if ('options' in body) out.options = readOptions(body.options);
+  if ('status' in body) out.status = v.oneOf(body.status, 'status', ['draft', 'active', 'inactive']);
   return out;
 }
 
@@ -132,8 +150,12 @@ export async function listProductsAdmin(query = {}) {
   const status = query.status === undefined ? 'all' : v.oneOf(query.status, 'status', STATUS_FILTERS);
   const sort = query.sort === undefined ? 'newest' : v.oneOf(query.sort, 'sort', Object.keys(SORTS));
   const filter = {};
-  if (status === 'active') filter.isActive = true;
-  if (status === 'inactive') Object.assign(filter, { isActive: false, archivedAt: null });
+  // Same visibility rule as the storefront: shown only when active, status "active" and not archived.
+  if (status === 'active') Object.assign(filter, { isActive: true, status: { $in: ['active', null] }, archivedAt: null });
+  if (status === 'draft') Object.assign(filter, { status: 'draft', archivedAt: null });
+  if (status === 'inactive') {
+    Object.assign(filter, { archivedAt: null, status: { $ne: 'draft' }, $and: [{ $or: [{ isActive: false }, { status: 'inactive' }] }] });
+  }
   if (status === 'archived') filter.archivedAt = { $ne: null };
   if (query.category !== undefined) filter.category = v.objectId(query.category, 'category id');
   if (query.q !== undefined) {
@@ -160,12 +182,14 @@ export async function getProductAdmin(id) {
 export async function createProduct(body, actorId) {
   v.requireBody(body, [...EDITABLE, ...CREATE_ONLY]);
   const fields = readFields(body, { creating: true });
+  const status = fields.status ?? 'active';
   if (!('categoryId' in body)) throw createError(400, 'VALIDATION_ERROR', 'categoryId is required.');
-  const stock = body.stock === undefined ? 0 : v.integer(body.stock, 'Stock', { min: 0, max: 100000 });
-  checkMrp(fields.price, fields.mrp);
+  const stock = body.stock === undefined || body.stock === null ? null : v.integer(body.stock, 'Stock', { min: 0, max: 100000 });
+  if (status !== 'draft' && fields.price === null) throw createError(400, 'VALIDATION_ERROR', 'Active products require a price.');
+  if (fields.price !== null) checkMrp(fields.price, fields.mrp);
   const category = await activeCategory(body.categoryId);
   const slug = v.slug(body.slug ?? fields.name, 'Slug', { max: 140 });
-  const doc = { ...fields, slug, stock, category: category._id, categorySlug: category.slug };
+  const doc = { ...fields, status, slug, stock, category: category._id, categorySlug: category.slug };
   for (const key of ['sku', 'mrp', 'options']) if (doc[key] === null) delete doc[key];
 
   const product = await conflictSafe(
@@ -190,7 +214,11 @@ export async function updateProduct(id, body) {
   if (existing.archivedAt && fields.isActive === true) {
     throw createError(409, 'PRODUCT_ARCHIVED', 'Restore the archived product before activating it.');
   }
-  checkMrp(fields.price ?? existing.price, 'mrp' in fields ? fields.mrp : existing.mrp);
+  const nextStatus = fields.status ?? existing.status ?? (fields.isActive === false ? 'inactive' : 'active');
+  // An explicit `price: null` must be validated as null (not fall back to the stored price).
+  const nextPrice = 'price' in fields ? fields.price : existing.price;
+  if (nextStatus !== 'draft' && nextPrice === null) throw createError(400, 'VALIDATION_ERROR', 'Active products require a price.');
+  if (nextPrice !== null) checkMrp(nextPrice, 'mrp' in fields ? fields.mrp : existing.mrp);
   if ('categoryId' in body) {
     const category = await activeCategory(body.categoryId);
     fields.category = category._id;

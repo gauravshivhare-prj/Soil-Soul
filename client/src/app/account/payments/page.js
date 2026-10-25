@@ -3,6 +3,9 @@ import Card from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/States";
 
 export const metadata = { title: "Payment Methods | Soil & Soul" };
+// Rendered only after the client-side account session check (RequireAuth in the account layout),
+// so this segment cannot be rendered for instant-navigation validation.
+export const instant = false;
 
 // Only Cash on Delivery is offered, so there is nothing to save here yet.
 export default function PaymentsPage() {

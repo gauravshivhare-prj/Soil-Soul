@@ -11,7 +11,7 @@ import Card, { CardHeader } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Icon from "@/components/ui/Icon";
 import { StatusBadge } from "@/components/ui/Badge";
-import { Checkbox, TextField } from "@/components/ui/Field";
+import { Checkbox, SelectField, TextField } from "@/components/ui/Field";
 import { FormMessage, Skeleton } from "@/components/ui/States";
 import { useToast } from "@/components/ui/Toast";
 import { DataTable } from "@/components/admin/AdminParts";
@@ -19,7 +19,7 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { useAuthedResource } from "@/features/auth/useAuthedResource";
 
 const toSlug = (s) => s.toLowerCase().trim().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const EMPTY = { name: "", slug: "", shortName: "", tagline: "", description: "", displayOrder: "0", imageSrc: "", imageAlt: "", isActive: true };
+const EMPTY = { name: "", slug: "", shortName: "", tagline: "", description: "", displayOrder: "0", imageSrc: "", imageAlt: "", parentId: "", isActive: true };
 
 const categoryStatus = (c) => (c.archivedAt ? "archived" : c.isActive ? "active" : "inactive");
 
@@ -33,6 +33,7 @@ function toForm(c) {
     displayOrder: String(c.displayOrder ?? 0),
     imageSrc: c.image?.src ?? "",
     imageAlt: c.image?.alt ?? "",
+    parentId: c.parent?.id ?? c.parent?._id ?? "",
     isActive: Boolean(c.isActive),
   };
 }
@@ -54,6 +55,7 @@ function toBody(form, isNew) {
     description: form.description.trim(),
     displayOrder: Number(form.displayOrder.trim()),
     image: form.imageSrc.trim() ? { src: form.imageSrc.trim(), alt: form.imageAlt.trim() } : null,
+    parentId: form.parentId || null,
   };
   if (isNew) {
     body.slug = form.slug.trim() || toSlug(form.name);
@@ -74,6 +76,7 @@ export default function CategoryManager() {
   const [busy, setBusy] = useState(null);
 
   const isNew = editing === null;
+  const parentOptions = (data?.categories ?? []).filter((c) => c.id !== editing?.id && !c.parent);
   const set = (field) => (e) => {
     const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
     setForm((f) => ({ ...f, [field]: value }));
@@ -174,6 +177,7 @@ export default function CategoryManager() {
           <TextField label="Short name (optional)" name="shortName" value={form.shortName} onChange={set("shortName")} maxLength={40} />
           <TextField label="Tagline (optional)" name="tagline" value={form.tagline} onChange={set("tagline")} maxLength={120} hint="Short line shown on category pages" />
           <TextField label="Description (optional)" name="description" value={form.description} onChange={set("description")} maxLength={1000} />
+          <SelectField label="Parent category (optional)" name="parentId" value={form.parentId} onChange={set("parentId")} options={[{ value: "", label: "Main category" }, ...parentOptions.map((c) => ({ value: c.id, label: c.name }))]} />
           <TextField label="Display order" name="displayOrder" type="number" min="0" step="1" value={form.displayOrder} onChange={set("displayOrder")} error={errors.displayOrder} />
           <TextField label="Image URL (optional)" name="imageSrc" value={form.imageSrc} onChange={set("imageSrc")} hint="https:// address or a /images/ path" />
           {form.imageSrc.trim() && <TextField label="Image description" name="imageAlt" value={form.imageAlt} onChange={set("imageAlt")} error={errors.imageAlt} maxLength={200} />}

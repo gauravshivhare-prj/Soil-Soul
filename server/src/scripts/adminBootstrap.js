@@ -1,8 +1,8 @@
 import path from 'node:path';
-import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import mongoose from 'mongoose';
 import env from '../config/env.js';
+import { connectDatabase } from '../config/db.js';
 import { User } from '../modules/users/user.model.js';
 import { hashPassword, normalizeEmail } from '../modules/auth/auth.service.js';
 import { createError } from '../utils/createError.js';
@@ -13,11 +13,10 @@ import { isDuplicateKeyError } from '../utils/duplicateKeyError.js';
  *
  *   npm run admin:bootstrap -- --name "Store Owner"
  *
- * The email and password may be read from ADMIN_EMAIL and ADMIN_PASSWORD. The password
- * may also be read from a hidden prompt (or ADMIN_BOOTSTRAP_PASSWORD when not interactive)
- * and is never printed. Refuses to run if any admin exists, if the email is already registered,
- * or if MONGODB_URI does not point at a local database (127.0.0.1, localhost or ::1).
- * Creating the first admin on a remote/production database is not supported by this tool.
+ * The email and password are read from ADMIN_EMAIL and ADMIN_PASSWORD and are never printed.
+ * Refuses to run if any admin exists, if the email is already registered,
+ * Remote/Atlas databases require the explicit --atlas flag. Atlas writes additionally require
+ * --apply and --database <name>; without --apply the command performs a metadata-only diagnosis.
  */
 
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
@@ -76,10 +75,13 @@ export async function bootstrapAdmin({ name, email, password }) {
 }
 
 function parseArgs(args) {
-  const out = {};
+  const out = { atlas: false, apply: false };
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--email') out.email = args[++i];
     else if (args[i] === '--name') out.name = args[++i];
+    else if (args[i] === '--atlas') out.atlas = true;
+    else if (args[i] === '--apply') out.apply = true;
+    else if (args[i] === '--database') out.database = args[++i];
   }
   return out;
 }
@@ -88,39 +90,38 @@ function configuredAdminEmail() {
   return process.env.ADMIN_EMAIL?.trim() || '';
 }
 
-/** Read a password without echoing it (TTY), confirmed twice. */
-async function promptHidden(question) {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-  rl._writeToOutput = (text) => {
-    if (text.startsWith(question)) process.stdout.write(question);
-  };
-  try {
-    return await new Promise((resolve) => rl.question(question, resolve));
-  } finally {
-    rl.close();
-    process.stdout.write('\n');
+async function readPassword() {
+  // ADMIN_BOOTSTRAP_PASSWORD is the earlier documented name and is still accepted as a fallback.
+  const password = process.env.ADMIN_PASSWORD || process.env.ADMIN_BOOTSTRAP_PASSWORD;
+  if (typeof password !== 'string' || password.length === 0) {
+    throw createError(
+      400,
+      'VALIDATION_ERROR',
+      'ADMIN_PASSWORD (or ADMIN_BOOTSTRAP_PASSWORD) must be configured in server/.env before running admin bootstrap.'
+    );
   }
+  return password;
 }
 
-async function readPassword() {
-  if (process.stdin.isTTY) {
-    const first = await promptHidden('Admin password: ');
-    const second = await promptHidden('Repeat password: ');
-    if (first !== second) throw createError(400, 'VALIDATION_ERROR', 'Passwords do not match.');
-    return first;
-  }
-  const fromEnv = process.env.ADMIN_PASSWORD || process.env.ADMIN_BOOTSTRAP_PASSWORD;
-  if (!fromEnv) throw createError(400, 'VALIDATION_ERROR', 'No terminal: set ADMIN_PASSWORD or ADMIN_BOOTSTRAP_PASSWORD to provide the password.');
-  return fromEnv;
+function safeStatus(user) {
+  return user
+    ? {
+        exists: true,
+        role: user.role,
+        status: user.status ?? 'active',
+        emailVerified: user.emailVerified !== false,
+      }
+    : { exists: false };
 }
 
 export async function runCli(args = process.argv.slice(2)) {
-  if (!isLocalMongoUri(env.mongoUri)) {
+  const parsed = parseArgs(args);
+  const isLocal = isLocalMongoUri(env.mongoUri);
+  if (!isLocal && !parsed.atlas) {
     console.error('[admin:bootstrap] Refusing to run: MONGODB_URI must point at a local database (127.0.0.1, localhost or ::1).');
     process.exitCode = 1;
     return;
   }
-  const parsed = parseArgs(args);
   const email = parsed.email || configuredAdminEmail();
   const name = parsed.name || 'Store Administrator';
   if (!email) {
@@ -129,10 +130,38 @@ export async function runCli(args = process.argv.slice(2)) {
     return;
   }
 
+  if (!isLocal && parsed.apply && (!parsed.database || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,62}$/.test(parsed.database))) {
+    console.error('[admin:bootstrap] Atlas writes require --database <database-name> as an explicit target.');
+    process.exitCode = 1;
+    return;
+  }
+
   try {
+    await connectDatabase();
+    const targetDatabase = mongoose.connection.name;
+    console.log(`[admin:bootstrap] Connected to database "${targetDatabase}".`);
+    if (!isLocal && parsed.apply && targetDatabase !== parsed.database) {
+      console.error('[admin:bootstrap] Refusing to write: connected database does not match --database.');
+      process.exitCode = 1;
+      return;
+    }
+
+    const cleanEmail = normalizeEmail(email);
+    if (!cleanEmail) {
+      throw createError(400, 'VALIDATION_ERROR', 'A valid email address is required.');
+    }
+    const existingAdmin = await User.findOne({ role: 'admin' }).select('role status emailVerified');
+    const matchingAccount = await User.findOne({ email: cleanEmail }).select('role status emailVerified');
+
+    if (!isLocal && !parsed.apply) {
+      console.log(`[admin:bootstrap] Diagnosis: admin account ${safeStatus(existingAdmin).exists ? 'exists' : 'does not exist'}; configured email account ${safeStatus(matchingAccount).exists ? 'exists' : 'does not exist'}.`);
+      if (existingAdmin) console.log(`[admin:bootstrap] Existing admin status: role=${existingAdmin.role}, status=${existingAdmin.status ?? 'active'}, emailVerified=${existingAdmin.emailVerified !== false}.`);
+      if (matchingAccount) console.log(`[admin:bootstrap] Configured email status: role=${matchingAccount.role}, status=${matchingAccount.status ?? 'active'}, emailVerified=${matchingAccount.emailVerified !== false}.`);
+      console.log('[admin:bootstrap] No database write performed. Re-run with --atlas --apply --database <name> only after reviewing the target.');
+      return;
+    }
+
     const password = await readPassword();
-    await mongoose.connect(env.mongoUri, { serverSelectionTimeoutMS: 10000 });
-    console.log(`[admin:bootstrap] Connected to local database "${mongoose.connection.name}".`);
     await bootstrapAdmin({ name, email, password });
     console.log('[admin:bootstrap] Administrator created successfully.');
   } catch (err) {

@@ -46,10 +46,12 @@ export async function adjustStock(body, actorId) {
   const note = v.text(body.note, 'Note', { max: 300, required: reason === 'other' }) || null;
 
   return withOptionalTransaction(async (session) => {
-    const opts = { returnDocument: 'after', ...(session ? { session } : {}) };
+    const opts = { returnDocument: 'after', updatePipeline: true, ...(session ? { session } : {}) };
+    // Stock may not be set yet (null) on new or draft products: treat it as 0. `$inc` can't apply
+    // to null, so this is an atomic pipeline update; removals still require enough stock.
     const product = await Product.findOneAndUpdate(
       { _id: productId, ...(delta < 0 ? { stock: { $gte: -delta } } : {}) },
-      { $inc: { stock: delta } },
+      [{ $set: { stock: { $add: [{ $ifNull: ['$stock', 0] }, delta] } } }],
       opts
     ).select('_id name stock');
     if (!product) {

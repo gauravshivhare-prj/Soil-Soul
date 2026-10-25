@@ -18,6 +18,11 @@ const categorySchema = new mongoose.Schema(
       match: [/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Slug must be lowercase alphanumeric with hyphens.'],
       maxlength: [80, 'Category slug cannot exceed 80 characters.'],
     },
+    parent: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Category',
+      default: null,
+    },
     shortName: {
       type: String,
       trim: true,
@@ -66,6 +71,7 @@ const categorySchema = new mongoose.Schema(
 
 // Indexes
 categorySchema.index({ isActive: 1, displayOrder: 1 });
+categorySchema.index({ parent: 1, isActive: 1, displayOrder: 1 });
 
 export const Category = mongoose.model('Category', categorySchema);
 export default Category;

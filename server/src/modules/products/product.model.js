@@ -41,7 +41,7 @@ const productSchema = new mongoose.Schema(
     },
     price: {
       type: Number,
-      required: [true, 'Price is required.'],
+      default: null,
       min: [0, 'Price cannot be negative.'],
     },
     mrp: {
@@ -51,14 +51,21 @@ const productSchema = new mongoose.Schema(
     },
     stock: {
       type: Number,
-      required: [true, 'Stock count is required.'],
-      default: 0,
+      default: null,
       min: [0, 'Stock cannot be negative.'],
+    },
+    status: {
+      type: String,
+      enum: ['draft', 'active', 'inactive'],
+      default: 'active',
+      index: true,
     },
     images: [
       {
         src: { type: String, trim: true },
         alt: { type: String, trim: true },
+        isPrimary: { type: Boolean, default: false },
+        sortOrder: { type: Number, default: 0, min: 0, max: 100 },
       },
     ],
     tags: [
@@ -135,6 +142,14 @@ const productSchema = new mongoose.Schema(
           name: { type: String, trim: true },
           detail: { type: String, trim: true },
           priceDelta: { type: Number, default: 0 },
+          sku: { type: String, trim: true, uppercase: true, maxlength: 40 },
+          price: { type: Number, default: null, min: 0 },
+          mrp: { type: Number, default: null, min: 0 },
+          stock: { type: Number, default: null, min: 0 },
+          weight: { type: String, trim: true, maxlength: 40 },
+          volume: { type: String, trim: true, maxlength: 40 },
+          attributes: { type: Map, of: String, default: undefined },
+          isActive: { type: Boolean, default: true },
         },
       ],
     },
@@ -185,10 +200,10 @@ const productSchema = new mongoose.Schema(
 );
 
 // Query indexes
-productSchema.index({ category: 1, isActive: 1 });
+productSchema.index({ category: 1, isActive: 1, status: 1 });
 productSchema.index({ categorySlug: 1, isActive: 1 });
 productSchema.index({ isActive: 1, isFeatured: 1 });
-productSchema.index({ isActive: 1, price: 1 });
+productSchema.index({ isActive: 1, status: 1, price: 1 });
 productSchema.index({ name: 'text', summary: 'text' });
 productSchema.index({ 'restorationAudit.opKey': 1 });
 productSchema.index({ sku: 1 }, { unique: true, partialFilterExpression: { sku: { $type: 'string' } } });

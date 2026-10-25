@@ -26,6 +26,12 @@ const orderItemSnapshotSchema = new mongoose.Schema(
       name: { type: String, default: null, trim: true },
       detail: { type: String, default: null, trim: true },
       priceDelta: { type: Number, default: 0 },
+      sku: { type: String, default: null, trim: true },
+      price: { type: Number, default: null, min: 0 },
+      mrp: { type: Number, default: null, min: 0 },
+      stock: { type: Number, default: null, min: 0 },
+      weight: { type: String, default: null, trim: true },
+      volume: { type: String, default: null, trim: true },
     },
     unitPrice: {
       type: Number,

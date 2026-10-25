@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { primaryImage } from '../products/primaryImage.js';
 import mongoose from 'mongoose';
 import { Order } from './order.model.js';
 import { Cart } from '../cart/cart.model.js';
@@ -222,8 +223,13 @@ export async function rollbackStock(decremented) {
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         const res = await Product.updateOne(
-          { _id: d.productId },
-          { $inc: { stock: d.quantity, soldCount: -d.quantity } }
+          d.optionId
+            ? { _id: d.productId, 'options.choices.id': d.optionId }
+            : { _id: d.productId },
+          d.optionId
+            ? { $inc: { 'options.choices.$[choice].stock': d.quantity, soldCount: -d.quantity } }
+            : { $inc: { stock: d.quantity, soldCount: -d.quantity } },
+          d.optionId ? { arrayFilters: [{ 'choice.id': d.optionId }] } : undefined
         );
         if (res.acknowledged && res.modifiedCount > 0) {
           restored = true;
@@ -281,9 +287,13 @@ async function executeOrderPlacement(orderData) {
       // 1. Conditionally decrement stock for all items
       for (const item of orderData.items) {
         const updateRes = await Product.updateOne(
-          { _id: item.product, stock: { $gte: item.quantity }, isActive: true },
-          { $inc: { stock: -item.quantity, soldCount: item.quantity } },
-          { session }
+          item.option?.id && item.option.stock !== null && item.option.stock !== undefined
+            ? { _id: item.product, 'options.choices': { $elemMatch: { id: item.option.id, stock: { $gte: item.quantity }, isActive: { $ne: false } } }, isActive: true, status: { $in: ['active', null] } }
+            : { _id: item.product, stock: { $gte: item.quantity }, isActive: true, status: { $in: ['active', null] } },
+          item.option?.id && item.option.stock !== null && item.option.stock !== undefined
+            ? { $inc: { 'options.choices.$[choice].stock': -item.quantity, soldCount: item.quantity } }
+            : { $inc: { stock: -item.quantity, soldCount: item.quantity } },
+          item.option?.id && item.option.stock !== null && item.option.stock !== undefined ? { session, arrayFilters: [{ 'choice.id': item.option.id, 'choice.isActive': { $ne: false } }] } : { session },
         );
         if (updateRes.modifiedCount === 0) {
           throw createError(
@@ -345,8 +355,13 @@ async function executeOrderPlacement(orderData) {
     try {
       for (const item of orderData.items) {
         const updateRes = await Product.updateOne(
-          { _id: item.product, stock: { $gte: item.quantity }, isActive: true },
-          { $inc: { stock: -item.quantity, soldCount: item.quantity } }
+          item.option?.id && item.option.stock !== null && item.option.stock !== undefined
+            ? { _id: item.product, 'options.choices': { $elemMatch: { id: item.option.id, stock: { $gte: item.quantity }, isActive: { $ne: false } } }, isActive: true, status: { $in: ['active', null] } }
+            : { _id: item.product, stock: { $gte: item.quantity }, isActive: true, status: { $in: ['active', null] } },
+          item.option?.id && item.option.stock !== null && item.option.stock !== undefined
+            ? { $inc: { 'options.choices.$[choice].stock': -item.quantity, soldCount: item.quantity } }
+            : { $inc: { stock: -item.quantity, soldCount: item.quantity } },
+          item.option?.id && item.option.stock !== null && item.option.stock !== undefined ? { arrayFilters: [{ 'choice.id': item.option.id, 'choice.isActive': { $ne: false } }] } : undefined
         );
         if (updateRes.modifiedCount === 0) {
           // Insufficient stock or concurrent race - rollback prior decrements
@@ -367,7 +382,11 @@ async function executeOrderPlacement(orderData) {
             `Insufficient stock for "${item.name}". Another checkout may have completed simultaneously.`
           );
         }
-        decremented.push({ productId: item.product, quantity: item.quantity });
+        decremented.push({
+          productId: item.product,
+          optionId: item.option?.id && item.option.stock !== null && item.option.stock !== undefined ? item.option.id : null,
+          quantity: item.quantity,
+        });
       }
 
       let order;
@@ -527,7 +546,7 @@ export async function createOrder(userId, { paymentMethod, deliveryAddress, idem
       path: 'category',
       select: 'name slug isActive',
     })
-    .select('_id name slug price mrp stock images options isActive category');
+    .select('_id name slug price mrp stock images options isActive status category');
 
   const productMap = new Map();
   for (const p of products) {
@@ -544,7 +563,7 @@ export async function createOrder(userId, { paymentMethod, deliveryAddress, idem
       throw createError(400, 'VALIDATION_ERROR', 'One or more products in your cart are no longer available.');
     }
 
-    if (!prod.isActive) {
+    if (!prod.isActive || (prod.status && prod.status !== 'active')) {
       throw createError(400, 'VALIDATION_ERROR', `"${prod.name}" is currently unavailable.`);
     }
 
@@ -563,7 +582,7 @@ export async function createOrder(userId, { paymentMethod, deliveryAddress, idem
       const choice = prod.options?.choices?.find(
         (c) => c.id && c.id.trim().toLowerCase() === item.optionId.trim().toLowerCase()
       );
-      if (!choice) {
+      if (!choice || choice.isActive === false) {
         throw createError(
           400,
           'VALIDATION_ERROR',
@@ -575,17 +594,29 @@ export async function createOrder(userId, { paymentMethod, deliveryAddress, idem
         name: choice.name,
         detail: choice.detail,
         priceDelta: choice.priceDelta || 0,
+        sku: choice.sku ?? null,
+        price: choice.price ?? null,
+        mrp: choice.mrp ?? null,
+        stock: choice.stock ?? null,
+        weight: choice.weight ?? null,
+        volume: choice.volume ?? null,
       };
-      unitPrice = Math.max(0, unitPrice + (choice.priceDelta || 0));
+      unitPrice = choice.price ?? (unitPrice === null ? null : Math.max(0, unitPrice + (choice.priceDelta || 0)));
     }
 
-    unitPrice = Math.round(unitPrice * 100) / 100;
+    // A missing price stays null (never rounds to 0) and is rejected just below.
+    unitPrice = typeof unitPrice === 'number' && Number.isFinite(unitPrice) ? Math.round(unitPrice * 100) / 100 : null;
 
-    if (item.quantity > prod.stock) {
+    const selectedChoice = selectedOption ? prod.options?.choices?.find((c) => c.id === selectedOption.id) : null;
+    const availableStock = selectedChoice?.stock ?? prod.stock ?? 0;
+    if (typeof unitPrice !== 'number' || !Number.isFinite(unitPrice)) {
+      throw createError(400, 'PRODUCT_NOT_PURCHASABLE', `"${prod.name}" is not ready for purchase.`);
+    }
+    if (item.quantity > availableStock) {
       throw createError(
         400,
         'INSUFFICIENT_STOCK',
-        `Insufficient stock for "${prod.name}". Requested: ${item.quantity}, Available: ${prod.stock}.`
+        `Insufficient stock for "${prod.name}". Requested: ${item.quantity}, Available: ${availableStock}.`
       );
     }
 
@@ -596,7 +627,7 @@ export async function createOrder(userId, { paymentMethod, deliveryAddress, idem
       product: prod._id,
       name: prod.name,
       slug: prod.slug,
-      image: prod.images?.[0] || null,
+      image: primaryImage(prod.images),
       option: selectedOption,
       unitPrice,
       quantity: item.quantity,
@@ -743,9 +774,14 @@ export async function restoreStockForOrder(items, session = null, orderContext =
       try {
         const updateOptions = session ? { session } : {};
 
-        const filter = { _id: productId };
+        // Lines whose variant tracks its own stock were decremented on the variant at checkout
+        // (same rule as executeOrderPlacement), so they are restored to that variant.
+        const variantId = item.option?.id && item.option.stock !== null && item.option.stock !== undefined ? item.option.id : null;
+        const filter = variantId ? { _id: productId, 'options.choices.id': variantId } : { _id: productId };
+        const stockPath = variantId ? 'options.choices.$[choice].stock' : 'stock';
+        if (variantId) updateOptions.arrayFilters = [{ 'choice.id': variantId }];
         // soldCount is reversed only for lines that were counted as sold when the order was placed.
-        const updateOps = { $inc: { stock: quantity, ...(item.soldCounted ? { soldCount: -quantity } : {}) } };
+        const updateOps = { $inc: { [stockPath]: quantity, ...(item.soldCounted ? { soldCount: -quantity } : {}) } };
 
         if (opKey) {
           filter['restorationAudit.opKey'] = { $ne: opKey };

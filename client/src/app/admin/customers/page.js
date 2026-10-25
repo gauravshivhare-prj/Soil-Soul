@@ -1,24 +1,10 @@
-"use client";
+import AdminCustomers from "@/features/admin/AdminCustomers";
 
-import CustomersTable from "@/features/admin/CustomersTable";
-import PageHeader from "@/components/ui/PageHeader";
-import { FormMessage, Skeleton } from "@/components/ui/States";
-import { useAuthedResource } from "@/features/auth/useAuthedResource";
+export const metadata = { title: "Customers | Admin | Soil & Soul" };
+// Rendered only after the client-side admin session check (RequireAuth in the admin frame),
+// so this segment cannot be rendered for instant-navigation validation.
+export const instant = false;
 
 export default function AdminCustomersPage() {
-  const { status, data, error, reload } = useAuthedResource("/admin/customers");
-
-  return (
-    <>
-      <PageHeader title="Customers" subtitle="Customer accounts and their order totals." />
-      {status === "loading" && <Skeleton className="h-64" />}
-      {status === "error" && (
-        <div className="mt-4 space-y-3">
-          <FormMessage tone="error">{error?.message || "Customers could not be loaded."}</FormMessage>
-          <button type="button" onClick={reload} className="text-sm font-medium text-forest hover:underline">Try again</button>
-        </div>
-      )}
-      {status === "ready" && <CustomersTable customers={data?.customers ?? []} />}
-    </>
-  );
+  return <AdminCustomers />;
 }

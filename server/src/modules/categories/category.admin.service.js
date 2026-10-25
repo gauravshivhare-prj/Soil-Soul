@@ -4,7 +4,7 @@ import { createError } from '../../utils/createError.js';
 import { isDuplicateKeyError, toDuplicateKeyError } from '../../utils/duplicateKeyError.js';
 import * as v from '../../utils/input.js';
 
-const EDITABLE = ['name', 'shortName', 'tagline', 'description', 'image', 'displayOrder', 'isActive'];
+const EDITABLE = ['name', 'shortName', 'tagline', 'description', 'image', 'displayOrder', 'isActive', 'parentId'];
 const STATUS_FILTERS = ['all', 'active', 'inactive', 'archived'];
 
 const notFound = () => createError(404, 'CATEGORY_NOT_FOUND', 'Category not found.');
@@ -18,6 +18,7 @@ function readFields(body, { creating }) {
   if ('image' in body) out.image = body.image === null ? null : v.image(body.image, 'Category image');
   if ('displayOrder' in body) out.displayOrder = v.integer(body.displayOrder, 'Display order', { min: 0, max: 10000 });
   if ('isActive' in body) out.isActive = v.boolean(body.isActive, 'isActive');
+  if ('parentId' in body) out.parent = body.parentId === null || body.parentId === '' ? null : v.objectId(body.parentId, 'parent category id');
   return out;
 }
 
@@ -44,6 +45,25 @@ async function withProductCounts(categories) {
   }));
 }
 
+const MAX_CATEGORY_DEPTH = 10;
+
+/**
+ * Refuse a parent that would create a cycle: walk up from the proposed parent and fail if the
+ * category itself appears among its ancestors (bounded, so corrupt data can't loop forever).
+ */
+async function assertNoParentCycle(categoryId, parentId) {
+  let current = parentId;
+  for (let depth = 0; current; depth++) {
+    if (String(current) === String(categoryId)) {
+      throw createError(400, 'VALIDATION_ERROR', 'A category cannot be placed under itself or one of its subcategories.');
+    }
+    if (depth >= MAX_CATEGORY_DEPTH) {
+      throw createError(400, 'VALIDATION_ERROR', `Categories can be nested at most ${MAX_CATEGORY_DEPTH} levels deep.`);
+    }
+    current = (await Category.findById(current).select('parent').lean())?.parent ?? null;
+  }
+}
+
 /** All categories for admins, including inactive and archived ones. */
 export async function listCategoriesAdmin(query = {}) {
   const { page, limit, skip } = v.pagination(query, { defaultLimit: 50, maxLimit: 100 });
@@ -58,7 +78,7 @@ export async function listCategoriesAdmin(query = {}) {
   }
 
   const [categories, total] = await Promise.all([
-    Category.find(filter).sort({ displayOrder: 1, name: 1 }).skip(skip).limit(limit),
+    Category.find(filter).populate('parent', '_id name slug').sort({ displayOrder: 1, name: 1 }).skip(skip).limit(limit),
     Category.countDocuments(filter),
   ]);
   return {
@@ -68,7 +88,7 @@ export async function listCategoriesAdmin(query = {}) {
 }
 
 export async function getCategoryAdmin(id) {
-  const category = await Category.findById(v.objectId(id, 'category id'));
+  const category = await Category.findById(v.objectId(id, 'category id')).populate('parent', '_id name slug');
   if (!category) throw notFound();
   return (await withProductCounts([category]))[0];
 }
@@ -77,6 +97,11 @@ export async function createCategory(body) {
   v.requireBody(body, ['slug', ...EDITABLE]);
   const fields = readFields(body, { creating: true });
   const slug = v.slug(body.slug ?? fields.name, 'Slug', { max: 80 });
+  if (fields.parent) {
+    const parent = await Category.findById(fields.parent).select('_id archivedAt');
+    if (!parent) throw createError(404, 'PARENT_CATEGORY_NOT_FOUND', 'Parent category not found.');
+    if (parent.archivedAt) throw createError(409, 'PARENT_CATEGORY_ARCHIVED', 'Parent category is archived.');
+  }
   const category = await saveOrConflict(Category.create({ ...fields, image: fields.image ?? undefined, slug }));
   return (await withProductCounts([category]))[0];
 }
@@ -90,6 +115,15 @@ export async function updateCategory(id, body) {
   if (!existing) throw notFound();
   if (existing.archivedAt && fields.isActive === true) {
     throw createError(409, 'CATEGORY_ARCHIVED', 'Restore the archived category before activating it.');
+  }
+  if (fields.parent && String(fields.parent) === String(existing._id)) {
+    throw createError(400, 'VALIDATION_ERROR', 'A category cannot be its own parent.');
+  }
+  if (fields.parent) {
+    const parent = await Category.findById(fields.parent).select('_id archivedAt');
+    if (!parent) throw createError(404, 'PARENT_CATEGORY_NOT_FOUND', 'Parent category not found.');
+    if (parent.archivedAt) throw createError(409, 'PARENT_CATEGORY_ARCHIVED', 'Parent category is archived.');
+    await assertNoParentCycle(existing._id, parent._id);
   }
   const update = { $set: { ...fields } };
   if (fields.image === null) {

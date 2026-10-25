@@ -36,13 +36,26 @@ function parseBoundedInt(val, fallback, min, max) {
 }
 
 /**
+ * Public view of variants: only choices that are available to buy, without internal SKUs
+ * (the product-level SKU is likewise hidden from public responses). Mutates the loaded document.
+ */
+function toPublicVariants(product) {
+  const choices = product?.options?.choices;
+  if (Array.isArray(choices) && choices.length > 0) {
+    product.options.choices = choices.filter((choice) => choice.isActive !== false);
+    for (const choice of product.options.choices) choice.sku = undefined;
+  }
+  return product;
+}
+
+/**
  * List products with bounded pagination, allowlisted sorting, and safe filtering.
  */
 export async function listProducts(queryParams = {}) {
   const page = parseBoundedInt(queryParams.page, 1, 1, 10000);
   const limit = parseBoundedInt(queryParams.limit, 12, 1, 50);
 
-  const filter = { isActive: true };
+  const filter = { isActive: true, status: { $in: ['active', null] } };
 
   // Category filter: ensure only active categories are matched and referenced
   if (typeof queryParams.category === 'string' && queryParams.category.trim()) {
@@ -65,7 +78,14 @@ export async function listProducts(queryParams = {}) {
         },
       };
     }
-    filter.category = categoryDoc._id;
+    // A parent category also lists the products of its active subcategories (bounded depth).
+    const categoryIds = [categoryDoc._id];
+    let level = [categoryDoc._id];
+    for (let depth = 0; depth < 10 && level.length > 0; depth++) {
+      level = await Category.find({ parent: { $in: level }, isActive: true }).distinct('_id');
+      categoryIds.push(...level);
+    }
+    filter.category = categoryIds.length === 1 ? categoryDoc._id : { $in: categoryIds };
   } else {
     const activeCategoryIds = await Category.find({ isActive: true }).distinct('_id');
     filter.category = { $in: activeCategoryIds };
@@ -137,16 +157,14 @@ export async function listProducts(queryParams = {}) {
       .sort(sortCriteria)
       .skip(skip)
       .limit(limit)
-      .select(
-        '_id name slug summary category categorySlug price mrp stock images tags soldCount isFeatured light size highlights options'
-      ),
+      .select('_id name slug summary category categorySlug price mrp stock images tags soldCount isFeatured light size highlights options status'),
     Product.countDocuments(filter),
   ]);
 
   const totalPages = Math.ceil(total / limit) || 1;
 
   return {
-    products,
+    products: products.map(toPublicVariants),
     pagination: {
       page,
       limit,
@@ -169,7 +187,7 @@ export async function getProductBySlugOrId(slugOrId) {
   const trimmed = slugOrId.trim().slice(0, 140).toLowerCase();
   const isObjectId = mongoose.Types.ObjectId.isValid(trimmed);
 
-  const filter = { isActive: true };
+  const filter = { isActive: true, status: { $in: ['active', null] } };
   if (isObjectId) {
     filter.$or = [{ _id: trimmed }, { slug: trimmed }];
   } else {
@@ -192,6 +210,7 @@ export async function getProductBySlugOrId(slugOrId) {
   if (!product || !product.category) {
     throw createError(404, 'PRODUCT_NOT_FOUND', 'Product not found.');
   }
+  toPublicVariants(product);
 
   return product;
 }

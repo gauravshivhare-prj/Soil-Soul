@@ -4,6 +4,9 @@ import Button from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/States";
 
 export const metadata = { title: "Addresses | Soil & Soul" };
+// Rendered only after the client-side account session check (RequireAuth in the account layout),
+// so this segment cannot be rendered for instant-navigation validation.
+export const instant = false;
 
 // There is no saved-address API yet: the delivery address is entered at checkout
 // and stored with each order.

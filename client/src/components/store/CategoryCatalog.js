@@ -7,19 +7,33 @@
 
 import { useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
+import { fetchCategories } from "@/services/catalogApi";
 import ShopHero from "@/components/store/ShopHero";
 import ShopCatalog from "@/components/store/ShopCatalog";
 import { PageContainer } from "@/components/ui/PageHeader";
 import Button from "@/components/ui/Button";
 import { EmptyState, FormMessage, Skeleton } from "@/components/ui/States";
 
+/* The category and all of its active subcategories (by parent links), so a parent page lists them too. */
+function withDescendants(rootSlug, categories) {
+  const slugs = [rootSlug];
+  for (let i = 0; i < slugs.length && i < 200; i++) {
+    for (const c of categories) if (c.parent?.slug === slugs[i] && !slugs.includes(c.slug)) slugs.push(c.slug);
+  }
+  return slugs;
+}
+
 export default function CategoryCatalog({ slug }) {
-  const [state, setState] = useState({ slug: null, category: null, error: null });
+  const [state, setState] = useState({ slug: null, category: null, slugs: [], error: null });
   useEffect(() => {
     const controller = new AbortController();
-    apiRequest(`/categories/${encodeURIComponent(slug)}`, { signal: controller.signal })
-      .then((data) => setState({ slug, category: data.category, error: null }))
-      .catch((error) => !controller.signal.aborted && setState({ slug, category: null, error }));
+    Promise.all([
+      apiRequest(`/categories/${encodeURIComponent(slug)}`, { signal: controller.signal }),
+      // The subcategory list is a nice-to-have: without it the page still shows its own products.
+      fetchCategories({ signal: controller.signal }).catch(() => []),
+    ])
+      .then(([data, categories]) => setState({ slug, category: data.category, slugs: withDescendants(data.category.slug, categories), error: null }))
+      .catch((error) => !controller.signal.aborted && setState({ slug, category: null, slugs: [], error }));
     return () => controller.abort();
   }, [slug]);
 
@@ -57,7 +71,7 @@ export default function CategoryCatalog({ slug }) {
         breadcrumbs={[{ label: "Home", href: "/" }, { label: "Shop", href: "/shop" }, { label: category.name }]}
       />
       <PageContainer className="py-6 sm:py-8 lg:py-10">
-        <ShopCatalog key={slug} initialCategories={[category.slug]} />
+        <ShopCatalog key={slug} initialCategories={state.slugs} />
       </PageContainer>
     </main>
   );

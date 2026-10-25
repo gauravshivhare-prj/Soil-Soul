@@ -8,7 +8,8 @@ import { createError } from '../../utils/createError.js';
 export async function listCategories() {
   return Category.find({ isActive: true })
     .sort({ displayOrder: 1, name: 1 })
-    .select('_id name slug shortName tagline description image displayOrder');
+    .populate('parent', '_id name slug')
+    .select('_id name slug shortName tagline description image displayOrder parent');
 }
 
 /**
@@ -32,7 +33,7 @@ export async function getCategoryBySlugOrId(slugOrId) {
   let category;
   try {
     category = await Category.findOne(filter).select(
-      '_id name slug shortName tagline description image displayOrder'
+      '_id name slug shortName tagline description image displayOrder parent'
     );
   } catch {
     throw createError(400, 'VALIDATION_ERROR', 'Invalid category identifier.');

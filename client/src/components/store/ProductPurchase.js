@@ -27,11 +27,12 @@ export default function ProductPurchase({ product }) {
   const [qty, setQty] = useState(1);
   const [isBusy, setIsBusy] = useState(false);
 
-  const inStock = isInStock(product);
-  const maxQty = Math.max(1, Math.min(MAX_QTY_PER_LINE, product.stock));
   const option = product.options?.choices.find((c) => c.id === optionId);
-  const unitPrice = product.price + (option?.priceDelta ?? 0);
-  const status = stockStatus(product.stock);
+  const selectedStock = option?.stock ?? product.stock ?? 0;
+  const inStock = isInStock(product, optionId);
+  const maxQty = Math.max(1, Math.min(MAX_QTY_PER_LINE, selectedStock));
+  const unitPrice = option?.price ?? (product.price + (option?.priceDelta ?? 0));
+  const status = stockStatus(selectedStock);
 
   async function add({ thenCheckout = false } = {}) {
     setIsBusy(true);
@@ -69,7 +70,7 @@ export default function ProductPurchase({ product }) {
                   <input type="radio" name="product-option" value={c.id} checked={selected} onChange={() => setOptionId(c.id)} className="sr-only" />
                   <span className="text-[0.8125rem] font-semibold text-ink">{c.name}</span>
                   {c.detail && <span className="text-[0.6875rem] text-muted">{c.detail}</span>}
-                  <span className="mt-1.5 text-sm font-semibold text-ink">{formatPrice(product.price + (c.priceDelta ?? 0))}</span>
+                  <span className="mt-1.5 text-sm font-semibold text-ink">{formatPrice(c.price ?? (product.price + (c.priceDelta ?? 0)))}</span>
                   {selected && <span className="absolute top-2 right-2 text-forest"><Icon name="check-circle" size={16} /></span>}
                 </label>
               );

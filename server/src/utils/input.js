@@ -109,8 +109,13 @@ export function imageSrc(value, label = 'Image') {
 
 export function image(value, label = 'Image') {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid(`${label} must be { src, alt }.`);
-  requireBody(value, ['src', 'alt']);
-  return { src: imageSrc(value.src, label), alt: text(value.alt, `${label} alt text`, { min: 2, max: 200 }) };
+  requireBody(value, ['src', 'alt', 'isPrimary', 'sortOrder']);
+  return {
+    src: imageSrc(value.src, label),
+    alt: text(value.alt, `${label} alt text`, { min: 2, max: 200 }),
+    ...(value.isPrimary === undefined ? {} : { isPrimary: boolean(value.isPrimary, `${label} primary flag`) }),
+    ...(value.sortOrder === undefined ? {} : { sortOrder: integer(value.sortOrder, `${label} order`, { min: 0, max: 100 }) }),
+  };
 }
 
 /** Escape user text for use inside a RegExp (search). */

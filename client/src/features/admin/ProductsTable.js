@@ -22,7 +22,9 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { useAuthedResource } from "@/features/auth/useAuthedResource";
 
 const PAGE_SIZE = 25;
-const productStatus = (p) => (p.archivedAt ? "archived" : p.isActive ? "active" : "inactive");
+// Mirrors the storefront rule: visible only when active, status "active" and not archived.
+const productStatus = (p) =>
+  p.archivedAt ? "archived" : p.status === "draft" ? "draft" : p.isActive && p.status !== "inactive" ? "active" : "inactive";
 const firstImage = (p) => (p.images?.[0]?.src ? { src: p.images[0].src, alt: p.images[0].alt || p.name } : null);
 
 export default function ProductsTable() {
@@ -93,6 +95,7 @@ export default function ProductsTable() {
           <select id="admin-product-status" value={status} onChange={change(setStatus)} className={`${control} cursor-pointer`}>
             <option value="all">All statuses</option>
             <option value="active">Visible</option>
+            <option value="draft">Draft</option>
             <option value="inactive">Hidden</option>
             <option value="archived">Archived</option>
           </select>
@@ -136,13 +139,13 @@ export default function ProductsTable() {
                   <td className="font-medium text-ink whitespace-nowrap">{formatPrice(p.price)}</td>
                   <td><span className="flex items-center gap-2 whitespace-nowrap"><span className="text-ink">{p.stock}</span><StatusBadge status={stockStatus(p.stock, 5)} /></span></td>
                   <td className="text-muted">{p.soldCount ?? 0}</td>
-                  <td><StatusBadge status={productStatus(p)} label={p.isActive ? "Visible" : undefined} /></td>
+                  <td><StatusBadge status={productStatus(p)} label={productStatus(p) === "active" ? "Visible" : undefined} /></td>
                   <td>
                     <span className="flex gap-1.5">
                       <Link href={adminProductHref(p.id)} className={buttonClass({ variant: "outline", size: "sm" })}>
                         <Icon name="edit" size={13} />Edit<span className="sr-only"> {p.name}</span>
                       </Link>
-                      {p.isActive && (
+                      {productStatus(p) === "active" && (
                         <Link href={productHref(p.slug)} className={buttonClass({ variant: "ghost", size: "sm" })} aria-label={`View ${p.name} in store`}>
                           <Icon name="eye" size={15} />
                         </Link>

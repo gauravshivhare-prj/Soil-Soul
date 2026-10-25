@@ -1,5 +1,6 @@
 import { User } from './user.model.js';
 import { Order } from '../orders/order.model.js';
+import { ORDER_STATUS } from '../orders/order.transitions.js';
 import { createError } from '../../utils/createError.js';
 import { isDuplicateKeyError, toDuplicateKeyError } from '../../utils/duplicateKeyError.js';
 import { normalizeIndianMobile } from '../../utils/phone.js';
@@ -92,7 +93,7 @@ export async function listCustomers({ page = 1, limit = 25, search = '' } = {}) 
   ]);
 
   const orderStats = await Order.aggregate([
-    { $match: { user: { $in: customers.map((customer) => customer._id) }, orderStatus: { $ne: 'cancelled' } } },
+    { $match: { user: { $in: customers.map((customer) => customer._id) }, orderStatus: { $ne: ORDER_STATUS.CANCELLED } } }, // statuses are stored upper-case
     { $group: { _id: '$user', orders: { $sum: 1 }, spent: { $sum: '$total' } } },
   ]);
   const statsByUser = new Map(orderStats.map((stats) => [stats._id.toString(), stats]));

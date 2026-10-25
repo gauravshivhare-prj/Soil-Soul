@@ -29,13 +29,20 @@ const lines = (text) => text.split("\n").map((l) => l.trim()).filter(Boolean);
 const LIGHT = [{ value: "", label: "Not set" }, { value: "low", label: "Low light" }, { value: "bright-indirect", label: "Bright indirect" }, { value: "full-sun", label: "Full sun" }];
 const SIZE = [{ value: "", label: "Not set" }, { value: "small", label: "Small" }, { value: "medium", label: "Medium" }, { value: "large", label: "Large" }];
 
+/* Stored images in display order with exactly one primary (the stored primary, else the first). */
+function loadImages(images) {
+  const sorted = [...(images ?? [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  const primary = Math.max(0, sorted.findIndex((img) => img.isPrimary));
+  return sorted.map((img, i) => ({ src: img.src ?? "", alt: img.alt ?? "", isPrimary: i === primary, sortOrder: i }));
+}
+
 function initialValues(p) {
   return {
     name: p?.name ?? "",
     slug: p?.slug ?? "",
     categoryId: p?.category ?? "",
     sku: p?.sku ?? "",
-    price: p ? String(p.price) : "",
+    price: p?.price != null ? String(p.price) : "",
     mrp: p?.mrp != null ? String(p.mrp) : "",
     stock: p ? String(p.stock) : "0",
     summary: p?.summary ?? "",
@@ -46,7 +53,11 @@ function initialValues(p) {
     size: p?.size ?? "",
     isFeatured: p?.isFeatured ?? false,
     isActive: p?.isActive ?? true,
-    images: (p?.images ?? []).map((img) => ({ src: img.src ?? "", alt: img.alt ?? "" })),
+    status: p?.status ?? "draft",
+    images: loadImages(p?.images),
+    options: p?.options
+      ? { label: p.options.label ?? "Variant", choices: (p.options.choices ?? []).map((choice) => ({ ...choice, price: choice.price == null ? "" : String(choice.price), mrp: choice.mrp == null ? "" : String(choice.mrp), stock: choice.stock == null ? "" : String(choice.stock) })) }
+      : { label: "Variant", choices: [] },
   };
 }
 
@@ -56,9 +67,9 @@ function check(values, isNew) {
   if (isNew && values.slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(values.slug)) errors.slug = "Use lowercase letters, numbers and hyphens.";
   if (!values.categoryId) errors.categoryId = "Choose a category.";
   if (values.sku.trim() && values.sku.trim().length < 2) errors.sku = "SKU must be at least 2 characters.";
-  if (!isMoney(values.price) || Number(values.price) <= 0) errors.price = "Enter a price, e.g. 499 or 499.50.";
+  if (values.status !== "draft" && (!isMoney(values.price) || Number(values.price) <= 0)) errors.price = "Enter a price for an active product.";
   if (values.mrp.trim() && (!isMoney(values.mrp) || Number(values.mrp) < Number(values.price))) errors.mrp = "MRP must be an amount not lower than the price (or left empty).";
-  if (isNew && !/^\d+$/.test(values.stock.trim())) errors.stock = "Enter a whole number (0 or more).";
+  if (isNew && values.status !== "draft" && !/^\d+$/.test(values.stock.trim())) errors.stock = "Enter a whole number (0 or more).";
   values.images.forEach((img, i) => {
     if (!img.src.trim()) errors[`image${i}`] = "Enter the image address or remove this image.";
     else if (!/^(https:\/\/|\/images\/)/.test(img.src.trim())) errors[`image${i}`] = "Use an https:// address or a /images/ path.";
@@ -72,7 +83,7 @@ function toBody(values, isNew) {
     name: values.name.trim(),
     categoryId: values.categoryId,
     sku: values.sku.trim() || null,
-    price: Number(values.price),
+    price: values.price.trim() === "" ? null : Number(values.price),
     mrp: values.mrp.trim() ? Number(values.mrp) : null,
     summary: values.summary.trim(),
     description: values.description.trim(),
@@ -82,11 +93,30 @@ function toBody(values, isNew) {
     size: values.size || null,
     isFeatured: values.isFeatured,
     isActive: values.isActive,
-    images: values.images.map((img) => ({ src: img.src.trim(), alt: img.alt.trim() })),
+    images: values.images.map((img, index) => ({ src: img.src.trim(), alt: img.alt.trim(), isPrimary: Boolean(img.isPrimary), sortOrder: index })),
+    status: values.status,
+    options: values.options.choices.length
+      ? {
+          label: values.options.label.trim() || "Variant",
+          choices: values.options.choices.map((choice) => ({
+            id: choice.id.trim(),
+            name: choice.name.trim(),
+            detail: choice.detail?.trim() || "",
+            priceDelta: 0,
+            sku: choice.sku?.trim() || undefined,
+            price: choice.price === "" ? null : Number(choice.price),
+            mrp: choice.mrp === "" ? null : Number(choice.mrp),
+            stock: choice.stock === "" ? null : Number(choice.stock),
+            weight: choice.weight?.trim() || undefined,
+            volume: choice.volume?.trim() || undefined,
+            isActive: choice.isActive !== false,
+          })),
+        }
+      : null,
   };
   if (isNew) {
     body.slug = values.slug.trim() || toSlug(values.name);
-    body.stock = Number(values.stock);
+    body.stock = values.stock.trim() === "" ? null : Number(values.stock);
     if (body.sku === null) delete body.sku;
     if (body.mrp === null) delete body.mrp;
   }
@@ -115,6 +145,18 @@ export default function ProductForm({ product }) {
     setValues((v) => ({ ...v, images: v.images.map((img, j) => (j === i ? { ...img, [field]: value } : img)) }));
     setErrors((x) => ({ ...x, [`image${i}`]: "" }));
   };
+  const setChoice = (i, field) => (e) => {
+    const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setValues((v) => ({ ...v, options: { ...v.options, choices: v.options.choices.map((choice, j) => (j === i ? { ...choice, [field]: value } : choice)) } }));
+  };
+  const makePrimary = (i) => setValues((v) => ({ ...v, images: v.images.map((img, j) => ({ ...img, isPrimary: i === j })) }));
+  const moveImage = (i, direction) => setValues((v) => {
+    const next = [...v.images];
+    const target = i + direction;
+    if (target < 0 || target >= next.length) return v;
+    [next[i], next[target]] = [next[target], next[i]];
+    return { ...v, images: next };
+  });
 
   async function submit(e) {
     e.preventDefault();
@@ -141,7 +183,8 @@ export default function ProductForm({ product }) {
 
   // Archived categories can't take products; keep the current one listed when editing.
   const categoryOptions = (categories.data?.categories ?? []).filter((c) => !c.archivedAt || c.id === values.categoryId);
-  const preview = values.images.find((img) => /^(https:\/\/|\/images\/)/.test(img.src.trim()));
+  const preview = values.images.find((img) => img.isPrimary && /^(https:\/\/|\/images\/)/.test(img.src.trim()))
+    ?? values.images.find((img) => /^(https:\/\/|\/images\/)/.test(img.src.trim()));
 
   return (
     <form onSubmit={submit} noValidate className="grid gap-5 xl:grid-cols-[1fr_340px] items-start">
@@ -180,13 +223,13 @@ export default function ProductForm({ product }) {
         <Card>
           <CardHeader title="Pricing & Stock" />
           <div className="grid gap-4 sm:grid-cols-3">
-            <TextField label="Price (₹)" name="price" type="number" inputMode="decimal" min="0.01" step="0.01" value={values.price} onChange={set("price")} error={errors.price} required />
+            <TextField label="Price (₹)" name="price" type="number" inputMode="decimal" min="0.01" step="0.01" value={values.price} onChange={set("price")} error={errors.price} required={values.status !== "draft"} />
             <TextField label="MRP (₹)" name="mrp" type="number" inputMode="decimal" step="0.01" value={values.mrp} onChange={set("mrp")} error={errors.mrp} hint="Optional — shows a discount" />
             {isNew ? (
-              <TextField label="Opening stock" name="stock" type="number" inputMode="numeric" min="0" step="1" value={values.stock} onChange={set("stock")} error={errors.stock} required />
+              <TextField label="Opening stock" name="stock" type="number" inputMode="numeric" min="0" step="1" value={values.stock} onChange={set("stock")} error={errors.stock} required={values.status !== "draft"} />
             ) : (
               <div className="text-sm">
-                <p className="m-0 font-medium text-ink">Stock: {product.stock}</p>
+                <p className="m-0 font-medium text-ink">Stock: {product.stock ?? "not set"}</p>
                 <Link href="/admin/inventory" className="text-forest text-xs">Adjust in Inventory</Link>
               </div>
             )}
@@ -202,7 +245,13 @@ export default function ProductForm({ product }) {
                 <legend className="sr-only">Image {i + 1}</legend>
                 <TextField label={`Image ${i + 1} address`} name={`image${i}-src`} value={img.src} onChange={setImage(i, "src")} error={errors[`image${i}`]} placeholder="https://… or /images/…" />
                 <TextField label="Description" name={`image${i}-alt`} value={img.alt} onChange={setImage(i, "alt")} maxLength={200} />
+                <div className="flex items-center gap-1 sm:mt-7">
+                  <Button type="button" variant={img.isPrimary ? "primary" : "outline"} size="sm" onClick={() => makePrimary(i)}>{img.isPrimary ? "Primary" : "Make primary"}</Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => moveImage(i, -1)} disabled={i === 0} aria-label="Move image up">↑</Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => moveImage(i, 1)} disabled={i === values.images.length - 1} aria-label="Move image down">↓</Button>
+                </div>
                 <Button
+                  type="button"
                   variant="ghost"
                   className="sm:mt-7 !text-danger"
                   aria-label={`Remove image ${i + 1}`}
@@ -221,6 +270,28 @@ export default function ProductForm({ product }) {
             )}
           </div>
         </Card>
+
+        <Card>
+          <CardHeader title="Variants" />
+          <div className="grid gap-3">
+            <TextField label="Variant label" value={values.options.label} onChange={(e) => setValues((v) => ({ ...v, options: { ...v.options, label: e.target.value } }))} maxLength={40} />
+            {values.options.choices.map((choice, i) => (
+              <fieldset key={choice.id || i} className="grid gap-2 rounded-xl border border-line p-3 sm:grid-cols-2">
+                <TextField label="ID" value={choice.id ?? ""} onChange={setChoice(i, "id")} />
+                <TextField label="Name" value={choice.name ?? ""} onChange={setChoice(i, "name")} />
+                <TextField label="SKU" value={choice.sku ?? ""} onChange={setChoice(i, "sku")} />
+                <TextField label="Price (₹)" type="number" value={choice.price ?? ""} onChange={setChoice(i, "price")} />
+                <TextField label="MRP (₹)" type="number" value={choice.mrp ?? ""} onChange={setChoice(i, "mrp")} />
+                <TextField label="Stock" type="number" value={choice.stock ?? ""} onChange={setChoice(i, "stock")} />
+                <TextField label="Weight" value={choice.weight ?? ""} onChange={setChoice(i, "weight")} />
+                <TextField label="Volume / capacity" value={choice.volume ?? ""} onChange={setChoice(i, "volume")} />
+                <Checkbox label="Available to buy" checked={choice.isActive !== false} onChange={setChoice(i, "isActive")} className="sm:col-span-2" />
+                <Button type="button" variant="ghost" className="!text-danger sm:col-span-2" onClick={() => setValues((v) => ({ ...v, options: { ...v.options, choices: v.options.choices.filter((_, j) => j !== i) } }))}>Remove variant</Button>
+              </fieldset>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={() => setValues((v) => ({ ...v, options: { ...v.options, choices: [...v.options.choices, { id: `variant-${v.options.choices.length + 1}`, name: "", detail: "", price: "", mrp: "", stock: "", isActive: true }] } }))}>Add variant</Button>
+          </div>
+        </Card>
       </div>
 
       <div className="grid gap-5 content-start">
@@ -231,11 +302,13 @@ export default function ProductForm({ product }) {
         <Card>
           <CardHeader title="Visibility" />
           <div className="grid gap-3">
+            <SelectField label="Catalogue status" value={values.status} onChange={set("status")} options={[{ value: "draft", label: "Draft (not purchasable)" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} />
             {product?.archivedAt ? (
               <p className="m-0 text-sm text-muted">Archived — restore it from the product list to make it visible again.</p>
             ) : (
               <Checkbox label="Visible in the shop" checked={values.isActive} onChange={set("isActive")} />
             )}
+            <p className="m-0 text-xs text-muted">Shown and purchasable only when the status is Active and &ldquo;Visible in the shop&rdquo; is ticked. Drafts need a price before they can be made Active.</p>
             <Checkbox label="Show in Featured Products" checked={values.isFeatured} onChange={set("isFeatured")} />
           </div>
         </Card>

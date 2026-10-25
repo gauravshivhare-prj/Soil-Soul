@@ -6,10 +6,17 @@
 
 import { apiRequest } from "@/lib/api";
 
+function activeOptions(options) {
+  const choices = (options?.choices ?? []).filter((c) => c && c.isActive !== false);
+  return choices.length ? { ...options, choices } : null;
+}
+
 /** API product → component shape (see data/catalog.js header for the shape). */
 export function toUiProduct(p) {
   const category = p.category && typeof p.category === "object" ? p.category : null;
-  const firstImage = Array.isArray(p.images) && p.images[0]?.src ? p.images[0] : null;
+  const firstImage = Array.isArray(p.images) && (p.images.find((image) => image?.isPrimary) || p.images[0])?.src
+    ? (p.images.find((image) => image?.isPrimary) || p.images[0])
+    : null;
   return {
     id: p.id,
     slug: p.slug,
@@ -31,7 +38,8 @@ export function toUiProduct(p) {
     highlights: p.highlights ?? [],
     care: p.care ?? [],
     specs: (p.specs ?? []).map((s) => [s.label, s.value]),
-    options: p.options?.choices?.length ? p.options : null,
+    // Only variants that are available to buy are offered (the server rejects inactive ones anyway).
+    options: activeOptions(p.options),
     soldCount: p.soldCount ?? 0,
     image: firstImage ? { src: firstImage.src, alt: firstImage.alt || p.name } : null,
     images: (p.images ?? []).filter((img) => img?.src),
@@ -61,7 +69,10 @@ export async function fetchCategories(options = {}) {
   return data.categories;
 }
 
-export const isInStock = (product) => product.stock > 0;
+export const isInStock = (product, optionId = null) => {
+  const choice = product.options?.choices?.find((item) => item.id === optionId);
+  return (choice?.stock ?? product.stock ?? 0) > 0 && (choice?.isActive !== false);
+};
 /* Default option: the zero-cost choice, else the first. */
 export function defaultOptionId(product) {
   const choices = product.options?.choices;

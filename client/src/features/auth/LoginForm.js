@@ -6,7 +6,7 @@
  * and lockouts are shown with the server's safe messages.
  */
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { brandSerif } from "@/app/fonts";
@@ -91,6 +91,9 @@ export default function LoginForm({ adminOnly = false }) {
   const [mode, setMode] = useState("login"); // "login" | "forgot"
   const [serverError, setServerError] = useState(null); // { message, verifyEmail? }
   const [isBusy, setIsBusy] = useState(false);
+  // Synchronous guard: a second Enter/click before React re-renders must not send another
+  // request, because every sign-in attempt counts toward the per-account lockout.
+  const inFlight = useRef(false);
 
   const set = (field) => (e) => {
     setValues((v) => ({ ...v, [field]: e.target.value }));
@@ -103,6 +106,8 @@ export default function LoginForm({ adminOnly = false }) {
     const result = validate(values, RULES);
     setErrors(result.errors);
     if (!result.isValid) return focusFirstError(e.currentTarget, result.errors, Object.keys(RULES));
+    if (inFlight.current) return;
+    inFlight.current = true;
     setIsBusy(true);
     setServerError(null);
     try {
@@ -116,6 +121,7 @@ export default function LoginForm({ adminOnly = false }) {
       if (err.code === "EMAIL_NOT_VERIFIED") setServerError({ message: err.message, verifyEmail: values.email.trim() });
       else setServerError({ message: `${err.message}${err.status === 429 ? retryAfterText(err) : ""}` });
       setIsBusy(false);
+      inFlight.current = false;
     }
   }
 
