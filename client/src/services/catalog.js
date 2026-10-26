@@ -6,6 +6,8 @@
  * returned by the backend; it never supplies catalog data.
  */
 
+import { isInStock } from "@/services/catalogApi";
+
 export const COLLECTIONS = Object.freeze({
   plants: {
     title: "Live Plants",
@@ -42,7 +44,8 @@ export function filterProducts(products, filters = {}) {
     if (filters.tags?.length && !filters.tags.some((tag) => product.tags?.includes(tag))) return false;
     if (filters.light?.length && !filters.light.includes(product.light)) return false;
     if (filters.sizes?.length && !filters.sizes.includes(product.size)) return false;
-    if (filters.inStockOnly && product.stock <= 0) return false;
+    // Variant-aware: a product with variants is in stock when any available variant is.
+    if (filters.inStockOnly && !isInStock(product)) return false;
     return true;
   });
 }

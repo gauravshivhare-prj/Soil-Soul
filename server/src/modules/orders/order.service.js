@@ -14,6 +14,14 @@ import { validateOrderLifecycleUpdate, validateOrderTransition, validateCODPayme
 import { logError } from '../../utils/logError.js';
 
 /**
+ * The variant whose own stock an order line moves, or null when it moves the product-level stock.
+ * A variant tracks its own stock once `stock` is set on it (see executeOrderPlacement).
+ */
+export function variantStockId(option) {
+  return option?.id && option.stock !== null && option.stock !== undefined ? option.id : null;
+}
+
+/**
  * Check if the active MongoDB deployment supports multi-document transactions.
  * Transactions require a replica set ('ReplicaSetWithPrimary' or 'Sharded').
  */
@@ -330,7 +338,7 @@ async function executeOrderPlacement(orderData) {
       // Stock history: one 'sale' record per line, committed together with the order.
       for (const [i, item] of orderData.items.entries()) {
         await recordMovement(
-          { product: item.product, delta: -item.quantity, reason: 'sale', order: created._id, opKey: `sale:${created._id}:${i}` },
+          { product: item.product, optionId: variantStockId(item.option), delta: -item.quantity, reason: 'sale', order: created._id, opKey: `sale:${created._id}:${i}` },
           session
         );
       }
@@ -430,6 +438,7 @@ async function executeOrderPlacement(orderData) {
       for (const [i, item] of orderData.items.entries()) {
         await recordMovementSafely({
           product: item.product,
+          optionId: variantStockId(item.option),
           delta: -item.quantity,
           reason: 'sale',
           order: order._id,
@@ -776,7 +785,7 @@ export async function restoreStockForOrder(items, session = null, orderContext =
 
         // Lines whose variant tracks its own stock were decremented on the variant at checkout
         // (same rule as executeOrderPlacement), so they are restored to that variant.
-        const variantId = item.option?.id && item.option.stock !== null && item.option.stock !== undefined ? item.option.id : null;
+        const variantId = variantStockId(item.option);
         const filter = variantId ? { _id: productId, 'options.choices.id': variantId } : { _id: productId };
         const stockPath = variantId ? 'options.choices.$[choice].stock' : 'stock';
         if (variantId) updateOptions.arrayFilters = [{ 'choice.id': variantId }];
@@ -840,7 +849,7 @@ export async function restoreStockForOrder(items, session = null, orderContext =
     // Stock history for a restore applied by this call (opKey shared with restorationAudit makes it
     // exactly-once). Inside a transaction a failure aborts it; on standalone it is best-effort.
     if (appliedNow && opKey) {
-      const movement = { product: productId, delta: quantity, reason: 'order_restore', order: orderContext.orderId ?? null, opKey };
+      const movement = { product: productId, optionId: variantStockId(item.option), delta: quantity, reason: 'order_restore', order: orderContext.orderId ?? null, opKey };
       if (session) await recordMovement(movement, session);
       else await recordMovementSafely(movement);
     }

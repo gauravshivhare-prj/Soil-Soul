@@ -17,6 +17,7 @@ import { useToast } from "@/components/ui/Toast";
 import { DataTable } from "@/components/admin/AdminParts";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { useAuthedResource } from "@/features/auth/useAuthedResource";
+import { runDeletion } from "./deletion";
 
 const toSlug = (s) => s.toLowerCase().trim().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const EMPTY = { name: "", slug: "", shortName: "", tagline: "", description: "", displayOrder: "0", imageSrc: "", imageAlt: "", parentId: "", isActive: true };
@@ -109,6 +110,32 @@ export default function CategoryManager() {
     }
   }
 
+  // Delete an empty category (no products, archived ones included, and no subcategories). The
+  // server explains what blocks a deletion; nothing is reassigned or deleted silently.
+  const [listMessage, setListMessage] = useState(null);
+  async function deleteCategory(category) {
+    setBusy(`delete:${category.id}`);
+    setListMessage(null);
+    try {
+      const outcome = await runDeletion({
+        label: category.name,
+        loadCheck: () => authRequest(`/admin/categories/${category.id}/deletion`),
+        confirm: (message) => window.confirm(message),
+        remove: () => authRequest(`/admin/categories/${category.id}`, { method: "DELETE", body: { confirmSlug: category.slug } }),
+      });
+      if (outcome.status === "blocked") setListMessage({ tone: "error", text: `“${category.name}” can't be deleted. ${outcome.message}` });
+      if (outcome.status === "deleted") {
+        notify(`Category “${category.name}” deleted.`);
+        if (editing?.id === category.id) reset();
+        reload();
+      }
+    } catch (err) {
+      setListMessage({ tone: "error", text: `“${category.name}”: ${err.message}` });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function archiveOrRestore(category) {
     const action = category.archivedAt ? "restore" : "archive";
     setBusy(`${action}:${category.id}`);
@@ -134,6 +161,7 @@ export default function CategoryManager() {
           </div>
         )}
         {status === "error" && <FormMessage tone="error">{error.message}</FormMessage>}
+        {listMessage && <FormMessage tone={listMessage.tone} className="mb-3">{listMessage.text}</FormMessage>}
         {status === "ready" &&
           (data.categories.length === 0 ? (
             <p className="m-0 text-sm text-muted">No categories yet. Add the first one with the form.</p>
@@ -155,6 +183,9 @@ export default function CategoryManager() {
                       </Button>
                       <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => archiveOrRestore(c)}>
                         {c.archivedAt ? "Restore" : "Archive"}<span className="sr-only"> {c.name}</span>
+                      </Button>
+                      <Button size="sm" variant="ghost" className="!text-danger" disabled={busy !== null} onClick={() => deleteCategory(c)}>
+                        <Icon name="trash" size={14} />Delete<span className="sr-only"> {c.name}</span>
                       </Button>
                     </span>
                   </td>

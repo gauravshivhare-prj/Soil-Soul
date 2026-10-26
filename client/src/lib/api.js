@@ -39,33 +39,41 @@ export async function apiRequest(path, { method = "GET", body, token, headers = 
   signal?.addEventListener("abort", onAbort, { once: true });
 
   let res;
+  let payload = null;
+  // The timeout covers the whole exchange, including reading the body: a response whose body
+  // never finishes (e.g. the server restarting mid-response) must not leave the UI waiting forever.
   try {
-    res = await fetch(`${BASE_URL}${path}`, {
-      method,
-      headers: {
-        Accept: "application/json",
-        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...headers,
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-      cache: "no-store",
-    });
-  } catch (err) {
-    if (signal?.aborted) throw err;
-    const code = controller.signal.aborted ? "TIMEOUT" : "NETWORK_ERROR";
-    throw new ApiError({ status: 0, code, message: FRIENDLY[code] });
+    try {
+      res = await fetch(`${BASE_URL}${path}`, {
+        method,
+        headers: {
+          Accept: "application/json",
+          ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...headers,
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+        cache: "no-store",
+        // Sends/receives the httpOnly refresh cookie (scoped by the server to /api/v1/auth only).
+        credentials: "include",
+      });
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      const code = controller.signal.aborted ? "TIMEOUT" : "NETWORK_ERROR";
+      throw new ApiError({ status: 0, code, message: FRIENDLY[code] });
+    }
+
+    try {
+      payload = await res.json();
+    } catch (err) {
+      if (signal?.aborted) throw err;
+      if (controller.signal.aborted) throw new ApiError({ status: 0, code: "TIMEOUT", message: FRIENDLY.TIMEOUT });
+      payload = null; // Not JSON (e.g. an HTML error page): handled by the status check below.
+    }
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);
-  }
-
-  let payload = null;
-  try {
-    payload = await res.json();
-  } catch {
-    payload = null;
   }
 
   if (!res.ok || payload?.success === false) {

@@ -3,6 +3,7 @@ import { Product } from '../products/product.model.js';
 import { createError } from '../../utils/createError.js';
 import { isDuplicateKeyError, toDuplicateKeyError } from '../../utils/duplicateKeyError.js';
 import * as v from '../../utils/input.js';
+import { withOptionalTransaction } from '../../utils/transaction.js';
 
 const EDITABLE = ['name', 'shortName', 'tagline', 'description', 'image', 'displayOrder', 'isActive', 'parentId'];
 const STATUS_FILTERS = ['all', 'active', 'inactive', 'archived'];
@@ -161,4 +162,54 @@ export async function restoreCategory(id) {
   );
   if (!category) throw notFound();
   return (await withProductCounts([category]))[0];
+}
+
+/** What deleting a category would involve (read-only). Deletion is only possible when it is empty. */
+export async function getCategoryDeletion(id) {
+  const category = await Category.findById(v.objectId(id, 'category id')).select('_id name slug');
+  if (!category) throw notFound();
+  const [products, children] = await Promise.all([
+    Product.countDocuments({ category: category._id }),
+    Category.countDocuments({ parent: category._id }),
+  ]);
+  return {
+    category: { id: String(category._id), name: category.name, slug: category.slug },
+    references: { products, children },
+    canDelete: products === 0 && children === 0,
+    message: deletionBlockedMessage(products, children) ?? 'This category is empty and can be deleted permanently.',
+  };
+}
+
+function deletionBlockedMessage(products, children) {
+  const parts = [];
+  if (products > 0) parts.push(`${products} product(s) (including archived ones)`);
+  if (children > 0) parts.push(`${children} subcategor${children === 1 ? 'y' : 'ies'}`);
+  if (parts.length === 0) return null;
+  return `This category still has ${parts.join(' and ')}. Move them to another category (edit each product or subcategory) or delete them first. To hide the category without deleting, archive it instead.`;
+}
+
+/**
+ * Permanently delete an EMPTY category (no products — archived ones included — and no
+ * subcategories). Requires `{ confirmSlug }` equal to the category slug. Products are never
+ * deleted or reassigned here.
+ */
+export async function deleteCategory(id, body) {
+  const categoryId = v.objectId(id, 'category id');
+  v.requireBody(body ?? {}, ['confirmSlug']);
+  const confirmSlug = typeof body?.confirmSlug === 'string' ? body.confirmSlug.trim() : '';
+  return withOptionalTransaction(async (session) => {
+    const category = await Category.findById(categoryId).select('_id name slug').session(session);
+    if (!category) throw notFound();
+    if (!confirmSlug || confirmSlug !== category.slug) {
+      throw createError(400, 'CONFIRMATION_REQUIRED', 'Confirm the deletion by sending the category slug as confirmSlug.');
+    }
+    // Sequential on purpose: operations sharing a transaction session must not run in parallel.
+    const products = await Product.countDocuments({ category: category._id }).session(session);
+    const children = await Category.countDocuments({ parent: category._id }).session(session);
+    const blocked = deletionBlockedMessage(products, children);
+    if (blocked) throw createError(409, 'CATEGORY_NOT_EMPTY', blocked);
+    const removed = await Category.deleteOne({ _id: category._id }, session ? { session } : {});
+    if (removed.deletedCount !== 1) throw notFound();
+    return { deleted: { id: String(category._id), name: category.name, slug: category.slug } };
+  });
 }

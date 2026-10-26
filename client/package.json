@@ -6,7 +6,8 @@
     "dev": "node ./node_modules/next/dist/bin/next dev",
     "build": "node ./node_modules/next/dist/bin/next build",
     "start": "node ./node_modules/next/dist/bin/next start",
-    "lint": "node ./node_modules/eslint/bin/eslint.js ."
+    "lint": "node ./node_modules/eslint/bin/eslint.js .",
+    "test": "node --test \"src/**/__tests__/*.test.mjs\""
   },
   "dependencies": {
     "next": "16.4.2",

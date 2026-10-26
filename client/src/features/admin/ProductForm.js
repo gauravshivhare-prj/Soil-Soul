@@ -9,7 +9,7 @@
  * and specs aren't edited here and are left unchanged on save. The API validates everything again.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Card, { CardHeader } from "@/components/ui/Card";
@@ -56,7 +56,7 @@ function initialValues(p) {
     status: p?.status ?? "draft",
     images: loadImages(p?.images),
     options: p?.options
-      ? { label: p.options.label ?? "Variant", choices: (p.options.choices ?? []).map((choice) => ({ ...choice, price: choice.price == null ? "" : String(choice.price), mrp: choice.mrp == null ? "" : String(choice.mrp), stock: choice.stock == null ? "" : String(choice.stock) })) }
+      ? { label: p.options.label ?? "Variant", choices: (p.options.choices ?? []).map((choice) => ({ ...choice, price: choice.price == null ? "" : String(choice.price), mrp: choice.mrp == null ? "" : String(choice.mrp), stock: choice.stock == null ? "" : String(choice.stock), stored: true })) }
       : { label: "Variant", choices: [] },
   };
 }
@@ -133,6 +133,21 @@ export default function ProductForm({ product }) {
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState(null);
   const [isBusy, setIsBusy] = useState(false);
+  // Set once the server has saved, while the product list opens (that can take a moment in dev).
+  const [saved, setSaved] = useState(false);
+
+  // Safety net: if the client-side navigation to the list doesn't happen (e.g. the dev server is
+  // recompiling or restarting), load the list with a full page navigation instead of leaving the
+  // form waiting.
+  useEffect(() => {
+    if (!saved) return undefined;
+    const timer = setTimeout(() => {
+      // A full page load is the point here: it only runs when client navigation did not happen.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      if (window.location.pathname !== "/admin/products") window.location.assign("/admin/products");
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [saved]);
 
   const set = (field) => (e) => {
     const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
@@ -174,6 +189,7 @@ export default function ProductForm({ product }) {
       const path = isNew ? "/admin/products" : `/admin/products/${product.id}`;
       const res = await authRequest(path, { method: isNew ? "POST" : "PATCH", body: toBody(values, isNew) });
       notify(`${res.product.name} ${isNew ? "created" : "saved"}.`);
+      setSaved(true);
       router.push("/admin/products");
     } catch (err) {
       setServerError(err.message);
@@ -277,12 +293,20 @@ export default function ProductForm({ product }) {
             <TextField label="Variant label" value={values.options.label} onChange={(e) => setValues((v) => ({ ...v, options: { ...v.options, label: e.target.value } }))} maxLength={40} />
             {values.options.choices.map((choice, i) => (
               <fieldset key={choice.id || i} className="grid gap-2 rounded-xl border border-line p-3 sm:grid-cols-2">
-                <TextField label="ID" value={choice.id ?? ""} onChange={setChoice(i, "id")} />
+                <TextField label="ID" value={choice.id ?? ""} onChange={setChoice(i, "id")} readOnly={Boolean(choice.stored)} hint={choice.stored ? "Fixed once saved (orders and stock history refer to it)." : undefined} />
                 <TextField label="Name" value={choice.name ?? ""} onChange={setChoice(i, "name")} />
                 <TextField label="SKU" value={choice.sku ?? ""} onChange={setChoice(i, "sku")} />
                 <TextField label="Price (₹)" type="number" value={choice.price ?? ""} onChange={setChoice(i, "price")} />
                 <TextField label="MRP (₹)" type="number" value={choice.mrp ?? ""} onChange={setChoice(i, "mrp")} />
-                <TextField label="Stock" type="number" value={choice.stock ?? ""} onChange={setChoice(i, "stock")} />
+                {choice.stored ? (
+                  // Stock of saved variants changes only through Inventory (with history); the server ignores it here.
+                  <div className="text-sm">
+                    <p className="m-0 font-medium text-ink">Stock: {choice.stock === "" ? "uses shared product stock" : choice.stock}</p>
+                    <Link href="/admin/inventory" className="text-forest text-xs">Adjust in Inventory</Link>
+                  </div>
+                ) : (
+                  <TextField label="Opening stock" type="number" min="0" step="1" value={choice.stock ?? ""} onChange={setChoice(i, "stock")} hint="Later changes go through Inventory." />
+                )}
                 <TextField label="Weight" value={choice.weight ?? ""} onChange={setChoice(i, "weight")} />
                 <TextField label="Volume / capacity" value={choice.volume ?? ""} onChange={setChoice(i, "volume")} />
                 <Checkbox label="Available to buy" checked={choice.isActive !== false} onChange={setChoice(i, "isActive")} className="sm:col-span-2" />
@@ -312,8 +336,11 @@ export default function ProductForm({ product }) {
             <Checkbox label="Show in Featured Products" checked={values.isFeatured} onChange={set("isFeatured")} />
           </div>
         </Card>
+        {/* Repeated next to the button: the top of the form may be scrolled out of view. */}
+        {serverError && <FormMessage tone="error">{serverError}</FormMessage>}
+        {saved && <FormMessage tone="success">Saved. Opening the product list…</FormMessage>}
         <div className="flex flex-wrap gap-2.5">
-          <Button type="submit" disabled={isBusy}><Icon name="check" size={16} />{isBusy ? "Saving…" : isNew ? "Create Product" : "Save Changes"}</Button>
+          <Button type="submit" disabled={isBusy || saved}><Icon name="check" size={16} />{saved ? "Saved" : isBusy ? "Saving…" : isNew ? "Create Product" : "Save Changes"}</Button>
           <Button variant="outline" href="/admin/products">Cancel</Button>
         </div>
       </div>

@@ -11,13 +11,13 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCart, MAX_QTY_PER_LINE } from "@/features/cart/CartProvider";
 import { useToast } from "@/components/ui/Toast";
-import { defaultOptionId, isInStock } from "@/services/catalogApi";
+import { defaultOptionId, isInStock, stockDisplay } from "@/services/catalogApi";
 import { formatPrice } from "@/lib/format";
 import QuantitySelector from "@/components/ui/QuantitySelector";
 import Button from "@/components/ui/Button";
 import Icon from "@/components/ui/Icon";
 import Price from "@/components/ui/Price";
-import { StatusBadge, stockStatus } from "@/components/ui/Badge";
+import { StatusBadge } from "@/components/ui/Badge";
 
 export default function ProductPurchase({ product }) {
   const router = useRouter();
@@ -32,7 +32,8 @@ export default function ProductPurchase({ product }) {
   const inStock = isInStock(product, optionId);
   const maxQty = Math.max(1, Math.min(MAX_QTY_PER_LINE, selectedStock));
   const unitPrice = option?.price ?? (product.price + (option?.priceDelta ?? 0));
-  const status = stockStatus(selectedStock);
+  // Stock of the selected variant (or the product): count shown only when fewer than 25 are left.
+  const stock = stockDisplay(selectedStock);
 
   async function add({ thenCheckout = false } = {}) {
     setIsBusy(true);
@@ -51,7 +52,7 @@ export default function ProductPurchase({ product }) {
       <Price price={unitPrice} mrp={product.mrp ? product.mrp + (option?.priceDelta ?? 0) : null} size="lg" />
 
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-        <StatusBadge status={status} label={status === "low-stock" ? `Only ${product.stock} left` : undefined} />
+        <StatusBadge status={stock.status} label={stock.label} />
       </div>
 
       {product.options && (

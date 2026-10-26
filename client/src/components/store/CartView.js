@@ -11,6 +11,7 @@ import { useCart } from "@/features/cart/CartProvider";
 import { useToast } from "@/components/ui/Toast";
 import { formatPrice } from "@/lib/format";
 import { productHref } from "@/lib/routes";
+import { stockDisplay } from "@/services/catalogApi";
 import ProductImage from "@/components/ui/ProductImage";
 import QuantitySelector from "@/components/ui/QuantitySelector";
 import Button from "@/components/ui/Button";
@@ -22,6 +23,9 @@ function CartLine({ line }) {
   const { setQty, removeItem } = useCart();
   const { notify } = useToast();
   const { product } = line;
+  // Count shown only when fewer than 25 are left (see stockDisplay).
+  const stock = stockDisplay(line.stock);
+  const isLow = stock.status === "low-stock";
 
   async function changeQty(q) {
     const result = await setQty(line.key, q);
@@ -45,9 +49,9 @@ function CartLine({ line }) {
           </Link>
           {line.option && <p className="m-0 mt-0.5 text-xs text-muted">{line.option.name}</p>}
           {line.isAvailable ? (
-            <p className="m-0 mt-1 flex items-center gap-1 text-xs text-forest">
-              <span className="w-1.5 h-1.5 rounded-full bg-forest" aria-hidden="true" />
-              In Stock
+            <p className={`m-0 mt-1 flex items-center gap-1 text-xs ${isLow ? "text-[#8a5a10]" : "text-forest"}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${isLow ? "bg-[#c98a1e]" : "bg-forest"}`} aria-hidden="true" />
+              {stock.label}
             </p>
           ) : (
             <p className="m-0 mt-1 text-xs font-medium text-danger" role="status">{line.availabilityReason ?? "Unavailable"}</p>

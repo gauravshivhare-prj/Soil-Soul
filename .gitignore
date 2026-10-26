@@ -64,3 +64,11 @@ Thumbs.db
 
 # Local project plans, reports and documentation
 ssfiles/
+
+# ImageKit export/apply output and product-image backups (operational data, kept local)
+server/imagekit-urls.csv
+server/product-image-mapping.json
+server/imagekit-export-report.md
+server/imagekit-apply-dryrun.md
+server/imagekit-apply-plan.json
+server/backups/

@@ -3,8 +3,12 @@ import { Category } from '../categories/category.model.js';
 import { createError } from '../../utils/createError.js';
 import { isDuplicateKeyError, toDuplicateKeyError } from '../../utils/duplicateKeyError.js';
 import { withOptionalTransaction } from '../../utils/transaction.js';
-import { recordMovement } from '../inventory/inventory.service.js';
+import { recordMovement, recordMovementSafely } from '../inventory/inventory.service.js';
 import * as v from '../../utils/input.js';
+import { Order } from '../orders/order.model.js';
+import { Cart } from '../cart/cart.model.js';
+import { StockMovement } from '../inventory/stockMovement.model.js';
+import { MISSING_IMAGE_FILTER, hasUsableImage } from './imageUsability.js';
 
 /**
  * Admin product management. Stock is set once at creation; afterwards it changes only through
@@ -132,6 +136,7 @@ async function activeCategory(categoryId) {
 const adminView = (product) => {
   const json = product.toJSON();
   json.category = product.category?._id ? String(product.category._id) : String(product.category);
+  json.hasUsableImage = hasUsableImage(product);
   return json;
 };
 
@@ -158,6 +163,12 @@ export async function listProductsAdmin(query = {}) {
   }
   if (status === 'archived') filter.archivedAt = { $ne: null };
   if (query.category !== undefined) filter.category = v.objectId(query.category, 'category id');
+  // image=missing: no usable image (empty, no valid source, or only verified placeholders).
+  if (query.image !== undefined) {
+    const image = v.oneOf(query.image, 'image', ['missing', 'usable']);
+    if (image === 'missing') Object.assign(filter, MISSING_IMAGE_FILTER);
+    else filter.$nor = [MISSING_IMAGE_FILTER];
+  }
   if (query.q !== undefined) {
     const q = v.text(query.q, 'Search', { max: 100 });
     if (q) {
@@ -198,14 +209,47 @@ export async function createProduct(body, actorId) {
       if (stock > 0) {
         await recordMovement({ product: created._id, delta: stock, stockAfter: stock, reason: 'initial', actor: actorId }, session);
       }
+      for (const choice of created.options?.choices ?? []) {
+        if (choice.stock > 0) {
+          await recordMovement(
+            { product: created._id, optionId: choice.id, delta: choice.stock, stockAfter: choice.stock, reason: 'initial', actor: actorId },
+            session
+          );
+        }
+      }
       return created;
     })
   );
   return adminView(product);
 }
 
-/** Update editable fields. The slug and stock are not editable here. */
-export async function updateProduct(id, body) {
+/**
+ * Variants as submitted, but with stock taken from the stored product for variants that already
+ * exist: their stock changes only through Inventory adjustments and orders (each with a history
+ * record). Variants new to the product keep the submitted opening stock.
+ * @returns {{ options: Object|null, added: Array<{ id: string, stock: number }> }}
+ */
+function mergeVariantStock(submitted, current) {
+  if (!submitted) return { options: submitted, added: [] };
+  const stored = new Map((current?.options?.choices ?? []).map((c) => [c.id, c]));
+  const added = [];
+  const choices = submitted.choices.map((choice) => {
+    if (stored.has(choice.id)) return { ...choice, stock: stored.get(choice.id).stock ?? null };
+    if (choice.stock > 0) added.push({ id: choice.id, stock: choice.stock });
+    return choice;
+  });
+  return { options: { ...submitted, choices }, added };
+}
+
+/** Matches only while every stored variant still has the stock it had when it was read. */
+function unchangedVariantStock(current) {
+  const choices = current?.options?.choices ?? [];
+  if (choices.length === 0) return {};
+  return { $and: choices.map((c) => ({ 'options.choices': { $elemMatch: { id: c.id, stock: c.stock ?? null } } })) };
+}
+
+/** Update editable fields. The slug and stock (product or existing variants) are not editable here. */
+export async function updateProduct(id, body, actorId = null) {
   v.requireBody(body, EDITABLE);
   if (Object.keys(body).length === 0) throw createError(400, 'VALIDATION_ERROR', 'Provide at least one field to update.');
   const fields = readFields(body, { creating: false });
@@ -225,15 +269,33 @@ export async function updateProduct(id, body) {
     fields.categorySlug = category.slug;
   }
 
-  const $set = {};
-  const $unset = {};
-  for (const [key, value] of Object.entries(fields)) {
-    if (value === null && ['sku', 'mrp', 'options'].includes(key)) $unset[key] = 1;
-    else $set[key] = value;
+  // Variant stock can change at any moment (checkout, cancellations, Inventory). When variants are
+  // saved, the update only applies if no variant stock changed since it was read; otherwise it is
+  // rebuilt from fresh data and retried, so a form save can never restore stock that was sold.
+  const touchesVariants = 'options' in fields;
+  let current = existing;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const merged = touchesVariants ? mergeVariantStock(fields.options, current) : { added: [] };
+    const next = touchesVariants ? { ...fields, options: merged.options } : fields;
+    const $set = {};
+    const $unset = {};
+    for (const [key, value] of Object.entries(next)) {
+      if (value === null && ['sku', 'mrp', 'options'].includes(key)) $unset[key] = 1;
+      else $set[key] = value;
+    }
+    const update = { ...(Object.keys($set).length ? { $set } : {}), ...(Object.keys($unset).length ? { $unset } : {}) };
+    const filter = { _id: existing._id, ...(touchesVariants ? unchangedVariantStock(current) : {}) };
+    const product = await conflictSafe(Product.findOneAndUpdate(filter, update, { returnDocument: 'after', runValidators: true }));
+    if (product) {
+      for (const variant of merged.added) {
+        await recordMovementSafely({ product: product._id, optionId: variant.id, delta: variant.stock, stockAfter: variant.stock, reason: 'initial', actor: actorId });
+      }
+      return adminView(product);
+    }
+    current = await Product.findById(existing._id);
+    if (!current) throw notFound();
   }
-  const update = { ...(Object.keys($set).length ? { $set } : {}), ...(Object.keys($unset).length ? { $unset } : {}) };
-  const product = await conflictSafe(Product.findByIdAndUpdate(existing._id, update, { returnDocument: 'after', runValidators: true }));
-  return adminView(product);
+  throw createError(409, 'STOCK_CHANGED', 'Stock changed while saving. Please try again.');
 }
 
 /** Archive (never delete): hidden from the store and not purchasable; past orders are untouched. */
@@ -245,6 +307,76 @@ export async function archiveProduct(id) {
   );
   if (!product) throw notFound();
   return adminView(product);
+}
+
+/** Orders that reference a product (order lines, or stock-restoration records of cancellations). */
+const orderReference = (productId) => ({ $or: [{ 'items.product': productId }, { 'cancellation.restorationErrors.productId': productId }] });
+
+/**
+ * What deleting a product would involve, without changing anything. Permanent deletion is only
+ * possible for a product without a usable image that no order references; otherwise archive it.
+ */
+export async function getProductDeletion(id) {
+  const product = await Product.findById(v.objectId(id, 'product id')).select('_id name slug images archivedAt');
+  if (!product) throw notFound();
+  const [orders, carts, stockHistory] = await Promise.all([
+    Order.countDocuments(orderReference(product._id)),
+    Cart.countDocuments({ 'items.product': product._id }),
+    StockMovement.countDocuments({ product: product._id }),
+  ]);
+  const usable = hasUsableImage(product);
+  const blockedBy = usable ? 'HAS_USABLE_IMAGE' : orders > 0 ? 'HAS_ORDERS' : null;
+  return {
+    product: { id: String(product._id), name: product.name, slug: product.slug, archived: Boolean(product.archivedAt) },
+    hasUsableImage: usable,
+    references: { orders, carts, stockHistory },
+    canDelete: blockedBy === null,
+    blockedBy,
+    message:
+      blockedBy === 'HAS_USABLE_IMAGE'
+        ? 'This product has a usable image. Only products without a usable image can be deleted; archive it to hide it from the shop.'
+        : blockedBy === 'HAS_ORDERS'
+          ? `This product appears in ${orders} order(s). Deleting it would break order history, so archive it instead.`
+          : `Deleting removes the product permanently${carts ? ` and takes it out of ${carts} customer cart(s)` : ''}. Stock history records are kept.`,
+  };
+}
+
+/**
+ * Permanently delete one product without a usable image that no order references. Requires
+ * `{ confirmSlug }` equal to the product's slug (an explicit confirmation; never bulk). Its lines
+ * are removed from carts; stock history is kept as an audit trail. Categories, users and orders are
+ * never touched.
+ */
+export async function deleteProduct(id, body) {
+  const productId = v.objectId(id, 'product id');
+  v.requireBody(body ?? {}, ['confirmSlug']);
+  const confirmSlug = typeof body?.confirmSlug === 'string' ? body.confirmSlug.trim() : '';
+
+  return withOptionalTransaction(async (session) => {
+    const opts = session ? { session } : {};
+    const product = await Product.findById(productId).select('_id name slug images updatedAt').session(session);
+    if (!product) throw notFound();
+    if (!confirmSlug || confirmSlug !== product.slug) {
+      throw createError(400, 'CONFIRMATION_REQUIRED', 'Confirm the deletion by sending the product slug as confirmSlug.');
+    }
+    if (hasUsableImage(product)) {
+      throw createError(409, 'PRODUCT_HAS_IMAGES', 'Only products without a usable image can be deleted. Archive this product instead.');
+    }
+    const orders = await Order.countDocuments(orderReference(product._id)).session(session);
+    if (orders > 0) {
+      throw createError(409, 'PRODUCT_HAS_ORDERS', `This product appears in ${orders} order(s); archive it instead so order history stays intact.`);
+    }
+    // Delete only while it still has no usable image and is unchanged since it was read (both
+    // re-checked atomically): a sale, stock change or edit during the checks makes the delete fail
+    // instead of acting on stale data. Inside a transaction a concurrent write also conflicts.
+    const removed = await Product.deleteOne({ _id: product._id, updatedAt: product.updatedAt, ...MISSING_IMAGE_FILTER }, opts);
+    if (removed.deletedCount !== 1) {
+      throw createError(409, 'PRODUCT_CHANGED', 'The product changed while deleting (for example a new image, a sale or a stock change). Reload and try again.');
+    }
+    // Take it out of carts (bumping the version so a checkout in progress notices the change).
+    const carts = await Cart.updateMany({ 'items.product': product._id }, { $pull: { items: { product: product._id } }, $inc: { __v: 1 } }, opts);
+    return { deleted: { id: String(product._id), name: product.name, slug: product.slug }, removedFromCarts: carts.modifiedCount };
+  });
 }
 
 /** Restore an archived product; its category must be active. */

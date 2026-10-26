@@ -98,7 +98,19 @@ export async function listProducts(queryParams = {}) {
 
   // In-stock filter
   if (queryParams.inStock === 'true' || queryParams.inStock === true) {
-    filter.stock = { $gt: 0 };
+    // Something sellable (same rule as checkout): product-level stock when there are no variants,
+    // an active variant with its own stock, or an active variant without its own stock (it sells
+    // from the product's shared stock) while that shared stock is above zero.
+    filter.$and = [
+      ...(filter.$and ?? []),
+      {
+        $or: [
+          { 'options.choices.0': { $exists: false }, stock: { $gt: 0 } },
+          { 'options.choices': { $elemMatch: { stock: { $gt: 0 }, isActive: { $ne: false } } } },
+          { stock: { $gt: 0 }, 'options.choices': { $elemMatch: { stock: null, isActive: { $ne: false } } } },
+        ],
+      },
+    ];
   }
 
   // Featured filter

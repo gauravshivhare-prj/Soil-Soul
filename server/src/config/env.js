@@ -66,6 +66,14 @@ if (jwtSecret.length < 32) {
 
 const jwtAccessExpiresIn = (process.env.JWT_ACCESS_EXPIRES_IN || '15m').trim();
 
+// Refresh sessions (httpOnly cookie): renew short-lived access tokens without signing in again.
+// The lifetime slides: each renewal extends it. SameSite must be "none" (with HTTPS) only when the
+// shop and the API are served from different sites; "lax" works when they share a site.
+const authCookieSameSite = (process.env.AUTH_COOKIE_SAMESITE || 'lax').trim().toLowerCase();
+if (!['lax', 'strict', 'none'].includes(authCookieSameSite)) {
+  throw new Error('Invalid AUTH_COOKIE_SAMESITE: expected lax, strict or none.');
+}
+
 // Transactional email (verification and password-reset codes).
 // disabled: nothing is sent (codes cannot be delivered); test: in-memory outbox for automated tests;
 // resend: Resend web API (needs a verified sending domain).
@@ -90,6 +98,8 @@ export const env = Object.freeze({
   mongoUri,
   jwtSecret,
   jwtAccessExpiresIn,
+  refreshTokenTtlDays: int('REFRESH_TOKEN_TTL_DAYS', 7, 1, 90),
+  authCookieSameSite,
   emailProvider,
   emailFrom,
   emailApiKey,

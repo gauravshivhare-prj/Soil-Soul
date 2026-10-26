@@ -17,9 +17,12 @@ const handle = (status, fn) => async (req, res, next) => {
 
 router.get('/', handle(200, async (req) => service.listProductsAdmin(req.query)));
 router.get('/:id', handle(200, async (req) => ({ product: await service.getProductAdmin(req.params.id) })));
+// What a deletion would involve (read-only), then the delete itself (explicit confirmation required).
+router.get('/:id/deletion', handle(200, async (req) => service.getProductDeletion(req.params.id)));
 router.post('/', handle(201, async (req) => ({ product: await service.createProduct(req.body, req.user.id) })));
-router.patch('/:id', handle(200, async (req) => ({ product: await service.updateProduct(req.params.id, req.body) })));
+router.patch('/:id', handle(200, async (req) => ({ product: await service.updateProduct(req.params.id, req.body, req.user.id) })));
 router.post('/:id/archive', handle(200, async (req) => ({ product: await service.archiveProduct(req.params.id) })));
 router.post('/:id/restore', handle(200, async (req) => ({ product: await service.restoreProduct(req.params.id) })));
+router.delete('/:id', handle(200, async (req) => service.deleteProduct(req.params.id, req.body)));
 
 export default router;

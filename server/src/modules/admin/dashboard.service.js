@@ -2,6 +2,7 @@ import { Order } from '../orders/order.model.js';
 import { Product } from '../products/product.model.js';
 import { ORDER_STATUS } from '../orders/order.transitions.js';
 import * as v from '../../utils/input.js';
+import { countStockAlerts } from '../inventory/stockUnits.js';
 
 const RANGES = Object.freeze({ today: null, '7d': 7, '30d': 30 });
 export const LOW_STOCK_THRESHOLD = 5;
@@ -30,7 +31,7 @@ export async function getDashboardSummary(query = {}, now = new Date()) {
   const from = rangeStart(range, now);
   const inRange = { $gte: from, $lte: now };
 
-  const [byStatus, ordersInRange, orderValue, collectedAmount, refundedAmount, lowStockCount, outOfStockCount, pendingReconciliation, recent] =
+  const [byStatus, ordersInRange, orderValue, collectedAmount, refundedAmount, liveProducts, pendingReconciliation, recent] =
     await Promise.all([
       Order.aggregate([{ $group: { _id: '$orderStatus', count: { $sum: 1 } } }]),
       Order.countDocuments({ createdAt: inRange }),
@@ -42,8 +43,8 @@ export async function getDashboardSummary(query = {}, now = new Date()) {
         { $match: { 'refunds.refundedAt': inRange } },
         { $group: { _id: null, total: { $sum: '$refunds.amount' } } },
       ]),
-      Product.countDocuments({ isActive: true, stock: { $gt: 0, $lte: LOW_STOCK_THRESHOLD } }),
-      Product.countDocuments({ isActive: true, stock: { $lte: 0 } }),
+      // Stock alerts count stock units (each variant separately) of products on sale; see stockUnits.js.
+      Product.find({ isActive: true, archivedAt: null, status: { $in: ['active', null] } }).select('stock isActive status archivedAt options').lean(),
       Order.countDocuments({ 'cancellation.stockRestorationStatus': { $in: ['PARTIAL', 'FAILED'] } }),
       Order.find({})
         .sort({ createdAt: -1 })
@@ -52,6 +53,7 @@ export async function getDashboardSummary(query = {}, now = new Date()) {
         .populate('user', 'name'),
     ]);
 
+  const { low: lowStockCount, out: outOfStockCount } = countStockAlerts(liveProducts, LOW_STOCK_THRESHOLD);
   const ordersByStatus = Object.fromEntries(Object.values(ORDER_STATUS).map((s) => [s, 0]));
   for (const row of byStatus) if (row._id in ordersByStatus) ordersByStatus[row._id] = row.count;
 

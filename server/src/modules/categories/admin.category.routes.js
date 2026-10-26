@@ -17,9 +17,12 @@ const handle = (status, fn) => async (req, res, next) => {
 
 router.get('/', handle(200, async (req) => service.listCategoriesAdmin(req.query)));
 router.get('/:id', handle(200, async (req) => ({ category: await service.getCategoryAdmin(req.params.id) })));
+// What a deletion would involve (read-only), then the delete itself (empty categories only; confirmation required).
+router.get('/:id/deletion', handle(200, async (req) => service.getCategoryDeletion(req.params.id)));
 router.post('/', handle(201, async (req) => ({ category: await service.createCategory(req.body) })));
 router.patch('/:id', handle(200, async (req) => ({ category: await service.updateCategory(req.params.id, req.body) })));
 router.post('/:id/archive', handle(200, async (req) => ({ category: await service.archiveCategory(req.params.id) })));
 router.post('/:id/restore', handle(200, async (req) => ({ category: await service.restoreCategory(req.params.id) })));
+router.delete('/:id', handle(200, async (req) => service.deleteCategory(req.params.id, req.body)));
 
 export default router;

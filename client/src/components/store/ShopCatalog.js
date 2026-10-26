@@ -49,12 +49,24 @@ function useCatalog() {
   return state;
 }
 
+// Display names for the fixed light/size values (same wording as the admin product form).
+const LIGHT_LABELS = { low: "Low light", "bright-indirect": "Bright indirect", "full-sun": "Full sun" };
+const SIZE_LABELS = { small: "Small", medium: "Medium", large: "Large" };
+const humanize = (value) => value.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
+/* Distinct values present in the catalog as { id, label } options (ShopFilters keys and filters by id). */
+function optionsOf(values, labels = {}) {
+  return [...new Set(values.filter((v) => typeof v === "string" && v))]
+    .sort()
+    .map((id) => ({ id, label: labels[id] ?? humanize(id) }));
+}
+
 function filterOptionsFor(products) {
-  const maxPrice = products.reduce((m, p) => Math.max(m, p.price), 0);
+  const maxPrice = products.reduce((m, p) => Math.max(m, p.price ?? 0), 0);
   return {
-    tags: [...new Set(products.flatMap((p) => p.tags ?? []))].sort(),
-    lightLevels: [...new Set(products.map((p) => p.light).filter(Boolean))].sort(),
-    sizes: [...new Set(products.map((p) => p.size).filter(Boolean))].sort(),
+    tags: optionsOf(products.flatMap((p) => p.tags ?? [])),
+    lightLevels: optionsOf(products.map((p) => p.light), LIGHT_LABELS),
+    sizes: optionsOf(products.map((p) => p.size), SIZE_LABELS),
     priceMin: 0,
     priceMax: Math.max(100, Math.ceil(maxPrice / 100) * 100),
   };

@@ -21,6 +21,8 @@ export const ADMIN_ADJUSTMENT_REASONS = Object.freeze(['restock', 'correction', 
 const stockMovementSchema = new mongoose.Schema(
   {
     product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+    // Variant (options.choices[].id) whose own stock moved; null when the product-level stock moved.
+    optionId: { type: String, trim: true, default: null },
     delta: { type: Number, required: true },
     stockAfter: { type: Number, default: null },
     reason: { type: String, enum: MOVEMENT_REASONS, required: true },

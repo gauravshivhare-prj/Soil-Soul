@@ -59,6 +59,28 @@ const userSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    // Refresh sessions (one per signed-in browser, newest kept). Only hashes are stored; the
+    // secret lives in the browser's httpOnly cookie. Never selected unless asked for explicitly.
+    refreshSessions: {
+      type: [
+        new mongoose.Schema(
+          {
+            id: { type: String, required: true },
+            tokenHash: { type: String, required: true },
+            // The previous secret stays valid briefly so two tabs renewing at once don't sign out.
+            prevTokenHash: { type: String, default: null },
+            prevValidUntil: { type: Date, default: null },
+            tv: { type: Number, required: true },
+            expiresAt: { type: Date, required: true },
+            createdAt: { type: Date, required: true },
+            lastUsedAt: { type: Date, default: null },
+          },
+          { _id: false }
+        ),
+      ],
+      default: undefined,
+      select: false,
+    },
   },
   {
     timestamps: true,
@@ -67,6 +89,7 @@ const userSchema = new mongoose.Schema(
         ret.id = ret._id.toString();
         delete ret._id;
         delete ret.passwordHash;
+        delete ret.refreshSessions;
         delete ret.__v;
         return ret;
       },

@@ -69,15 +69,50 @@ export async function fetchCategories(options = {}) {
   return data.categories;
 }
 
-export const isInStock = (product, optionId = null) => {
-  const choice = product.options?.choices?.find((item) => item.id === optionId);
-  return (choice?.stock ?? product.stock ?? 0) > 0 && (choice?.isActive !== false);
-};
+/**
+ * Sellable stock, using the same rule as checkout:
+ * - a variant sells from its own stock, or from the product's shared stock when it has none;
+ * - with no variant chosen, a product with variants counts every available variant (shared
+ *   stock once); a product without variants uses its own stock.
+ * Works for storefront products (inactive variants already removed) and admin products.
+ */
+export function availableStock(product, optionId = null) {
+  const shared = typeof product.stock === "number" && product.stock > 0 ? product.stock : 0;
+  const all = product.options?.choices ?? [];
+  const active = all.filter((c) => c && c.isActive !== false);
+  const own = (c) => (typeof c.stock === "number" ? Math.max(0, c.stock) : null);
+  if (optionId) {
+    const choice = active.find((c) => c.id === optionId);
+    return choice ? own(choice) ?? shared : 0;
+  }
+  if (all.length === 0) return shared;
+  const ownTotal = active.reduce((sum, c) => sum + (own(c) ?? 0), 0);
+  return ownTotal + (active.some((c) => own(c) === null) ? shared : 0);
+}
+
+export const isInStock = (product, optionId = null) => availableStock(product, optionId) > 0;
+/* Storefront stock wording: the exact count is shown only when fewer than this many are left. */
+export const SHOW_COUNT_BELOW = 25;
+
+/**
+ * Stock status for shoppers: { status, label } for StatusBadge.
+ * 0 or not set → "Out of Stock"; 1–24 → "Only N left"; 25 or more → "In Stock".
+ */
+export function stockDisplay(stock) {
+  const n = typeof stock === "number" && Number.isFinite(stock) ? stock : 0;
+  if (n <= 0) return { status: "out-of-stock", label: "Out of Stock" };
+  if (n < SHOW_COUNT_BELOW) return { status: "low-stock", label: `Only ${n} left` };
+  return { status: "in-stock", label: "In Stock" };
+}
+
 /* Default option: the zero-cost choice, else the first. */
 export function defaultOptionId(product) {
   const choices = product.options?.choices;
   if (!choices?.length) return null;
-  return (choices.find((c) => (c.priceDelta ?? 0) === 0) ?? choices[0]).id;
+  // Prefer a variant that can actually be bought, so "Add to cart" works when another is sold out.
+  const sellable = choices.filter((c) => availableStock(product, c.id) > 0);
+  const pool = sellable.length ? sellable : choices;
+  return (pool.find((c) => (c.priceDelta ?? 0) === 0) ?? pool[0]).id;
 }
 
 const PAGE_LIMIT = 50;

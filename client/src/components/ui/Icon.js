@@ -13,6 +13,7 @@ const PATHS = {
   "chevron-up": <polyline points="18 15 12 9 6 15" />,
   "chevron-right": <polyline points="9 6 15 12 9 18" />,
   "chevron-left": <polyline points="15 6 9 12 15 18" />,
+  menu: <><line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="18" x2="20" y2="18" /></>,
   heart: <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z" />,
   cart: <><circle cx="9" cy="20" r="1.4" /><circle cx="18" cy="20" r="1.4" /><path d="M2 3h2.6l2.7 12.4a2 2 0 0 0 2 1.6h8.4a2 2 0 0 0 1.95-1.55L21.5 8H5.9" /></>,
   bag: <><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" /><line x1="3" y1="6" x2="21" y2="6" /><path d="M16 10a4 4 0 0 1-8 0" /></>,
