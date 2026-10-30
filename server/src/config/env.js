@@ -76,10 +76,10 @@ if (!['lax', 'strict', 'none'].includes(authCookieSameSite)) {
 
 // Transactional email (verification and password-reset codes).
 // disabled: nothing is sent (codes cannot be delivered); test: in-memory outbox for automated tests;
-// resend: Resend web API (needs a verified sending domain).
+// resend: Resend web API (needs a verified sending domain); gmail_smtp: Gmail SMTP with TLS.
 const emailProvider = (process.env.EMAIL_PROVIDER || (nodeEnv === 'test' ? 'test' : 'disabled')).trim().toLowerCase();
-if (!['disabled', 'test', 'resend'].includes(emailProvider)) {
-  throw new Error('Invalid EMAIL_PROVIDER: expected disabled, test or resend.');
+if (!['disabled', 'test', 'resend', 'gmail_smtp'].includes(emailProvider)) {
+  throw new Error('Invalid EMAIL_PROVIDER: expected disabled, test, resend or gmail_smtp.');
 }
 if (emailProvider === 'test' && isProduction) {
   throw new Error('Invalid EMAIL_PROVIDER: the test provider cannot be used in production.');
@@ -88,6 +88,11 @@ const emailFrom = (process.env.EMAIL_FROM || '').trim();
 const emailApiKey = (process.env.EMAIL_API_KEY || '').trim();
 if (emailProvider === 'resend' && (!emailFrom || !emailApiKey)) {
   throw new Error('Missing EMAIL_FROM or EMAIL_API_KEY: both are required when EMAIL_PROVIDER=resend.');
+}
+const smtpUser = (process.env.SMTP_USER || '').trim();
+const smtpAppPassword = (process.env.SMTP_APP_PASSWORD || '').trim();
+if (emailProvider === 'gmail_smtp' && (!emailFrom || !smtpUser || !smtpAppPassword)) {
+  throw new Error('Missing EMAIL_FROM, SMTP_USER or SMTP_APP_PASSWORD: all are required when EMAIL_PROVIDER=gmail_smtp.');
 }
 
 export const env = Object.freeze({
@@ -103,6 +108,8 @@ export const env = Object.freeze({
   emailProvider,
   emailFrom,
   emailApiKey,
+  smtpUser,
+  smtpAppPassword,
   // Max auth requests per client IP per 15 minutes.
   authRateLimitMax: int('AUTH_RATE_LIMIT_MAX', 20, 1, 10000),
   // Max API requests per client IP per 15 minutes.

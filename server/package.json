@@ -9,7 +9,8 @@
     "test": "node --test \"tests/**/*.test.js\" \"src/**/__tests__/*.test.js\"",
     "db:index": "node src/scripts/syncIndexes.js",
     "admin:bootstrap": "node src/scripts/adminBootstrap.js",
-    "catalog:seed": "node src/scripts/catalogSeed.js"
+    "catalog:seed": "node src/scripts/catalogSeed.js",
+    "smtp:verify": "node src/scripts/verifySmtp.js"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",
@@ -18,7 +19,8 @@
     "express-rate-limit": "^8.7.1",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.11.3"
+    "mongoose": "^9.11.3",
+    "nodemailer": "^10.3.1"
   },
   "engines": {
     "node": ">=20.19.0"
