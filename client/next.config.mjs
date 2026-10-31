@@ -14,6 +14,20 @@ const SECURITY_HEADERS = [
 const nextConfig = {
   /* config options here */
   poweredByHeader: false, // don't advertise the framework (X-Powered-By)
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "ik.imagekit.io",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "placehold.co",
+        pathname: "/**",
+      },
+    ],
+  },
   async headers() {
     return [{ source: "/(.*)", headers: SECURITY_HEADERS }];
   },
