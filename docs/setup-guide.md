@@ -39,6 +39,8 @@ npm run build
 
 Only report a check as passed if the command exits successfully. If a script is missing, inspect `client/package.json` and add/configure the script intentionally rather than pretending it ran.
 
+The production build currently uses `next/font/google` for Caveat, Geist, Geist Mono and Lora, so the build environment must be able to reach `fonts.googleapis.com`. If that network access is unavailable, use an approved proxy/network path or provide properly licensed local font files through `next/font/local`; do not remove the configured fonts just to bypass the build failure.
+
 ## 4. Install backend dependencies
 
 Open a second terminal:
@@ -84,7 +86,11 @@ Each app may provide `.env.example` as a template. When a feature requires local
 
 Do not add MongoDB, OpenAI, or Razorpay credentials before their corresponding integrations are implemented and needed.
 
-## 7. Common troubleshooting
+## 7. MongoDB transactions for coupon checkout
+
+Checkout that redeems a coupon requires MongoDB multi-document transaction support, provided by a replica set or sharded cluster. A standalone MongoDB server can support checkout without a coupon, but coupon redemption fails closed with `COUPON_REQUIRES_TRANSACTION`; do not remove this guard or redeem coupons through a non-transactional fallback. Configure the required topology separately for the intended environment. This project does not change local or production MongoDB topology automatically.
+
+## 8. Common troubleshooting
 
 ### Port already in use
 Stop the existing process or select a different port through the documented environment variable. Do not kill unrelated processes without identifying them.
@@ -101,7 +107,7 @@ Confirm that the root router is mounted at `/api/v1` and the health route is reg
 ### Environment validation fails
 Read the names of missing settings, not secret values. Add only the required setting to the local environment.
 
-## 8. Before reporting a phase complete
+## 9. Before reporting a phase complete
 
 Record:
 - Commands executed.

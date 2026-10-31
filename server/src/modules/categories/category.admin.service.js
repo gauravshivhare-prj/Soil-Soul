@@ -1,9 +1,10 @@
-import { Category } from './category.model.js';
+﻿import { Category } from './category.model.js';
 import { Product } from '../products/product.model.js';
 import { createError } from '../../utils/createError.js';
 import { isDuplicateKeyError, toDuplicateKeyError } from '../../utils/duplicateKeyError.js';
 import * as v from '../../utils/input.js';
 import { withOptionalTransaction } from '../../utils/transaction.js';
+import { getCategoryRoot, isMainCategorySlug, MAIN_CATEGORIES } from './cataloguePolicy.js';
 
 const EDITABLE = ['name', 'shortName', 'tagline', 'description', 'image', 'displayOrder', 'isActive', 'parentId'];
 const STATUS_FILTERS = ['all', 'active', 'inactive', 'archived'];
@@ -33,17 +34,28 @@ async function saveOrConflict(promise) {
 }
 
 async function withProductCounts(categories) {
-  const ids = categories.map((c) => c._id);
+  const allCategories = await Category.find({}).select('_id parent').lean();
+  const ids = allCategories.map((c) => c._id);
   const counts = await Product.aggregate([
     { $match: { category: { $in: ids } } },
-    { $group: { _id: '$category', total: { $sum: 1 }, active: { $sum: { $cond: ['$isActive', 1, 0] } } } },
+    { $group: { _id: '$category', total: { $sum: 1 }, active: { $sum: { $cond: [{ $and: [{ $ne: ['$isActive', false] }, { $in: ['$status', ['active', null]] }] }, 1, 0] } } } },
   ]);
   const byId = new Map(counts.map((c) => [String(c._id), c]));
-  return categories.map((c) => ({
-    ...c.toJSON(),
-    productCount: byId.get(String(c._id))?.total ?? 0,
-    activeProductCount: byId.get(String(c._id))?.active ?? 0,
-  }));
+  return categories.map((category) => {
+    const descendants = new Set([String(category._id)]);
+    let frontier = [String(category._id)];
+    for (let depth = 0; frontier.length && depth < 10; depth++) {
+      frontier = allCategories.filter((candidate) => frontier.includes(String(candidate.parent)) && !descendants.has(String(candidate._id))).map((candidate) => String(candidate._id));
+      for (const id of frontier) descendants.add(id);
+    }
+    let productCount = 0; let activeProductCount = 0;
+    for (const id of descendants) {
+      const count = byId.get(id);
+      productCount += count?.total ?? 0;
+      activeProductCount += count?.active ?? 0;
+    }
+    return { ...category.toJSON(), productCount, activeProductCount };
+  });
 }
 
 const MAX_CATEGORY_DEPTH = 10;
@@ -77,7 +89,6 @@ export async function listCategoriesAdmin(query = {}) {
     const q = v.text(query.q, 'Search', { max: 100 });
     if (q) filter.$or = [{ name: { $regex: v.escapeRegex(q), $options: 'i' } }, { slug: { $regex: v.escapeRegex(q.toLowerCase()) } }];
   }
-
   const [categories, total] = await Promise.all([
     Category.find(filter).populate('parent', '_id name slug').sort({ displayOrder: 1, name: 1 }).skip(skip).limit(limit),
     Category.countDocuments(filter),
@@ -86,6 +97,45 @@ export async function listCategoriesAdmin(query = {}) {
     categories: await withProductCounts(categories),
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
   };
+}
+
+/** Idempotent, explicit admin initialization for the four canonical roots only. */
+export async function initializeCanonicalCategories() {
+  const results = [];
+  const existingRoots = await Category.find({ slug: { $in: MAIN_CATEGORIES.map((item) => item.slug) } }).select('_id name slug parent isActive archivedAt');
+  const bySlug = new Map(existingRoots.map((category) => [category.slug, category]));
+  for (const definition of MAIN_CATEGORIES) {
+    const category = bySlug.get(definition.slug);
+    if (category && (category.parent || category.name !== definition.name)) {
+      throw createError(409, 'CANONICAL_CATEGORY_CONFLICT', `The existing ${definition.slug} category is not the canonical ${definition.name} root.`);
+    }
+  }
+  for (const definition of MAIN_CATEGORIES) {
+    let category = bySlug.get(definition.slug) ?? null;
+    if (category) {
+      if (category.parent || category.name !== definition.name) {
+        throw createError(409, 'CANONICAL_CATEGORY_CONFLICT', `The existing ${definition.slug} category is not the canonical ${definition.name} root.`);
+      }
+      if (!category.isActive || category.archivedAt) {
+        category = await Category.findByIdAndUpdate(category._id, { $set: { isActive: true, archivedAt: null } }, { returnDocument: 'after' });
+      }
+      results.push({ id: String(category._id), name: category.name, slug: category.slug, created: false });
+      continue;
+    }
+    let created = false;
+    try {
+      category = await Category.create({ name: definition.name, slug: definition.slug, shortName: definition.name, parent: null, displayOrder: definition.displayOrder, isActive: true });
+      created = true;
+    } catch (err) {
+      if (!isDuplicateKeyError(err)) throw err;
+      category = await Category.findOne({ slug: definition.slug });
+      if (!category || category.parent || category.name !== definition.name) {
+        throw createError(409, 'CANONICAL_CATEGORY_CONFLICT', `The ${definition.slug} slug is already used by a noncanonical category.`);
+      }
+    }
+    results.push({ id: String(category._id), name: category.name, slug: category.slug, created });
+  }
+  return { categories: results };
 }
 
 export async function getCategoryAdmin(id) {
@@ -99,9 +149,16 @@ export async function createCategory(body) {
   const fields = readFields(body, { creating: true });
   const slug = v.slug(body.slug ?? fields.name, 'Slug', { max: 80 });
   if (fields.parent) {
-    const parent = await Category.findById(fields.parent).select('_id archivedAt');
+    const parent = await Category.findById(fields.parent).select('_id isActive archivedAt');
     if (!parent) throw createError(404, 'PARENT_CATEGORY_NOT_FOUND', 'Parent category not found.');
-    if (parent.archivedAt) throw createError(409, 'PARENT_CATEGORY_ARCHIVED', 'Parent category is archived.');
+    if (!parent.isActive || parent.archivedAt) throw createError(409, 'PARENT_CATEGORY_ARCHIVED', 'Parent category must be active.');
+    const configuredRoot = await getCategoryRoot(parent._id);
+    if (!configuredRoot || !isMainCategorySlug(configuredRoot.slug)) {
+      throw createError(409, 'INVALID_CATEGORY_TREE', 'New subcategories must belong to one of the four main catalogue categories.');
+    }
+  } else {
+    const canonical = MAIN_CATEGORIES.find((item) => item.slug === slug && item.name === fields.name);
+    if (!canonical) throw createError(409, 'TOP_LEVEL_CATEGORY_RESTRICTED', 'Only Plants, Tools, Seeds and Natural Products can be top-level categories. Use the initialize action to add canonical roots.');
   }
   const category = await saveOrConflict(Category.create({ ...fields, image: fields.image ?? undefined, slug }));
   return (await withProductCounts([category]))[0];
@@ -114,16 +171,39 @@ export async function updateCategory(id, body) {
   const fields = readFields(body, { creating: false });
   const existing = await Category.findById(v.objectId(id, 'category id'));
   if (!existing) throw notFound();
+  const canonicalRoot = MAIN_CATEGORIES.find((item) => item.slug === existing.slug && !existing.parent);
+  if (!existing.parent && !canonicalRoot && fields.parent === undefined && fields.isActive !== false) {
+    throw createError(409, 'TOP_LEVEL_CATEGORY_RESTRICTED', 'Move this legacy category under a canonical root, deactivate or archive it, or delete it if empty.');
+  }
+  if (canonicalRoot && (fields.parent !== undefined || fields.isActive === false || (fields.name !== undefined && fields.name !== canonicalRoot.name))) {
+    throw createError(409, 'MAIN_CATEGORY_PROTECTED', 'Main catalogue categories cannot be renamed, moved or deactivated.');
+  }
+  if (!existing.parent && fields.parent === null && !canonicalRoot) throw createError(409, 'TOP_LEVEL_CATEGORY_RESTRICTED', 'Only the four canonical catalogue roots can remain at the top level.');
   if (existing.archivedAt && fields.isActive === true) {
     throw createError(409, 'CATEGORY_ARCHIVED', 'Restore the archived category before activating it.');
+  }
+  if (fields.isActive === false) {
+    const [activeProducts, activeChildren] = await Promise.all([
+      Product.countDocuments({ category: existing._id, isActive: true, status: { $in: ['active', null] } }),
+      Category.countDocuments({ parent: existing._id, isActive: true, archivedAt: null }),
+    ]);
+    if (activeProducts || activeChildren) throw createError(409, 'CATEGORY_HAS_ACTIVE_CONTENT', 'Move or deactivate active products and subcategories before hiding this category.');
   }
   if (fields.parent && String(fields.parent) === String(existing._id)) {
     throw createError(400, 'VALIDATION_ERROR', 'A category cannot be its own parent.');
   }
+  if (fields.parent === null && existing.parent) {
+    const canonical = MAIN_CATEGORIES.find((item) => item.slug === existing.slug && item.name === existing.name);
+    if (!canonical) throw createError(409, 'TOP_LEVEL_CATEGORY_RESTRICTED', 'Only Plants, Tools, Seeds and Natural Products can be top-level categories.');
+  }
   if (fields.parent) {
-    const parent = await Category.findById(fields.parent).select('_id archivedAt');
+    const parent = await Category.findById(fields.parent).select('_id isActive archivedAt');
     if (!parent) throw createError(404, 'PARENT_CATEGORY_NOT_FOUND', 'Parent category not found.');
-    if (parent.archivedAt) throw createError(409, 'PARENT_CATEGORY_ARCHIVED', 'Parent category is archived.');
+    if (!parent.isActive || parent.archivedAt) throw createError(409, 'PARENT_CATEGORY_ARCHIVED', 'Parent category must be active.');
+    const configuredRoot = await getCategoryRoot(parent._id);
+    if (!configuredRoot || !isMainCategorySlug(configuredRoot.slug)) {
+      throw createError(409, 'INVALID_CATEGORY_TREE', 'Subcategories must belong to one of the four main catalogue categories.');
+    }
     await assertNoParentCycle(existing._id, parent._id);
   }
   const update = { $set: { ...fields } };
@@ -141,9 +221,14 @@ export async function updateCategory(id, body) {
 export async function archiveCategory(id) {
   const category = await Category.findById(v.objectId(id, 'category id'));
   if (!category) throw notFound();
+  if (!category.parent && isMainCategorySlug(category.slug)) {
+    throw createError(409, 'MAIN_CATEGORY_PROTECTED', 'A main catalogue category cannot be archived.');
+  }
   const activeProducts = await Product.countDocuments({ category: category._id, isActive: true });
-  if (activeProducts > 0) {
-    const err = createError(409, 'CATEGORY_HAS_ACTIVE_PRODUCTS', `Archive or move the ${activeProducts} active product(s) in this category first.`);
+  const activeChildren = await Category.countDocuments({ parent: category._id, isActive: true });
+  if (activeProducts > 0 || activeChildren > 0) {
+    const details = [activeProducts ? `${activeProducts} active product(s)` : null, activeChildren ? `${activeChildren} active subcategory/subcategories` : null].filter(Boolean).join(' and ');
+    const err = createError(409, 'CATEGORY_HAS_ACTIVE_CONTENT', `Move or deactivate ${details} before archiving this category.`);
     throw err;
   }
   const archived = await Category.findOneAndUpdate(
@@ -155,8 +240,19 @@ export async function archiveCategory(id) {
 }
 
 export async function restoreCategory(id) {
+  const categoryId = v.objectId(id, 'category id');
+  const existing = await Category.findById(categoryId);
+  if (!existing) throw notFound();
+  if (!existing.parent && !MAIN_CATEGORIES.some((item) => item.slug === existing.slug && item.name === existing.name)) {
+    throw createError(409, 'TOP_LEVEL_CATEGORY_RESTRICTED', 'Only Plants, Tools, Seeds and Natural Products can be restored as top-level categories.');
+  }
+  if (existing.parent) {
+    const parent = await Category.findById(existing.parent).select('isActive archivedAt');
+    if (!parent?.isActive || parent.archivedAt) throw createError(409, 'PARENT_CATEGORY_ARCHIVED', 'Restore or activate the parent category first.');
+    if (!(await getCategoryRoot(parent._id))) throw createError(409, 'INVALID_CATEGORY_TREE', 'Only subcategories beneath the four canonical roots can be restored.');
+  }
   const category = await Category.findByIdAndUpdate(
-    v.objectId(id, 'category id'),
+    categoryId,
     { $set: { isActive: true, archivedAt: null } },
     { returnDocument: 'after' }
   );
@@ -166,17 +262,18 @@ export async function restoreCategory(id) {
 
 /** What deleting a category would involve (read-only). Deletion is only possible when it is empty. */
 export async function getCategoryDeletion(id) {
-  const category = await Category.findById(v.objectId(id, 'category id')).select('_id name slug');
+  const category = await Category.findById(v.objectId(id, 'category id')).select('_id name slug parent');
   if (!category) throw notFound();
   const [products, children] = await Promise.all([
     Product.countDocuments({ category: category._id }),
     Category.countDocuments({ parent: category._id }),
   ]);
+  const protectedRoot = !category.parent && isMainCategorySlug(category.slug);
   return {
     category: { id: String(category._id), name: category.name, slug: category.slug },
     references: { products, children },
-    canDelete: products === 0 && children === 0,
-    message: deletionBlockedMessage(products, children) ?? 'This category is empty and can be deleted permanently.',
+    canDelete: !protectedRoot && products === 0 && children === 0,
+    message: protectedRoot ? 'Canonical catalogue roots cannot be deleted.' : deletionBlockedMessage(products, children) ?? 'This category is empty and can be deleted permanently.',
   };
 }
 
@@ -189,7 +286,7 @@ function deletionBlockedMessage(products, children) {
 }
 
 /**
- * Permanently delete an EMPTY category (no products — archived ones included — and no
+ * Permanently delete an EMPTY category (no products â€” archived ones included â€” and no
  * subcategories). Requires `{ confirmSlug }` equal to the category slug. Products are never
  * deleted or reassigned here.
  */
@@ -198,8 +295,9 @@ export async function deleteCategory(id, body) {
   v.requireBody(body ?? {}, ['confirmSlug']);
   const confirmSlug = typeof body?.confirmSlug === 'string' ? body.confirmSlug.trim() : '';
   return withOptionalTransaction(async (session) => {
-    const category = await Category.findById(categoryId).select('_id name slug').session(session);
+    const category = await Category.findById(categoryId).select('_id name slug parent').session(session);
     if (!category) throw notFound();
+    if (!category.parent && isMainCategorySlug(category.slug)) throw createError(409, 'MAIN_CATEGORY_PROTECTED', 'Canonical catalogue roots cannot be deleted.');
     if (!confirmSlug || confirmSlug !== category.slug) {
       throw createError(400, 'CONFIRMATION_REQUIRED', 'Confirm the deletion by sending the category slug as confirmSlug.');
     }

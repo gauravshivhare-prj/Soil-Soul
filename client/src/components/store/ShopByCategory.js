@@ -140,7 +140,11 @@ export default function ShopByCategory() {
     return <FormMessage tone="error" className="mx-4 sm:mx-8 xl:mx-10">Categories could not be loaded. Please try again later.</FormMessage>;
   }
   if (state.categories.length === 0) return null;
-  const categories = state.categories;
+  const mainOrder = ["plants", "tools", "seeds", "natural-products"];
+  const categories = state.categories
+    .filter((category) => !category.parent && mainOrder.includes(category.slug))
+    .sort((a, b) => mainOrder.indexOf(a.slug) - mainOrder.indexOf(b.slug));
+  if (categories.length === 0) return null;
 
   return (
     <section aria-labelledby="shop-by-category-heading" className="bg-[#faf8f2] pt-8 pb-8 sm:pt-9 lg:pt-10 lg:pb-10">
@@ -156,7 +160,7 @@ export default function ShopByCategory() {
               Shop by Category
             </h2>
             <p className="m-0 mt-1 text-[0.8125rem] sm:text-sm leading-relaxed text-[#5e6858]">
-              Explore our wide range of plants, gardening supplies and natural care products.
+              Explore Plants, Tools, Seeds and a small Natural Products collection.
             </p>
           </div>
           <Link
@@ -177,7 +181,7 @@ export default function ShopByCategory() {
         {/* Grid */}
         <ul
           role="list"
-          className="list-none m-0 p-0 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-6 xl:gap-5"
+          className="list-none m-0 p-0 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4 xl:gap-5"
         >
           {categories.map((category) => (
             <li key={category.id}>

@@ -1,7 +1,7 @@
-import CollectionPage from "@/components/store/CollectionPage";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Live Plants | Soil & Soul" };
+export const metadata = { title: "Plants | Soil & Soul" };
 
 export default function Page() {
-  return <CollectionPage id="plants" />;
+  redirect("/shop/plants");
 }

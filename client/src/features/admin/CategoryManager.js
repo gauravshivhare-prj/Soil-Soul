@@ -56,8 +56,8 @@ function toBody(form, isNew) {
     description: form.description.trim(),
     displayOrder: Number(form.displayOrder.trim()),
     image: form.imageSrc.trim() ? { src: form.imageSrc.trim(), alt: form.imageAlt.trim() } : null,
-    parentId: form.parentId || null,
   };
+  if (isNew || form.parentId) body.parentId = form.parentId || null;
   if (isNew) {
     body.slug = form.slug.trim() || toSlug(form.name);
     if (!body.image) delete body.image;
@@ -69,7 +69,8 @@ function toBody(form, isNew) {
 export default function CategoryManager() {
   const { authRequest } = useAuth();
   const { notify } = useToast();
-  const { status, data, error, reload } = useAuthedResource("/admin/categories?limit=100");
+  const [statusFilter, setStatusFilter] = useState("active");
+  const { status, data, error, reload } = useAuthedResource(`/admin/categories?status=${statusFilter}&limit=100`);
   const [editing, setEditing] = useState(null); // null = adding; else the category
   const [form, setForm] = useState(EMPTY);
   const [errors, setErrors] = useState({});
@@ -77,7 +78,8 @@ export default function CategoryManager() {
   const [busy, setBusy] = useState(null);
 
   const isNew = editing === null;
-  const parentOptions = (data?.categories ?? []).filter((c) => c.id !== editing?.id && !c.parent);
+  const isMainCategory = (category) => Boolean(category && !category.parent && ["plants", "tools", "seeds", "natural-products"].includes(category.slug));
+  const parentOptions = (data?.categories ?? []).filter((c) => c.id !== editing?.id && !c.parent && c.isActive && !c.archivedAt);
   const set = (field) => (e) => {
     const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
     setForm((f) => ({ ...f, [field]: value }));
@@ -152,9 +154,32 @@ export default function CategoryManager() {
     }
   }
 
+  async function initializeRoots() {
+    setBusy("initialize");
+    setServerError(null);
+    try {
+      const result = await authRequest("/admin/categories/initialize", { method: "POST", body: {} });
+      notify(`Canonical categories ready (${result.categories.length} roots).`);
+      reload();
+    } catch (err) {
+      setServerError(err.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_360px] items-start">
       <Card className="min-w-0">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <CardHeader title="Catalogue categories" />
+          <Button size="sm" variant="outline" disabled={busy !== null} onClick={initializeRoots}>Initialize four canonical roots</Button>
+          <SelectField label="Show" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} options={[
+            { value: "active", label: "Active categories" },
+            { value: "archived", label: "Archived categories" },
+            { value: "all", label: "All categories" },
+          ]} />
+        </div>
         {status === "loading" && (
           <div role="status" aria-label="Loading categories" className="grid gap-2">
             {[0, 1, 2].map((i) => <Skeleton key={i} className="h-12" />)}
@@ -181,12 +206,12 @@ export default function CategoryManager() {
                       <Button size="sm" variant="outline" onClick={() => { setEditing(c); setForm(toForm(c)); setErrors({}); setServerError(null); }}>
                         <Icon name="edit" size={13} />Edit<span className="sr-only"> {c.name}</span>
                       </Button>
-                      <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => archiveOrRestore(c)}>
+                      {!isMainCategory(c) && <Button size="sm" variant="ghost" disabled={busy !== null} onClick={() => archiveOrRestore(c)}>
                         {c.archivedAt ? "Restore" : "Archive"}<span className="sr-only"> {c.name}</span>
-                      </Button>
-                      <Button size="sm" variant="ghost" className="!text-danger" disabled={busy !== null} onClick={() => deleteCategory(c)}>
+                      </Button>}
+                      {!isMainCategory(c) && <Button size="sm" variant="ghost" className="!text-danger" disabled={busy !== null} onClick={() => deleteCategory(c)}>
                         <Icon name="trash" size={14} />Delete<span className="sr-only"> {c.name}</span>
-                      </Button>
+                      </Button>}
                     </span>
                   </td>
                 </tr>
@@ -199,7 +224,7 @@ export default function CategoryManager() {
         <CardHeader title={isNew ? "Add Category" : `Edit “${editing.name}”`} />
         <form onSubmit={submit} noValidate className="grid gap-4">
           {serverError && <FormMessage tone="error">{serverError}</FormMessage>}
-          <TextField label="Name" name="name" value={form.name} onChange={set("name")} error={errors.name} maxLength={60} required />
+          <TextField label="Name" name="name" value={form.name} onChange={set("name")} error={errors.name} maxLength={60} required readOnly={!isNew && isMainCategory(editing)} />
           {isNew ? (
             <TextField label="Slug (optional)" name="slug" value={form.slug} onChange={set("slug")} error={errors.slug} maxLength={80} hint={`URL: /shop/${form.slug || toSlug(form.name) || "…"} — can't be changed later`} />
           ) : (
@@ -208,12 +233,12 @@ export default function CategoryManager() {
           <TextField label="Short name (optional)" name="shortName" value={form.shortName} onChange={set("shortName")} maxLength={40} />
           <TextField label="Tagline (optional)" name="tagline" value={form.tagline} onChange={set("tagline")} maxLength={120} hint="Short line shown on category pages" />
           <TextField label="Description (optional)" name="description" value={form.description} onChange={set("description")} maxLength={1000} />
-          <SelectField label="Parent category (optional)" name="parentId" value={form.parentId} onChange={set("parentId")} options={[{ value: "", label: "Main category" }, ...parentOptions.map((c) => ({ value: c.id, label: c.name }))]} />
+          <SelectField label="Parent category" name="parentId" value={form.parentId} onChange={set("parentId")} disabled={!isNew && isMainCategory(editing)} options={[{ value: "", label: "Main category" }, ...parentOptions.map((c) => ({ value: c.id, label: c.name }))]} />
           <TextField label="Display order" name="displayOrder" type="number" min="0" step="1" value={form.displayOrder} onChange={set("displayOrder")} error={errors.displayOrder} />
           <TextField label="Image URL (optional)" name="imageSrc" value={form.imageSrc} onChange={set("imageSrc")} hint="https:// address or a /images/ path" />
           {form.imageSrc.trim() && <TextField label="Image description" name="imageAlt" value={form.imageAlt} onChange={set("imageAlt")} error={errors.imageAlt} maxLength={200} />}
           {isNew && <Checkbox label="Visible in the shop" checked={form.isActive} onChange={set("isActive")} />}
-          {!isNew && !editing.archivedAt && (
+          {!isNew && !editing.archivedAt && !isMainCategory(editing) && (
             <Checkbox
               label="Visible in the shop"
               checked={form.isActive}

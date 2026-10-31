@@ -5,14 +5,13 @@
  */
 
 /**
- * Filter pills for the Featured Products section, in display order.
- * `categories: null` means "show everything". "Natural Care" groups the
- * skincare and hair & body categories.
+ * Main catalogue groups used by storefront filter controls.
+ * `categories: null` means "show everything".
  */
 export const FEATURED_FILTERS = [
   { id: "all", label: "All", categories: null },
-  { id: "plants", label: "Plants", categories: ["live-plants"] },
-  { id: "pots-planters", label: "Pots & Planters", categories: ["pots-planters"] },
-  { id: "soil-fertilizers", label: "Soil & Fertilizers", categories: ["soil-fertilizers"] },
-  { id: "natural-care", label: "Natural Care", categories: ["natural-skincare", "hair-body-care"] },
+  { id: "plants", label: "Plants", categories: ["plants"] },
+  { id: "tools", label: "Tools", categories: ["tools"] },
+  { id: "seeds", label: "Seeds", categories: ["seeds"] },
+  { id: "natural-products", label: "Natural Products", categories: ["natural-products"] },
 ];

@@ -4,7 +4,7 @@ import { PageContainer } from "@/components/ui/PageHeader";
 
 export const metadata = {
   title: "Shop All Products | Soil & Soul",
-  description: "Shop live plants, pots, soil, seeds, tools and plant-based natural care products.",
+  description: "Shop plants, growing supplies, tools, seeds and a small Natural Products collection.",
 };
 
 export default function ShopPage() {
@@ -12,7 +12,7 @@ export default function ShopPage() {
     <main>
       <ShopHero
         title="Shop All Products"
-        description="Discover a wide range of plants, pots, gardening essentials and natural care products to bring nature closer to you."
+        description="Explore plants, soil, gardening tools, seeds and a small Natural Products collection."
         breadcrumbs={[{ label: "Home", href: "/" }, { label: "Shop" }]}
       />
       <PageContainer className="py-6 sm:py-8 lg:py-10">

@@ -20,7 +20,7 @@ import { useToast } from "@/components/ui/Toast";
 import { AdminHeader, Avatar } from "@/components/admin/AdminParts";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { useAuthedResource } from "@/features/auth/useAuthedResource";
-import { DeliveryAddress, OrderItems, OrderTimeline, OrderTotals, PAYMENT_METHOD_LABEL, statusKey } from "@/features/orders/OrderParts";
+import { DeliveryAddress, OrderItems, OrderStatusHistory, OrderTimeline, OrderTotals, PAYMENT_METHOD_LABEL, statusKey } from "@/features/orders/OrderParts";
 import { formatDate, formatPrice } from "@/lib/format";
 
 // Mirrors server/src/modules/orders/order.transitions.js (PERMITTED_ORDER_TRANSITIONS).
@@ -72,6 +72,7 @@ function StatusPanel({ order, onUpdated }) {
         <StatusBadge status={statusKey(order.orderStatus)} />
       </div>
       <OrderTimeline status={order.orderStatus} />
+      <OrderStatusHistory history={order.statusHistory} />
       {order.cancellation && (
         <p className="m-0 text-sm text-muted">
           Cancelled by {order.cancellation.actorRole ?? "—"}

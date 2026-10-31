@@ -127,7 +127,7 @@ export default function ProductForm({ product }) {
   const router = useRouter();
   const { notify } = useToast();
   const { authRequest } = useAuth();
-  const categories = useAuthedResource("/admin/categories?limit=100");
+  const categories = useAuthedResource("/admin/categories?status=active&limit=100");
   const isNew = !product;
   const [values, setValues] = useState(() => initialValues(product));
   const [errors, setErrors] = useState({});
@@ -198,7 +198,7 @@ export default function ProductForm({ product }) {
   }
 
   // Archived categories can't take products; keep the current one listed when editing.
-  const categoryOptions = (categories.data?.categories ?? []).filter((c) => !c.archivedAt || c.id === values.categoryId);
+  const categoryOptions = (categories.data?.categories ?? []).filter((c) => (c.isActive && !c.archivedAt) || c.id === values.categoryId);
   const preview = values.images.find((img) => img.isPrimary && /^(https:\/\/|\/images\/)/.test(img.src.trim()))
     ?? values.images.find((img) => /^(https:\/\/|\/images\/)/.test(img.src.trim()));
 
@@ -224,7 +224,7 @@ export default function ProductForm({ product }) {
               onChange={set("categoryId")}
               error={errors.categoryId ?? (categories.status === "error" ? categories.error.message : undefined)}
               required
-              options={[{ value: "", label: categories.status === "loading" ? "Loading…" : "Select category" }, ...categoryOptions.map((c) => ({ value: c.id, label: c.isActive ? c.name : `${c.name} (hidden)` }))]}
+              options={[{ value: "", label: categories.status === "loading" ? "Loading…" : "Select category" }, ...categoryOptions.map((c) => ({ value: c.id, label: `${c.parent?.name ? `${c.parent.name} / ` : ""}${c.name}${c.isActive ? "" : " (hidden)"}` }))]}
             />
             <TextField label="SKU (optional)" name="sku" value={values.sku} onChange={set("sku")} error={errors.sku} maxLength={40} />
             <TextField label="Short summary" name="summary" value={values.summary} onChange={set("summary")} maxLength={300} className="sm:col-span-2" />

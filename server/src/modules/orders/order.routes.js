@@ -13,5 +13,7 @@ router.post('/', orderController.createOrder);
 router.get('/', orderController.getOrderHistory);
 router.get('/:id', orderController.getOrderById);
 router.post('/:id/cancel', orderController.cancelOrder);
+router.get('/:id/returns', orderController.getCustomerReturns);
+router.post('/:id/returns', orderController.createCustomerReturn);
 
 export default router;

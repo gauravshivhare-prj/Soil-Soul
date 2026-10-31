@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata = {
   title: "Soil & Soul",
-  description: "Live plants, gardening essentials, and plant-based natural care products.",
+  description: "Plants, soil, gardening tools, seeds and a small Natural Products collection.",
 };
 
 export default function RootLayout({ children }) {

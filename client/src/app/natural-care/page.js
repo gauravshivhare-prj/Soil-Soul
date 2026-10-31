@@ -1,7 +1,7 @@
-import CollectionPage from "@/components/store/CollectionPage";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Natural Care | Soil & Soul" };
+export const metadata = { title: "Natural Products | Soil & Soul" };
 
 export default function Page() {
-  return <CollectionPage id="natural-care" />;
+  redirect("/shop/natural-products");
 }

@@ -1,15 +1,12 @@
 import mongoose from 'mongoose';
-import { Category } from './category.model.js';
 import { createError } from '../../utils/createError.js';
+import { getPublicCatalogueCategories } from './cataloguePolicy.js';
 
 /**
  * List all active categories sorted by displayOrder.
  */
 export async function listCategories() {
-  return Category.find({ isActive: true })
-    .sort({ displayOrder: 1, name: 1 })
-    .populate('parent', '_id name slug')
-    .select('_id name slug shortName tagline description image displayOrder parent');
+  return getPublicCatalogueCategories();
 }
 
 /**
@@ -23,18 +20,10 @@ export async function getCategoryBySlugOrId(slugOrId) {
   const trimmed = slugOrId.trim().slice(0, 100).toLowerCase();
   const isObjectId = mongoose.Types.ObjectId.isValid(trimmed);
 
-  const filter = { isActive: true };
-  if (isObjectId) {
-    filter.$or = [{ _id: trimmed }, { slug: trimmed }];
-  } else {
-    filter.slug = trimmed;
-  }
-
   let category;
   try {
-    category = await Category.findOne(filter).select(
-      '_id name slug shortName tagline description image displayOrder parent'
-    );
+    const categories = await getPublicCatalogueCategories();
+    category = categories.find((item) => (isObjectId ? String(item._id) === trimmed || item.slug === trimmed : item.slug === trimmed));
   } catch {
     throw createError(400, 'VALIDATION_ERROR', 'Invalid category identifier.');
   }

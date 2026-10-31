@@ -46,7 +46,7 @@ export default function ShopFilters({ filters, onChange, onClear, categories, op
         {categories.map((c) => (
           <Checkbox
             key={c.slug}
-            label={<span>{c.shortName} <span className="text-faint">({c.productCount})</span></span>}
+            label={<span>{c.parent ? <span aria-hidden="true" className="mr-1 text-faint">↳</span> : null}{c.shortName} <span className="text-faint">({c.productCount})</span></span>}
             checked={filters.categories.includes(c.slug)}
             onChange={() => onChange({ categories: toggleIn(filters.categories, c.slug) })}
           />
@@ -62,7 +62,7 @@ export default function ShopFilters({ filters, onChange, onClear, categories, op
         />
       </Group>
 
-      <Group title="Plant Type">
+      <Group title="Product Tags">
         {options.tags.map((t) => (
           <Checkbox key={t.id} label={t.label} checked={filters.tags.includes(t.id)} onChange={() => onChange({ tags: toggleIn(filters.tags, t.id) })} />
         ))}

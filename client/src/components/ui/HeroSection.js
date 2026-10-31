@@ -79,7 +79,7 @@ export default function HeroSection() {
       <div className="relative order-2 aspect-[5/4] sm:aspect-[16/9] md:aspect-auto md:absolute md:inset-0">
         <Image
           src="/images/hero/soil-soul-hero.png"
-          alt="Soil & Soul products — live plants, organic potting soil, aloe vera gel and neem face wash on a wooden table"
+          alt="Soil & Soul botanical storefront with plants and growing supplies"
           fill
           priority
           sizes="(min-width: 768px) 100vw, 170vw"
@@ -109,7 +109,7 @@ export default function HeroSection() {
 
         <div className="relative max-w-[540px] md:max-w-none md:pl-[clamp(5.5rem,8.3vw,9rem)] motion-safe:animate-fade-up">
           <p className="m-0 text-[0.6875rem] sm:text-xs md:text-[clamp(0.68rem,0.83vw,0.8rem)] font-medium tracking-[0.2em] uppercase text-[#6d7f60]">
-            Plants<span className="mx-2 sm:mx-2.5">·</span>Gardening<span className="mx-2 sm:mx-2.5">·</span>Natural Care
+            Plants<span className="mx-2 sm:mx-2.5">·</span>Soil<span className="mx-2 sm:mx-2.5">·</span>Gardening
           </p>
 
           <h1
@@ -125,7 +125,7 @@ export default function HeroSection() {
             className="mt-4 sm:mt-5 md:mt-[1.2vw] mb-0 max-w-[25rem] md:max-w-[22.5em] text-[0.975rem] sm:text-base md:text-[clamp(0.9rem,1.17vw,1.0625rem)]
                        leading-relaxed text-[#38422f]"
           >
-            Live plants, gardening essentials and plant‑based natural products for a
+            Plants, gardening essentials and Natural Products for a
             healthier home and a greener tomorrow.
           </p>
 

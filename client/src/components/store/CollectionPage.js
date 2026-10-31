@@ -1,6 +1,6 @@
 /**
- * CollectionPage — navbar collections (/plants, /gardening, /natural-care):
- * the Shop catalog with a group of categories preselected.
+ * CollectionPage — legacy collection route helper. Canonical navigation now uses
+ * the four root category pages under /shop/[category].
  */
 
 import ShopHero from "@/components/store/ShopHero";

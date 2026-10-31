@@ -95,6 +95,8 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Internal slot enforces the five-active-product Natural Products limit through a unique index.
+    naturalProductSlot: { type: Number, enum: [1, 2, 3, 4, 5], default: null, select: false },
     isActive: {
       type: Boolean,
       default: true,
@@ -208,6 +210,10 @@ productSchema.index({ name: 'text', summary: 'text' });
 productSchema.index({ 'restorationAudit.opKey': 1 });
 productSchema.index({ sku: 1 }, { unique: true, partialFilterExpression: { sku: { $type: 'string' } } });
 productSchema.index({ stock: 1, isActive: 1 });
+productSchema.index(
+  { naturalProductSlot: 1 },
+  { unique: true, partialFilterExpression: { naturalProductSlot: { $type: 'number' }, isActive: true, $or: [{ status: 'active' }, { status: null }] } }
+);
 
 export const Product = mongoose.model('Product', productSchema);
 export default Product;

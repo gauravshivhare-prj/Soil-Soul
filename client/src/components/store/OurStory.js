@@ -82,9 +82,9 @@ export default function OurStory() {
                 Grow Good Things
               </h2>
               <p className="m-0 mt-3 text-sm xl:text-[0.9375rem] leading-relaxed text-[#3f4a3a]">
-                Soil &amp; Soul was born from a simple belief &mdash; that a greener planet starts
-                with small choices. We bring you plants, gardening essentials and natural care
-                products to help you live more consciously, beautifully and in harmony with nature.
+                A place to explore plants, soil, gardening essentials and Natural Products for the
+                everyday spaces where life happens. Find something that fits your home and the
+                way you like to grow.
               </p>
               <Link
                 href="/our-story"

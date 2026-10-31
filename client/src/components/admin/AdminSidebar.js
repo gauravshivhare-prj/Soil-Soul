@@ -24,6 +24,7 @@ const ITEMS = [
   { label: "Categories", href: "/admin/categories", icon: "folder" },
   { label: "Inventory", href: "/admin/inventory", icon: "list" },
   { label: "Orders", href: "/admin/orders", icon: "bag" },
+  { label: "Returns", href: "/admin/returns", icon: "refresh" },
   { label: "Customers", href: "/admin/customers", icon: "users" },
 ];
 

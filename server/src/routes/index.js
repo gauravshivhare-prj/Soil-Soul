@@ -13,6 +13,10 @@ import adminCategoryRouter from '../modules/categories/admin.category.routes.js'
 import adminProductRouter from '../modules/products/admin.product.routes.js';
 import adminInventoryRouter from '../modules/inventory/admin.inventory.routes.js';
 import adminDashboardRouter from '../modules/admin/admin.dashboard.routes.js';
+import adminReviewRouter from '../modules/reviews/admin.review.routes.js';
+import couponRouter from '../modules/coupons/coupon.routes.js';
+import adminCouponRouter from '../modules/coupons/admin.coupon.routes.js';
+import adminReturnRouter from '../modules/orders/admin.return.routes.js';
 
 const router = Router();
 
@@ -59,5 +63,9 @@ router.use('/admin/categories', adminCategoryRouter);
 router.use('/admin/products', adminProductRouter);
 router.use('/admin/inventory', adminInventoryRouter);
 router.use('/admin/dashboard', adminDashboardRouter);
+router.use('/admin/reviews', adminReviewRouter);
+router.use('/coupons', couponRouter);
+router.use('/admin/coupons', adminCouponRouter);
+router.use('/admin/returns', adminReturnRouter);
 
 export default router;

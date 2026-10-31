@@ -15,6 +15,15 @@ export async function getProducts(req, res, next) {
   }
 }
 
+export async function getProductFacets(req, res, next) {
+  try {
+    const facets = await productService.getPublicProductFacets();
+    res.status(200).json({ success: true, data: { facets } });
+  } catch (err) {
+    next(err);
+  }
+}
+
 /**
  * Handle fetching a single product by slug or ID.
  */

@@ -1,6 +1,7 @@
 import * as orderService from './order.service.js';
 import { PAYMENT_METHODS_CONFIG } from './payment.strategy.js';
 import { toCustomerOrder } from './order.dto.js';
+import * as returnService from './returnRequest.service.js';
 
 /**
  * Handle retrieving payment methods list for checkout UI.
@@ -23,7 +24,7 @@ export async function getPaymentMethods(req, res, next) {
  */
 export async function createOrder(req, res, next) {
   try {
-    const { paymentMethod, deliveryAddress } = req.body || {};
+    const { paymentMethod, deliveryAddress, couponCode } = req.body || {};
     const idempotencyKey =
       req.headers['idempotency-key'] ||
       req.headers['x-idempotency-key'] ||
@@ -34,6 +35,7 @@ export async function createOrder(req, res, next) {
       paymentMethod,
       deliveryAddress,
       idempotencyKey,
+      couponCode,
     });
 
     const order = result.order || result;
@@ -110,6 +112,31 @@ export async function cancelOrder(req, res, next) {
   } catch (err) {
     next(err);
   }
+}
+
+export async function getCustomerReturns(req, res, next) {
+  try { res.status(200).json({ success: true, data: await returnService.listCustomerReturns(req.user.id, req.params.id) }); }
+  catch (err) { next(err); }
+}
+
+export async function createCustomerReturn(req, res, next) {
+  try { res.status(201).json({ success: true, data: { returnRequest: await returnService.createReturnRequest(req.user.id, req.params.id, req.body ?? {}) } }); }
+  catch (err) { next(err); }
+}
+
+export async function getAdminReturns(req, res, next) {
+  try { res.status(200).json({ success: true, data: await returnService.listAdminReturns(req.query) }); }
+  catch (err) { next(err); }
+}
+
+export async function updateAdminReturn(req, res, next) {
+  try { res.status(200).json({ success: true, data: { returnRequest: await returnService.updateReturnStatus(req.params.id, { ...req.body, adminId: req.user.id }) } }); }
+  catch (err) { next(err); }
+}
+
+export async function recordReturnRefund(req, res, next) {
+  try { res.status(200).json({ success: true, data: { returnRequest: await returnService.recordCodRefund(req.params.id, { ...req.body, adminId: req.user.id }) } }); }
+  catch (err) { next(err); }
 }
 
 /**

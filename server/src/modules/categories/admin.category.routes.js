@@ -16,6 +16,7 @@ const handle = (status, fn) => async (req, res, next) => {
 };
 
 router.get('/', handle(200, async (req) => service.listCategoriesAdmin(req.query)));
+router.post('/initialize', handle(200, async () => service.initializeCanonicalCategories()));
 router.get('/:id', handle(200, async (req) => ({ category: await service.getCategoryAdmin(req.params.id) })));
 // What a deletion would involve (read-only), then the delete itself (empty categories only; confirmation required).
 router.get('/:id/deletion', handle(200, async (req) => service.getCategoryDeletion(req.params.id)));

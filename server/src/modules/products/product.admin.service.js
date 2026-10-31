@@ -1,5 +1,6 @@
 import { Product } from './product.model.js';
 import { Category } from '../categories/category.model.js';
+import { getCategoryRoot, getPublicCatalogueCategories, isMainCategorySlug } from '../categories/cataloguePolicy.js';
 import { createError } from '../../utils/createError.js';
 import { isDuplicateKeyError, toDuplicateKeyError } from '../../utils/duplicateKeyError.js';
 import { withOptionalTransaction } from '../../utils/transaction.js';
@@ -127,10 +128,58 @@ function checkMrp(price, mrp) {
 }
 
 async function activeCategory(categoryId) {
-  const category = await Category.findById(v.objectId(categoryId, 'category id')).select('_id slug isActive archivedAt');
+  const category = await Category.findById(v.objectId(String(categoryId), 'category id')).select('_id slug name parent isActive archivedAt');
   if (!category) throw createError(404, 'CATEGORY_NOT_FOUND', 'Category not found.');
-  if (category.archivedAt) throw createError(409, 'CATEGORY_ARCHIVED', 'Products cannot be added to an archived category.');
+  if (!category.isActive || category.archivedAt) throw createError(409, 'CATEGORY_ARCHIVED', 'Products must be assigned to an active category.');
+  const root = await getCategoryRoot(category._id);
+  if (!root || !isMainCategorySlug(root.slug)) {
+    throw createError(409, 'INVALID_CATEGORY_TREE', 'Products must belong to an active category under Plants, Tools, Seeds or Natural Products.');
+  }
   return category;
+}
+
+async function isNaturalProductsCategory(categoryId) {
+  return (await getCategoryRoot(categoryId))?.slug === 'natural-products';
+}
+
+async function naturalProductCategoryIds() {
+  const categories = await getPublicCatalogueCategories();
+  const map = new Map(categories.map((category) => [String(category._id), category]));
+  const ids = [];
+  for (const category of categories) {
+    let current = category;
+    for (let depth = 0; current && depth <= 10; depth++) {
+      if (!current.parent) {
+        if (current.slug === 'natural-products') ids.push(category._id);
+        break;
+      }
+      current = map.get(String(current.parent.id));
+    }
+  }
+  return ids;
+}
+
+async function assertNaturalProductCapacity(categoryId, excludingId = null) {
+  if (!(await isNaturalProductsCategory(categoryId))) return;
+  const categories = await naturalProductCategoryIds();
+  const activeFilter = { category: { $in: categories }, isActive: true, status: { $in: ['active', null] } };
+  if (excludingId) activeFilter._id = { $ne: excludingId };
+  const [activeCount, slottedCount] = await Promise.all([
+    Product.countDocuments(activeFilter),
+    Product.countDocuments({ ...activeFilter, naturalProductSlot: { $in: [1, 2, 3, 4, 5] } }),
+  ]);
+  if (activeCount !== slottedCount) throw createError(409, 'CATALOGUE_LIMIT_RECONCILIATION_REQUIRED', 'Natural Products must be reconciled before another active product can be added.');
+  if (activeCount >= 5) throw createError(409, 'NATURAL_PRODUCTS_LIMIT', 'Natural Products can contain no more than five active products. Deactivate an existing item before adding another.');
+}
+
+async function allocateNaturalProductSlot(excludingId = null) {
+  const filter = { isActive: true, status: { $in: ['active', null] }, naturalProductSlot: { $in: [1, 2, 3, 4, 5] } };
+  if (excludingId) filter._id = { $ne: excludingId };
+  const active = await Product.find(filter).select('+naturalProductSlot').lean();
+  const used = new Set(active.map((product) => product.naturalProductSlot));
+  const slot = [1, 2, 3, 4, 5].find((candidate) => !used.has(candidate));
+  if (!slot) throw createError(409, 'NATURAL_PRODUCTS_LIMIT', 'Natural Products can contain no more than five active products. Deactivate an existing item before adding another.');
+  return slot;
 }
 
 const adminView = (product) => {
@@ -199,8 +248,11 @@ export async function createProduct(body, actorId) {
   if (status !== 'draft' && fields.price === null) throw createError(400, 'VALIDATION_ERROR', 'Active products require a price.');
   if (fields.price !== null) checkMrp(fields.price, fields.mrp);
   const category = await activeCategory(body.categoryId);
+  const naturalProductSlot = status === 'active' && await isNaturalProductsCategory(category._id)
+    ? (await assertNaturalProductCapacity(category._id), await allocateNaturalProductSlot())
+    : null;
   const slug = v.slug(body.slug ?? fields.name, 'Slug', { max: 140 });
-  const doc = { ...fields, status, slug, stock, category: category._id, categorySlug: category.slug };
+  const doc = { ...fields, status, slug, stock, category: category._id, categorySlug: category.slug, naturalProductSlot };
   for (const key of ['sku', 'mrp', 'options']) if (doc[key] === null) delete doc[key];
 
   const product = await conflictSafe(
@@ -253,7 +305,7 @@ export async function updateProduct(id, body, actorId = null) {
   v.requireBody(body, EDITABLE);
   if (Object.keys(body).length === 0) throw createError(400, 'VALIDATION_ERROR', 'Provide at least one field to update.');
   const fields = readFields(body, { creating: false });
-  const existing = await Product.findById(v.objectId(id, 'product id'));
+  const existing = await Product.findById(v.objectId(id, 'product id')).select('+naturalProductSlot');
   if (!existing) throw notFound();
   if (existing.archivedAt && fields.isActive === true) {
     throw createError(409, 'PRODUCT_ARCHIVED', 'Restore the archived product before activating it.');
@@ -268,6 +320,19 @@ export async function updateProduct(id, body, actorId = null) {
     fields.category = category._id;
     fields.categorySlug = category.slug;
   }
+  const nextCategoryId = fields.category ?? existing.category;
+  const nextActive = nextStatus === 'active' && (fields.isActive ?? existing.isActive) === true;
+  const wasActive = (existing.status ?? 'active') === 'active' && existing.isActive === true;
+  const oldRoot = await getCategoryRoot(existing.category);
+  const nextRoot = await getCategoryRoot(nextCategoryId);
+  if (nextActive) await activeCategory(nextCategoryId);
+  const remainsNaturalActive = nextActive && nextRoot?.slug === 'natural-products';
+  const wasNaturalActive = wasActive && oldRoot?.slug === 'natural-products';
+  const nextNaturalSlot = remainsNaturalActive
+    ? wasNaturalActive && existing.naturalProductSlot
+      ? existing.naturalProductSlot
+      : (await assertNaturalProductCapacity(nextCategoryId, existing._id), await allocateNaturalProductSlot(existing._id))
+    : null;
 
   // Variant stock can change at any moment (checkout, cancellations, Inventory). When variants are
   // saved, the update only applies if no variant stock changed since it was read; otherwise it is
@@ -276,11 +341,12 @@ export async function updateProduct(id, body, actorId = null) {
   let current = existing;
   for (let attempt = 0; attempt < 3; attempt++) {
     const merged = touchesVariants ? mergeVariantStock(fields.options, current) : { added: [] };
-    const next = touchesVariants ? { ...fields, options: merged.options } : fields;
+    const next = { ...(touchesVariants ? { ...fields, options: merged.options } : fields), naturalProductSlot: nextNaturalSlot };
     const $set = {};
     const $unset = {};
     for (const [key, value] of Object.entries(next)) {
       if (value === null && ['sku', 'mrp', 'options'].includes(key)) $unset[key] = 1;
+      else if (key === 'naturalProductSlot' && value === null) $unset[key] = 1;
       else $set[key] = value;
     }
     const update = { ...(Object.keys($set).length ? { $set } : {}), ...(Object.keys($unset).length ? { $unset } : {}) };
@@ -381,12 +447,15 @@ export async function deleteProduct(id, body) {
 
 /** Restore an archived product; its category must be active. */
 export async function restoreProduct(id) {
-  const existing = await Product.findById(v.objectId(id, 'product id'));
+  const existing = await Product.findById(v.objectId(id, 'product id')).select('+naturalProductSlot');
   if (!existing) throw notFound();
-  const category = await Category.findById(existing.category).select('isActive archivedAt');
-  if (!category || category.archivedAt || !category.isActive) {
-    throw createError(409, 'CATEGORY_INACTIVE', 'Restore or activate the product category first.');
-  }
-  const product = await Product.findByIdAndUpdate(existing._id, { $set: { isActive: true, archivedAt: null } }, { returnDocument: 'after' });
+  await activeCategory(existing.category);
+  const naturalProductSlot = (existing.status ?? 'active') === 'active' && await isNaturalProductsCategory(existing.category)
+    ? (await assertNaturalProductCapacity(existing.category, existing._id), await allocateNaturalProductSlot(existing._id))
+    : null;
+  const update = { $set: { isActive: true, archivedAt: null } };
+  if (naturalProductSlot) update.$set.naturalProductSlot = naturalProductSlot;
+  else update.$unset = { naturalProductSlot: 1 };
+  const product = await Product.findByIdAndUpdate(existing._id, update, { returnDocument: 'after' });
   return adminView(product);
 }

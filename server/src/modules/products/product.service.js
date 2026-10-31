@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { Product } from './product.model.js';
-import { Category } from '../categories/category.model.js';
+import { getPublicCatalogueCategories, getPublicCategoryById } from '../categories/cataloguePolicy.js';
 import { createError } from '../../utils/createError.js';
 
 const SORT_MAP = Object.freeze({
@@ -29,10 +29,24 @@ function escapeRegex(str) {
  */
 function parseBoundedInt(val, fallback, min, max) {
   if (val === undefined || val === null || val === '') return fallback;
+  if (typeof val !== 'string' && typeof val !== 'number') {
+    throw createError(400, 'VALIDATION_ERROR', 'Pagination values must be integers.');
+  }
   const num = Number(val);
-  if (!Number.isInteger(num) || num < min) return fallback;
-  if (num > max) return max;
+  if (!Number.isInteger(num) || num < min || num > max) {
+    throw createError(400, 'VALIDATION_ERROR', `Pagination values must be between ${min} and ${max}.`);
+  }
   return num;
+}
+
+function listParam(value, field, { maxItems = 20, maxLength = 50 } = {}) {
+  if (value === undefined || value === null || value === '') return [];
+  if (typeof value !== 'string') throw createError(400, 'VALIDATION_ERROR', `${field} must be a comma-separated string.`);
+  const values = [...new Set(value.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean))];
+  if (values.length > maxItems || values.some((item) => item.length > maxLength)) {
+    throw createError(400, 'VALIDATION_ERROR', `${field} has too many or overlong values.`);
+  }
+  return values;
 }
 
 /**
@@ -57,44 +71,34 @@ export async function listProducts(queryParams = {}) {
 
   const filter = { isActive: true, status: { $in: ['active', null] } };
 
-  // Category filter: ensure only active categories are matched and referenced
-  if (typeof queryParams.category === 'string' && queryParams.category.trim()) {
-    const cat = queryParams.category.trim().toLowerCase().slice(0, 80);
-    const isObjectId = mongoose.Types.ObjectId.isValid(cat);
-    const categoryDoc = await Category.findOne(
-      isObjectId ? { $or: [{ _id: cat }, { slug: cat }], isActive: true } : { slug: cat, isActive: true }
-    ).select('_id');
-
-    if (!categoryDoc) {
-      return {
-        products: [],
-        pagination: {
-          page,
-          limit,
-          total: 0,
-          totalPages: 1,
-          hasNextPage: false,
-          hasPrevPage: false,
-        },
-      };
+  // Category filter: active valid category ancestry, then all active descendants.
+  const publicCategories = await getPublicCatalogueCategories();
+  const publicCategoryById = new Map(publicCategories.map((category) => [String(category._id), category]));
+  const categoryIds = publicCategories.map((category) => category._id);
+  const requestedCategories = listParam(queryParams.category, 'category', { maxLength: 80 });
+  if (requestedCategories.length > 0) {
+    const selected = requestedCategories.map((value) => publicCategories.find((category) => category.slug === value || String(category._id) === value)).filter(Boolean);
+    if (selected.length === 0) {
+      return { products: [], pagination: { page, limit, total: 0, totalPages: 1, hasNextPage: false, hasPrevPage: page > 1 } };
     }
-    // A parent category also lists the products of its active subcategories (bounded depth).
-    const categoryIds = [categoryDoc._id];
-    let level = [categoryDoc._id];
+    const visited = new Set(selected.map((category) => String(category._id)));
+    let level = [...visited];
     for (let depth = 0; depth < 10 && level.length > 0; depth++) {
-      level = await Category.find({ parent: { $in: level }, isActive: true }).distinct('_id');
-      categoryIds.push(...level);
+      const children = publicCategories.filter((category) => category.parent && level.includes(String(category.parent.id)));
+      level = children.map((category) => String(category._id)).filter((id) => !visited.has(id));
+      for (const id of level) visited.add(id);
     }
-    filter.category = categoryIds.length === 1 ? categoryDoc._id : { $in: categoryIds };
+    filter.category = { $in: [...visited].map((id) => publicCategoryById.get(id)._id) };
   } else {
-    const activeCategoryIds = await Category.find({ isActive: true }).distinct('_id');
-    filter.category = { $in: activeCategoryIds };
+    filter.category = { $in: categoryIds };
   }
 
-  // Tag filter
-  if (typeof queryParams.tag === 'string' && queryParams.tag.trim()) {
-    filter.tags = queryParams.tag.trim().toLowerCase().slice(0, 50);
-  }
+  const tags = listParam(queryParams.tag, 'tag');
+  const lights = listParam(queryParams.light, 'light');
+  const sizes = listParam(queryParams.size, 'size');
+  if (tags.length) filter.tags = { $in: tags };
+  if (lights.length) filter.light = { $in: lights };
+  if (sizes.length) filter.size = { $in: sizes };
 
   // In-stock filter
   if (queryParams.inStock === 'true' || queryParams.inStock === true) {
@@ -124,15 +128,15 @@ export async function listProducts(queryParams = {}) {
 
   if (queryParams.priceMin !== undefined && queryParams.priceMin !== '') {
     min = Number(queryParams.priceMin);
-    if (Number.isNaN(min) || min < 0) {
-      throw createError(400, 'VALIDATION_ERROR', 'priceMin must be a non-negative number.');
+    if (!Number.isFinite(min) || min < 0) {
+      throw createError(400, 'VALIDATION_ERROR', 'priceMin must be a finite non-negative number.');
     }
   }
 
   if (queryParams.priceMax !== undefined && queryParams.priceMax !== '') {
     max = Number(queryParams.priceMax);
-    if (Number.isNaN(max) || max < 0) {
-      throw createError(400, 'VALIDATION_ERROR', 'priceMax must be a non-negative number.');
+    if (!Number.isFinite(max) || max < 0) {
+      throw createError(400, 'VALIDATION_ERROR', 'priceMax must be a finite non-negative number.');
     }
   }
 
@@ -147,25 +151,40 @@ export async function listProducts(queryParams = {}) {
     filter.price = { $lte: max };
   }
 
-  // Safe search on name and summary
-  const search = typeof queryParams.search === 'string' ? queryParams.search : queryParams.q;
+  // Safe, case-insensitive search across public catalogue text and supported attributes.
+  const search = queryParams.search ?? queryParams.q;
+  if (search !== undefined && typeof search !== 'string') {
+    throw createError(400, 'VALIDATION_ERROR', 'search must be a string.');
+  }
   if (typeof search === 'string' && search.trim()) {
-    const safeTerm = escapeRegex(search.trim().slice(0, 100));
-    filter.$or = [
-      { name: { $regex: safeTerm, $options: 'i' } },
-      { summary: { $regex: safeTerm, $options: 'i' } },
+    if (search.length > 100) throw createError(400, 'VALIDATION_ERROR', 'search cannot exceed 100 characters.');
+    const terms = search.trim().replace(/\s+/g, ' ').split(' ');
+    if (terms.length > 8) throw createError(400, 'VALIDATION_ERROR', 'search cannot contain more than 8 terms.');
+    const fields = ['name', 'summary', 'tags', 'light', 'size', 'categorySlug'];
+    filter.$and = [
+      ...(filter.$and ?? []),
+      ...terms.map((term) => {
+        const safeTerm = escapeRegex(term);
+        return {
+          $or: fields.map((field) => ({ [field]: { $regex: safeTerm, $options: 'i' } })),
+        };
+      }),
     ];
   }
 
   // Allowlisted sort
   const sortKey = typeof queryParams.sort === 'string' ? queryParams.sort.trim().toLowerCase() : 'featured';
+  if (queryParams.sort !== undefined && !SORT_MAP[sortKey]) {
+    throw createError(400, 'VALIDATION_ERROR', 'sort is not supported.');
+  }
   const sortCriteria = SORT_MAP[sortKey] || SORT_MAP.featured;
 
   const skip = (page - 1) * limit;
 
   const [products, total] = await Promise.all([
     Product.find(filter)
-      .populate('category', 'name slug shortName')
+      .populate('category', 'name slug shortName parent')
+      .populate({ path: 'category', populate: { path: 'parent', select: 'name slug shortName parent' } })
       .sort(sortCriteria)
       .skip(skip)
       .limit(limit)
@@ -185,6 +204,47 @@ export async function listProducts(queryParams = {}) {
       hasNextPage: page < totalPages,
       hasPrevPage: page > 1,
     },
+  };
+}
+
+/** Facet options for public filters; aggregation stays server-side and visibility-scoped. */
+export async function getPublicProductFacets() {
+  const activeCategories = await getPublicCatalogueCategories();
+  const activeCategoryIds = activeCategories.map((category) => category._id);
+  if (!activeCategoryIds.length) return { tags: [], light: [], sizes: [], categories: [], priceMin: 0, priceMax: 0 };
+  const [facets = {}] = await Product.aggregate([
+    { $match: { isActive: true, status: { $in: ['active', null] }, category: { $in: activeCategoryIds } } },
+    { $facet: {
+      tags: [{ $unwind: '$tags' }, { $group: { _id: '$tags' } }, { $sort: { _id: 1 } }, { $limit: 100 }],
+      light: [{ $match: { light: { $type: 'string', $ne: '' } } }, { $group: { _id: '$light' } }, { $sort: { _id: 1 } }],
+      sizes: [{ $match: { size: { $type: 'string', $ne: '' } } }, { $group: { _id: '$size' } }, { $sort: { _id: 1 } }],
+      categories: [{ $group: { _id: '$category', count: { $sum: 1 } } }],
+      prices: [{ $match: { price: { $type: 'number', $gte: 0 } } }, { $group: { _id: null, min: { $min: '$price' }, max: { $max: '$price' } } }],
+    } },
+  ]);
+  const directCounts = new Map((facets.categories ?? []).map(({ _id, count }) => [String(_id), count]));
+  const categoryCounts = activeCategories.map((category) => {
+    let count = 0;
+    for (const candidate of activeCategories) {
+      let current = candidate;
+      const seen = new Set();
+      for (let depth = 0; current && depth <= 10; depth++) {
+        const id = String(current._id);
+        if (seen.has(id)) break;
+        seen.add(id);
+        if (id === String(category._id)) { count += directCounts.get(String(candidate._id)) ?? 0; break; }
+        current = current.parent ? activeCategories.find((item) => String(item._id) === String(current.parent.id)) : null;
+      }
+    }
+    return { id: String(category._id), count };
+  });
+  return {
+    tags: (facets.tags ?? []).map((x) => x._id),
+    light: (facets.light ?? []).map((x) => x._id),
+    sizes: (facets.sizes ?? []).map((x) => x._id),
+    categories: categoryCounts,
+    priceMin: facets.prices?.[0]?.min ?? 0,
+    priceMax: facets.prices?.[0]?.max ?? 0,
   };
 }
 
@@ -212,7 +272,8 @@ export async function getProductBySlugOrId(slugOrId) {
       .populate({
         path: 'category',
         match: { isActive: true },
-        select: 'name slug shortName',
+        select: 'name slug shortName parent',
+        populate: { path: 'parent', select: 'name slug shortName parent' },
       })
       .select(PUBLIC_DETAIL_EXCLUDED_FIELDS);
   } catch {
@@ -220,6 +281,9 @@ export async function getProductBySlugOrId(slugOrId) {
   }
 
   if (!product || !product.category) {
+    throw createError(404, 'PRODUCT_NOT_FOUND', 'Product not found.');
+  }
+  if (!(await getPublicCategoryById(product.category._id))) {
     throw createError(404, 'PRODUCT_NOT_FOUND', 'Product not found.');
   }
   toPublicVariants(product);

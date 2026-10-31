@@ -116,7 +116,7 @@ export default function CartView() {
         <EmptyState
           icon="cart"
           title="Your cart is empty"
-          description="Looks like you haven't added anything yet. Explore plants, pots and natural care essentials."
+          description="Looks like you haven't added anything yet. Explore plants, growing supplies and Natural Products."
           action={
             <Button href="/shop" size="lg">
               Start Shopping <Icon name="arrow-right" size={17} />

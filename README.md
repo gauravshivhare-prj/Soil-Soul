@@ -1,17 +1,18 @@
 # Soil & Soul
 
-Soil & Soul is a full-stack e-commerce application for three product families:
+Soil & Soul is a full-stack e-commerce application organized around four catalogue categories:
 
-1. Live plants.
-2. Gardening and plant-care supplies, including pots, planters, soil, compost, fertilizers, seeds, and tools.
-3. Plant-derived personal-care products, such as aloe vera gel, neem face wash, and herbal shampoo.
+1. Plants.
+2. Tools.
+3. Seeds.
+4. Natural Products.
 
 ## Technology
 
 - Frontend: Next.js App Router, JavaScript, React, Tailwind CSS.
 - Backend: Node.js, Express.js, JavaScript ES modules.
-- Database: MongoDB with Mongoose, planned for a later phase.
-- Payments: Cash on Delivery first; Razorpay test mode after the core order flow is stable.
+- Database: MongoDB with Mongoose.
+- Checkout: Cash on Delivery; coupon redemption requires a transaction-capable MongoDB deployment. No external payment gateway is enabled.
 - AI assistant: mock responses first; OpenAI API integration in the final phase.
 - Images: local files under `client/public/images/` during initial development.
 
@@ -60,4 +61,4 @@ See [`docs/architecture.md`](docs/architecture.md).
 
 ## Current status
 
-The initial project foundation is reported as created. Before relying on any status claim, rerun the commands in the setup guide on the current working tree. No database, real payment gateway, or live OpenAI integration should be assumed to exist until implemented and verified.
+The repository contains implemented storefront and backend functionality, but a successful lint or source-test run does not establish live database or browser behavior. Verify the current working tree using the setup guide before relying on runtime status. Do not assume that database content, an external payment gateway, or a live OpenAI integration is configured.

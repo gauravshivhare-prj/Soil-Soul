@@ -1,7 +1,7 @@
 /**
  * Catalog data from the backend, mapped to the product shape the storefront components use.
  * Prices and stock shown here are informational; the server re-validates everything in the
- * cart and at checkout. The API deliberately sends no ratings or review counts (none are genuine yet).
+ * cart and at checkout. Approved reviews are loaded separately on product detail pages.
  */
 
 import { apiRequest } from "@/lib/api";
@@ -14,6 +14,7 @@ function activeOptions(options) {
 /** API product → component shape (see data/catalog.js header for the shape). */
 export function toUiProduct(p) {
   const category = p.category && typeof p.category === "object" ? p.category : null;
+  const mainCategory = category?.parent?.parent ?? category?.parent ?? category;
   const firstImage = Array.isArray(p.images) && (p.images.find((image) => image?.isPrimary) || p.images[0])?.src
     ? (p.images.find((image) => image?.isPrimary) || p.images[0])
     : null;
@@ -26,6 +27,7 @@ export function toUiProduct(p) {
       slug: category?.slug ?? p.categorySlug,
       name: category?.name ?? "",
       shortName: category?.shortName || category?.name || "",
+      mainCategorySlug: mainCategory?.slug ?? category?.slug ?? p.categorySlug,
     },
     price: p.price,
     mrp: p.mrp ?? null,
@@ -64,9 +66,18 @@ export async function fetchProduct(slug, options = {}) {
   return toUiProduct(data.product);
 }
 
+export async function fetchProductReviews(slug, options = {}) {
+  return apiRequest(`/products/${encodeURIComponent(slug)}/reviews`, options);
+}
+
 export async function fetchCategories(options = {}) {
   const data = await apiRequest("/categories", options);
   return data.categories;
+}
+
+export async function fetchProductFacets(options = {}) {
+  const data = await apiRequest("/products/facets", options);
+  return data.facets;
 }
 
 /**
@@ -123,10 +134,10 @@ const MAX_PAGES = 10;
  * filters, which offer more combinations than the API's single-category query.
  * @returns {Promise<{ products: Object[], truncated: boolean }>}
  */
-export async function fetchAllProducts(options = {}) {
+export async function fetchAllProducts(options = {}, params = {}) {
   const products = [];
   for (let page = 1; page <= MAX_PAGES; page++) {
-    const data = await fetchProducts({ page, limit: PAGE_LIMIT }, options);
+    const data = await fetchProducts({ ...params, page, limit: PAGE_LIMIT }, options);
     products.push(...data.products);
     if (!data.pagination.hasNextPage) return { products, truncated: false };
   }

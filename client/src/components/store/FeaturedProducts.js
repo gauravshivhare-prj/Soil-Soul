@@ -17,31 +17,26 @@ import { useState } from "react";
 import { brandSerif } from "@/app/fonts";
 import { fetchProducts } from "@/services/catalogApi";
 import { useProductList } from "@/features/catalog/useProductList";
+import { FEATURED_FILTERS } from "@/data/products";
 import ProductCard from "@/components/store/ProductCard";
 import { ProductGridSkeleton } from "@/components/ui/States";
 
-const loadFeatured = (signal) => fetchProducts({ featured: true, limit: 24 }, { signal }).then((d) => d.products);
+const loadFeatured = (signal, category) => fetchProducts({ featured: true, limit: 12, ...(category ? { category } : {}) }, { signal }).then((d) => d.products);
 
 /* ─── Section ───────────────────────────────────────────────────── */
 export default function FeaturedProducts() {
-  const { status, products } = useProductList(loadFeatured, "featured");
-  const filters = [
-    { id: "all", label: "All", categories: null },
-    ...[...new Map(products.map((p) => [p.category.slug, p.category.shortName || p.category.name])).entries()].map(([id, label]) => ({
-      id,
-      label,
-      categories: [id],
-    })),
-  ];
   const [activeId, setActiveId] = useState("all");
+  const filters = FEATURED_FILTERS;
+  const activeFilter = filters.find((f) => f.id === activeId) ?? filters[0];
+  const { status, products } = useProductList(
+    (signal) => loadFeatured(signal, activeFilter.categories?.[0]),
+    `featured:${activeFilter.id}`
+  );
 
   // Nothing featured (or the store is unreachable): hide the section rather than show placeholders.
   if (status === "error" || (status === "ready" && products.length === 0)) return null;
 
-  const activeFilter = filters.find((f) => f.id === activeId) ?? filters[0];
-  const visible = activeFilter.categories
-    ? products.filter((p) => activeFilter.categories.includes(p.category.slug))
-    : products;
+  const visible = products;
 
   return (
     <section aria-labelledby="featured-products-heading" className="bg-[#faf8f2] pb-8 lg:pb-10">

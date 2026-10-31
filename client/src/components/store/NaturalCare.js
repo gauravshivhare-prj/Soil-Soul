@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * NaturalCare — "Natural Care, Rooted in Plants" product spotlight.
+ * Natural products spotlight, intentionally secondary to the main plant catalogue.
  *
- * Client Component. Loads up to three live products from the natural-care
- * collection's categories; hidden while loading, on error, or when empty.
+ * Client Component. Loads up to three live products from Natural Products;
+ * hidden while loading, on error, or when empty.
  *
  * Card layout:
  *   below sm — one column, image beside details.
@@ -21,11 +21,7 @@ import { useProductList } from "@/features/catalog/useProductList";
 import { productHref } from "@/lib/routes";
 import { formatPrice } from "@/lib/format";
 
-// The "natural-care" collection's categories; first products from each, up to three cards.
-const NATURAL_CARE_CATEGORIES = ["natural-skincare", "hair-body-care"];
-const loadSpotlight = (signal) =>
-  Promise.all(NATURAL_CARE_CATEGORIES.map((category) => fetchProducts({ category, limit: 3 }, { signal })))
-    .then((results) => results.flatMap((r) => r.products).slice(0, 3));
+const loadSpotlight = (signal) => fetchProducts({ category: "natural-products", limit: 3 }, { signal }).then((data) => data.products);
 
 function ArrowRightIcon({ size = 14 }) {
   return (
@@ -111,20 +107,20 @@ export default function NaturalCare() {
               className={`${brandSerif.className} m-0 font-bold text-[#1f3d24] leading-tight
                           text-[1.375rem] sm:text-[1.5rem] xl:text-[1.75rem]`}
             >
-              Natural Care, Rooted in Plants
+              Natural Products
             </h2>
             <p className="m-0 mt-1 text-[0.8125rem] sm:text-sm leading-relaxed text-[#5e6858]">
-              Skincare and personal care powered by nature&rsquo;s best.
+              A small supporting collection of Natural Products.
             </p>
           </div>
           <Link
-            href="/natural-care"
+            href="/shop/natural-products"
             className="group inline-flex flex-shrink-0 items-center gap-1.5 pb-1 text-[0.8125rem] sm:text-sm font-semibold
                        text-[#24452a] no-underline whitespace-nowrap hover:text-[#1b3520]
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#24452a] rounded"
           >
             <span>
-              View All<span className="hidden sm:inline"> Natural Care</span>
+              View All<span className="hidden sm:inline"> Natural Products</span>
             </span>
             <ArrowRightIcon size={15} />
           </Link>

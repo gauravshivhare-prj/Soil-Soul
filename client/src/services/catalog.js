@@ -7,22 +7,28 @@
  */
 
 import { isInStock } from "@/services/catalogApi";
+import { matchesProductSearch, normalizeSearchQuery } from "@/services/searchText.mjs";
 
 export const COLLECTIONS = Object.freeze({
   plants: {
-    title: "Live Plants",
-    description: "Bring a little more green into every room and balcony.",
-    categories: ["live-plants"],
+    title: "Plants",
+    description: "Plants and growing essentials for the spaces you care for.",
+    categories: ["plants"],
   },
-  gardening: {
-    title: "Gardening",
-    description: "Everything you need to grow with confidence.",
-    categories: ["pots-planters", "soil-fertilizers", "seeds-tools"],
+  tools: {
+    title: "Tools",
+    description: "Practical tools for everyday gardening.",
+    categories: ["tools"],
   },
-  "natural-care": {
-    title: "Natural Care",
-    description: "Skincare and personal care powered by nature's best.",
-    categories: ["natural-skincare", "hair-body-care"],
+  seeds: {
+    title: "Seeds",
+    description: "Seeds for your next planting project.",
+    categories: ["seeds"],
+  },
+  "natural-products": {
+    title: "Natural Products",
+    description: "A small selection of relevant natural-care products.",
+    categories: ["natural-products"],
   },
 });
 
@@ -31,13 +37,9 @@ export function getCollection(id) {
 }
 
 export function filterProducts(products, filters = {}) {
-  const query = filters.query?.trim().toLowerCase() ?? "";
+  const query = normalizeSearchQuery(filters.query);
   return products.filter((product) => {
-    if (query) {
-      const category = product.category ?? {};
-      const haystack = `${product.name} ${category.name ?? ""} ${category.shortName ?? ""} ${product.summary ?? ""}`.toLowerCase();
-      if (!query.split(/\s+/).every((word) => haystack.includes(word))) return false;
-    }
+    if (query && !matchesProductSearch(product, query)) return false;
     if (filters.categories?.length && !filters.categories.includes(product.categorySlug)) return false;
     if (filters.priceMin != null && product.price < filters.priceMin) return false;
     if (filters.priceMax != null && product.price > filters.priceMax) return false;

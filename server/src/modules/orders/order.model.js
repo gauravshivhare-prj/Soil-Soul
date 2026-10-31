@@ -44,6 +44,8 @@ const orderItemSnapshotSchema = new mongoose.Schema(
       min: [1, 'Quantity must be at least 1.'],
       max: [10, 'Quantity cannot exceed 10.'],
     },
+    // Atomic capacity ledger for return requests; intentionally excluded from customer DTOs.
+    returnReservedQuantity: { type: Number, default: 0, min: 0 },
     lineTotal: {
       type: Number,
       required: [true, 'Line total snapshot is required.'],
@@ -119,6 +121,18 @@ const deliveryAddressSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const orderStatusHistorySchema = new mongoose.Schema(
+  {
+    previousStatus: { type: String, enum: ['PLACED', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', null], default: null },
+    nextStatus: { type: String, enum: ['PLACED', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'], required: true },
+    changedAt: { type: Date, required: true, default: Date.now },
+    actor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+    actorRole: { type: String, enum: ['customer', 'admin', 'system'], required: true },
+    reason: { type: String, default: null, trim: true, maxlength: 500 },
+  },
+  { _id: false }
+);
+
 const orderSchema = new mongoose.Schema(
   {
     orderNumber: {
@@ -161,6 +175,15 @@ const orderSchema = new mongoose.Schema(
       default: 0,
       min: [0, 'Discount cannot be negative.'],
     },
+    coupon: {
+      type: new mongoose.Schema({
+        code: { type: String, trim: true, uppercase: true, maxlength: 32 },
+        discountType: { type: String, enum: ['PERCENT', 'FIXED'] },
+        value: { type: Number, min: 0 },
+        discount: { type: Number, min: 0 },
+      }, { _id: false }),
+      default: null,
+    },
     total: {
       type: Number,
       required: [true, 'Total amount is required.'],
@@ -184,6 +207,7 @@ const orderSchema = new mongoose.Schema(
       default: 'PLACED',
       required: true,
     },
+    statusHistory: { type: [orderStatusHistorySchema], default: [] },
     idempotencyKey: {
       type: String,
       trim: true,

@@ -21,6 +21,7 @@ import { useAuthedResource } from "@/features/auth/useAuthedResource";
 import {
   DeliveryAddress,
   OrderItems,
+  OrderStatusHistory,
   OrderTimeline,
   OrderTotals,
   PAYMENT_METHOD_LABEL,
@@ -28,6 +29,7 @@ import {
   statusKey,
 } from "@/features/orders/OrderParts";
 import { formatDate } from "@/lib/format";
+import ReturnRequests from "@/features/account/ReturnRequests";
 
 function CancelOrder({ order, onCancelled }) {
   const { authRequest } = useAuth();
@@ -113,6 +115,7 @@ export default function AccountOrderDetail({ orderId }) {
 
       <Card>
         <OrderTimeline status={order.orderStatus} />
+        <OrderStatusHistory history={order.statusHistory} />
         {order.cancellation?.reason && <p className="m-0 mt-3 text-sm text-muted">Reason: {order.cancellation.reason}</p>}
       </Card>
 
@@ -132,6 +135,7 @@ export default function AccountOrderDetail({ orderId }) {
               <DeliveryAddress address={order.deliveryAddress} />
             </Card>
           )}
+          <ReturnRequests order={order} />
           {canCustomerCancel(order) && <CancelOrder key={order.updatedAt} order={order} onCancelled={replace} />}
         </div>
       </div>

@@ -61,10 +61,18 @@ export function toCustomerOrder(order) {
     subtotal: o.subtotal,
     shippingFee: o.shippingFee ?? 0,
     discount: o.discount ?? 0,
+    coupon: o.coupon ? { code: o.coupon.code, discountType: o.coupon.discountType, discount: o.coupon.discount } : null,
     total: o.total,
     paymentMethod: o.paymentMethod,
     paymentStatus: o.paymentStatus,
     orderStatus: o.orderStatus,
+    statusHistory: (o.statusHistory ?? []).map((entry) => ({
+      previousStatus: entry.previousStatus ?? null,
+      nextStatus: entry.nextStatus,
+      changedAt: entry.changedAt,
+      actorRole: entry.actorRole,
+      reason: entry.actorRole === 'customer' ? entry.reason ?? null : null,
+    })),
     cancellation: o.cancellation
       ? {
           reason: o.cancellation.reason ?? null,

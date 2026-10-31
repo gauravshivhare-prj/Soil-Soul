@@ -12,6 +12,7 @@ import { validatePaymentMethod } from './payment.strategy.js';
 import { createError } from '../../utils/createError.js';
 import { validateOrderLifecycleUpdate, validateOrderTransition, validateCODPaymentTransition, isTerminalOrderState, ORDER_STATUS, PAYMENT_STATUS } from './order.transitions.js';
 import { logError } from '../../utils/logError.js';
+import { calculateCoupon, reserveCoupon } from '../coupons/coupon.service.js';
 
 /**
  * The variant whose own stock an order line moves, or null when it moves the product-level stock.
@@ -171,9 +172,10 @@ const canonicalText = (value) => String(value ?? '').trim().replace(/\s+/g, ' ')
  * validated delivery address. The cart is deliberately excluded (it is server state and is
  * emptied by a successful checkout, so a genuine retry could never match it).
  */
-export function checkoutFingerprint(paymentMethod, address) {
+export function checkoutFingerprint(paymentMethod, address, couponCode = '') {
   const canonical = JSON.stringify([
     String(paymentMethod).toUpperCase(),
+    String(couponCode ?? '').trim().toUpperCase(),
     canonicalText(address.recipientName),
     String(address.phone),
     canonicalText(address.addressLine1),
@@ -330,10 +332,14 @@ async function executeOrderPlacement(orderData) {
             paymentMethod: orderData.paymentMethod,
             paymentStatus: 'PENDING',
             orderStatus: 'PLACED',
+            statusHistory: [{ previousStatus: null, nextStatus: 'PLACED', changedAt: new Date(), actor: orderData.userId, actorRole: 'customer', reason: null }],
+            coupon: orderData.couponQuote ? { code: orderData.couponQuote.coupon.code, discountType: orderData.couponQuote.coupon.discountType, value: orderData.couponQuote.coupon.value, discount: orderData.couponQuote.discount } : null,
           },
         ],
         { session }
       );
+
+      await reserveCoupon(orderData.couponQuote, orderData.userId, created._id, session);
 
       // Stock history: one 'sale' record per line, committed together with the order.
       for (const [i, item] of orderData.items.entries()) {
@@ -358,6 +364,7 @@ async function executeOrderPlacement(orderData) {
       };
     }
   } else {
+    if (orderData.couponQuote) throw createError(503, 'COUPON_REQUIRES_TRANSACTION', 'Coupon checkout requires a transaction-capable database.');
     // Standalone deployment: conditional atomic decrement with compensating rollback
     const decremented = [];
     try {
@@ -414,6 +421,8 @@ async function executeOrderPlacement(orderData) {
           paymentMethod: orderData.paymentMethod,
           paymentStatus: 'PENDING',
           orderStatus: 'PLACED',
+          statusHistory: [{ previousStatus: null, nextStatus: 'PLACED', changedAt: new Date(), actor: orderData.userId, actorRole: 'customer', reason: null }],
+          coupon: null,
         });
       } catch (orderErr) {
         // Roll back decremented stock if order creation failed
@@ -466,7 +475,7 @@ async function executeOrderPlacement(orderData) {
 /**
  * Create an order from the authenticated user's cart using Cash on Delivery (COD).
  */
-export async function createOrder(userId, { paymentMethod, deliveryAddress, idempotencyKey } = {}) {
+export async function createOrder(userId, { paymentMethod, deliveryAddress, idempotencyKey, couponCode } = {}) {
   if (!userId || !mongoose.Types.ObjectId.isValid(userId)) {
     throw createError(401, 'INVALID_TOKEN', 'Invalid user identity.');
   }
@@ -489,7 +498,7 @@ export async function createOrder(userId, { paymentMethod, deliveryAddress, idem
   const validatedPaymentMethod = validatePaymentMethod(paymentMethod);
   const validatedAddress = validateDeliveryAddress(deliveryAddress);
   const requestFingerprint = cleanIdempotencyKey
-    ? checkoutFingerprint(validatedPaymentMethod, validatedAddress)
+    ? checkoutFingerprint(validatedPaymentMethod, validatedAddress, couponCode)
     : null;
 
   // If idempotency key provided, replay the existing order (or reject a changed request)
@@ -645,8 +654,9 @@ export async function createOrder(userId, { paymentMethod, deliveryAddress, idem
     });
   }
 
+  const couponQuote = couponCode ? await calculateCoupon(userId, couponCode, { subtotal: calculatedSubtotal, items: orderItemSnapshots }) : null;
   const shippingFee = 0;
-  const discount = 0;
+  const discount = couponQuote?.discount ?? 0;
   const total = Math.round((calculatedSubtotal + shippingFee - discount) * 100) / 100;
 
     const placement = {
@@ -661,6 +671,7 @@ export async function createOrder(userId, { paymentMethod, deliveryAddress, idem
       discount,
       total,
       paymentMethod: validatedPaymentMethod,
+      couponQuote,
     };
 
     // A failed attempt has already aborted (transaction) or rolled back its stock
@@ -952,6 +963,7 @@ export async function cancelOrder(userId, orderId, { reason, actorRole = 'custom
           orderStatus: ORDER_STATUS.CANCELLED,
           cancellation: cancellationData,
         },
+        $push: { statusHistory: { previousStatus: existingOrder.orderStatus, nextStatus: ORDER_STATUS.CANCELLED, changedAt: now, actor: userId, actorRole, reason: cleanReason } },
       },
       { returnDocument: 'after', ...options }
     );
@@ -1347,6 +1359,7 @@ export async function updateOrderStatusByAdmin(orderId, { orderStatus, reason, a
             orderStatus: ORDER_STATUS.CANCELLED,
             cancellation: cancellationData,
           },
+          $push: { statusHistory: { previousStatus: existingOrder.orderStatus, nextStatus: ORDER_STATUS.CANCELLED, changedAt: now, actor: adminUserId, actorRole: 'admin', reason: cleanReason || 'Cancelled by administrator' } },
         },
         { returnDocument: 'after', ...options }
       );
@@ -1438,6 +1451,7 @@ export async function updateOrderStatusByAdmin(orderId, { orderStatus, reason, a
       $set: {
         orderStatus: validatedStatus,
       },
+      $push: { statusHistory: { previousStatus: existingOrder.orderStatus, nextStatus: validatedStatus, changedAt: now, actor: adminUserId, actorRole: 'admin', reason: cleanReason } },
     },
     { returnDocument: 'after' }
   );

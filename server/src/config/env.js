@@ -104,6 +104,8 @@ export const env = Object.freeze({
   jwtSecret,
   jwtAccessExpiresIn,
   refreshTokenTtlDays: int('REFRESH_TOKEN_TTL_DAYS', 7, 1, 90),
+  // Returns remain disabled until the owner configures an approved return window.
+  returnWindowDays: int('RETURN_WINDOW_DAYS', 0, 0, 365),
   authCookieSameSite,
   emailProvider,
   emailFrom,

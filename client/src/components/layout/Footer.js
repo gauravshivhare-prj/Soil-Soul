@@ -27,12 +27,10 @@ const LINK_COLUMNS = [
   {
     title: "Shop",
     links: [
-      { label: "Live Plants", href: categoryHref("live-plants") },
-      { label: "Pots & Planters", href: categoryHref("pots-planters") },
-      { label: "Soil & Fertilizers", href: categoryHref("soil-fertilizers") },
-      { label: "Seeds & Tools", href: categoryHref("seeds-tools") },
-      { label: "Natural Care", href: categoryHref("natural-skincare") },
-      { label: "Hair & Body Care", href: categoryHref("hair-body-care") },
+      { label: "Plants", href: categoryHref("plants") },
+      { label: "Tools", href: categoryHref("tools") },
+      { label: "Seeds", href: categoryHref("seeds") },
+      { label: "Natural Products", href: categoryHref("natural-products") },
     ],
   },
   {
@@ -40,9 +38,11 @@ const LINK_COLUMNS = [
     links: [
       { label: "Home", href: "/" },
       { label: "Shop All", href: "/shop" },
-      { label: "Plants", href: "/plants" },
-      { label: "Gardening", href: "/gardening" },
-      { label: "Natural Care", href: "/natural-care" },
+      { label: "Our Story", href: "/our-story" },
+      { label: "Plants", href: categoryHref("plants") },
+      { label: "Tools", href: categoryHref("tools") },
+      { label: "Seeds", href: categoryHref("seeds") },
+      { label: "Natural Products", href: categoryHref("natural-products") },
     ],
   },
   {
@@ -217,7 +217,7 @@ export default function Footer() {
               <span className="flex flex-col leading-none">
                 <span className={`${brandSerif.className} text-[1.5rem] font-semibold`}>Soil &amp; Soul</span>
                 <span className="mt-1 text-[0.5rem] font-semibold tracking-[0.12em] uppercase whitespace-nowrap text-[#f4f1e8]/75">
-                  Plants · Gardening · Natural Care
+                  Plants · Soil · Gardening
                 </span>
               </span>
             </Link>

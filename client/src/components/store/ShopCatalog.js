@@ -2,7 +2,7 @@
 
 /**
  * ShopCatalog — search, filters, sorting, grid/list view and pagination over the live
- * catalog (all active products loaded from the API; filtering happens in the browser).
+ * catalogue. The API returns only the current result page after applying query controls.
  *
  * - `initialCategories` preselects categories (category/collection pages).
  * - A `?q=` search term in the URL (from the navbar search) seeds the search
@@ -13,8 +13,7 @@
 
 import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { filterProducts, sortProducts } from "@/services/catalog";
-import { defaultOptionId, fetchAllProducts, fetchCategories, isInStock, SHOP_SORT_OPTIONS as SORT_OPTIONS } from "@/services/catalogApi";
+import { defaultOptionId, fetchCategories, fetchProductFacets, fetchProducts, isInStock, SHOP_SORT_OPTIONS as SORT_OPTIONS } from "@/services/catalogApi";
 import { productHref } from "@/lib/routes";
 import { useCart } from "@/features/cart/CartProvider";
 import { useToast } from "@/components/ui/Toast";
@@ -30,16 +29,15 @@ import { EmptyState, FormMessage, ProductGridSkeleton } from "@/components/ui/St
 
 const PAGE_SIZE = 12;
 
-/* Live catalog: products + categories (with counts of active products) from the API. */
+/* Fetch only categories and server-computed facets; product rows remain paginated. */
 function useCatalog() {
-  const [state, setState] = useState({ status: "loading", products: [], categories: [], truncated: false, error: null });
+  const [state, setState] = useState({ status: "loading", categories: [], facets: null, error: null });
   useEffect(() => {
     const controller = new AbortController();
-    Promise.all([fetchAllProducts({ signal: controller.signal }), fetchCategories({ signal: controller.signal })])
-      .then(([{ products, truncated }, categories]) => {
-        const counts = new Map();
-        for (const p of products) counts.set(p.categorySlug, (counts.get(p.categorySlug) ?? 0) + 1);
-        setState({ status: "ready", products, truncated, error: null, categories: categories.map((c) => ({ ...c, productCount: counts.get(c.slug) ?? 0 })) });
+    Promise.all([fetchCategories({ signal: controller.signal }), fetchProductFacets({ signal: controller.signal })])
+      .then(([categories, facets]) => {
+        const counts = new Map(facets.categories.map((item) => [item.id, item.count]));
+        setState({ status: "ready", facets, error: null, categories: categories.map((c) => ({ ...c, productCount: counts.get(c.id ?? c._id) ?? 0 })) });
       })
       .catch((error) => {
         if (!controller.signal.aborted) setState((s) => ({ ...s, status: "error", error }));
@@ -61,14 +59,13 @@ function optionsOf(values, labels = {}) {
     .map((id) => ({ id, label: labels[id] ?? humanize(id) }));
 }
 
-function filterOptionsFor(products) {
-  const maxPrice = products.reduce((m, p) => Math.max(m, p.price ?? 0), 0);
+function filterOptionsFor(facets) {
   return {
-    tags: optionsOf(products.flatMap((p) => p.tags ?? [])),
-    lightLevels: optionsOf(products.map((p) => p.light), LIGHT_LABELS),
-    sizes: optionsOf(products.map((p) => p.size), SIZE_LABELS),
-    priceMin: 0,
-    priceMax: Math.max(100, Math.ceil(maxPrice / 100) * 100),
+    tags: optionsOf(facets.tags),
+    lightLevels: optionsOf(facets.light, LIGHT_LABELS),
+    sizes: optionsOf(facets.sizes, SIZE_LABELS),
+    priceMin: facets.priceMin,
+    priceMax: Math.max(100, Math.ceil(facets.priceMax / 100) * 100),
   };
 }
 
@@ -185,17 +182,15 @@ export default function ShopCatalog({ initialCategories = [] }) {
       </div>
     );
   }
-  return <CatalogBody initialCategories={initialCategories} allProducts={catalog.products} categories={catalog.categories} truncated={catalog.truncated} />;
+  return <CatalogBody initialCategories={initialCategories} categories={catalog.categories} facets={catalog.facets} />;
 }
 
-/* Mounted once the catalog has loaded, so filter defaults come from real prices. */
-function CatalogBody({ initialCategories, allProducts, categories, truncated }) {
-  const options = useMemo(() => filterOptionsFor(allProducts), [allProducts]);
-
+/* Product filtering, sorting and pagination are performed by the API. */
+function CatalogBody({ initialCategories, categories, facets }) {
+  const options = useMemo(() => filterOptionsFor(facets), [facets]);
   const urlQuery = useSyncExternalStore(subscribeToLocation, readUrlQuery, serverUrlQuery);
   const [typedQuery, setTypedQuery] = useState(null);
   const query = typedQuery ?? urlQuery;
-
   const [filters, setFilters] = useState(() => defaultFilters(options, initialCategories));
   const [sort, setSort] = useState("featured");
   const [view, setView] = useState("grid");
@@ -207,15 +202,39 @@ function CatalogBody({ initialCategories, allProducts, categories, truncated }) 
   const deferredQuery = useDeferredValue(query);
   const deferredSort = useDeferredValue(sort);
   const isUpdating = deferredFilters !== filters || deferredQuery !== query || deferredSort !== sort;
+  const params = useMemo(() => ({
+    page,
+    limit: PAGE_SIZE,
+    ...(deferredQuery.trim() ? { search: deferredQuery } : {}),
+    ...(deferredFilters.categories.length ? { category: deferredFilters.categories.join(",") } : {}),
+    ...(deferredFilters.priceMin !== options.priceMin ? { priceMin: deferredFilters.priceMin } : {}),
+    ...(deferredFilters.priceMax !== options.priceMax ? { priceMax: deferredFilters.priceMax } : {}),
+    ...(deferredFilters.tags.length ? { tag: deferredFilters.tags.join(",") } : {}),
+    ...(deferredFilters.light.length ? { light: deferredFilters.light.join(",") } : {}),
+    ...(deferredFilters.sizes.length ? { size: deferredFilters.sizes.join(",") } : {}),
+    ...(deferredFilters.inStockOnly ? { inStock: true } : {}),
+    sort: deferredSort,
+  }), [page, deferredQuery, deferredFilters, deferredSort, options]);
+  const requestKey = JSON.stringify(params);
+  const [result, setResult] = useState({ key: "", status: "loading", products: [], pagination: null, error: null });
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => fetchProducts(params, { signal: controller.signal })
+      .then(({ products, pagination }) => setResult({ key: requestKey, status: "ready", products, pagination, error: null }))
+      .catch((error) => {
+        if (!controller.signal.aborted) setResult({ key: requestKey, status: "error", products: [], pagination: null, error });
+      }), 180);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [params, requestKey]);
 
-  const results = useMemo(
-    () => sortProducts(filterProducts(allProducts, { ...deferredFilters, query: deferredQuery }), deferredSort),
-    [allProducts, deferredFilters, deferredQuery, deferredSort]
-  );
-
-  const totalPages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const pageItems = results.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const current = result.key === requestKey ? result : { status: "loading", products: [], pagination: null, error: null };
+  const products = current.products;
+  const total = current.pagination?.total ?? 0;
+  const totalPages = current.pagination?.totalPages ?? 1;
+  const currentPage = page;
   const activeCount = countActive(filters, options, initialCategories);
 
   function updateFilters(patch) {
@@ -233,8 +252,11 @@ function CatalogBody({ initialCategories, allProducts, categories, truncated }) 
   }
 
   const filterProps = { filters, onChange: updateFilters, onClear: clearAll, categories, options, activeCount };
-  const from = results.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
-  const to = Math.min(currentPage * PAGE_SIZE, results.length);
+  const from = total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const to = Math.min(currentPage * PAGE_SIZE, total);
+
+  if (current.status === "loading" && !current.pagination) return <ProductGridSkeleton count={8} />;
+  if (current.status === "error") return <FormMessage tone="error">{current.error.message}</FormMessage>;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[250px_1fr] xl:grid-cols-[270px_1fr] xl:gap-8">
@@ -258,6 +280,7 @@ function CatalogBody({ initialCategories, allProducts, categories, truncated }) 
             <input
               id="shop-search"
               type="search"
+              maxLength={100}
               value={query}
               onChange={(e) => {
                 setTypedQuery(e.target.value);
@@ -311,10 +334,9 @@ function CatalogBody({ initialCategories, allProducts, categories, truncated }) 
           </div>
         </div>
 
-        {truncated && <FormMessage tone="info" className="mb-4">Showing the first 500 products. Use search or filters to narrow the list.</FormMessage>}
         <p className="m-0 mb-4 text-sm text-muted" aria-live="polite">
-          {results.length > 0 ? (
-            <>Showing <strong className="font-semibold text-ink">{from}–{to}</strong> of {results.length} products</>
+          {total > 0 ? (
+            <>Showing <strong className="font-semibold text-ink">{from}–{to}</strong> of {total} products</>
           ) : (
             "No products match your filters"
           )}
@@ -322,9 +344,9 @@ function CatalogBody({ initialCategories, allProducts, categories, truncated }) 
 
         {/* Results */}
         <div className={`transition-opacity duration-150 ${isUpdating ? "opacity-60" : "opacity-100"}`} aria-busy={isUpdating}>
-          {allProducts.length === 0 ? (
+          {facets.categories.length === 0 ? (
             <EmptyState icon="box" title="No products yet" description="New plants and essentials are on their way. Please check back soon." />
-          ) : results.length === 0 ? (
+          ) : products.length === 0 ? (
             <div className="rounded-2xl border border-line bg-white">
               <EmptyState
                 icon="search"
@@ -335,7 +357,7 @@ function CatalogBody({ initialCategories, allProducts, categories, truncated }) 
             </div>
           ) : view === "grid" ? (
             <ul role="list" className="list-none m-0 p-0 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">
-              {pageItems.map((p) => (
+              {products.map((p) => (
                 <li key={p.id}>
                   <ProductCard product={p} imageAspect="aspect-[25/22]" sizes="(min-width: 1280px) 20vw, (min-width: 768px) 30vw, 50vw" />
                 </li>
@@ -343,7 +365,7 @@ function CatalogBody({ initialCategories, allProducts, categories, truncated }) 
             </ul>
           ) : (
             <ul role="list" className="list-none m-0 p-0 grid gap-3">
-              {pageItems.map((p) => <li key={p.id}><ProductRow product={p} /></li>)}
+              {products.map((p) => <li key={p.id}><ProductRow product={p} /></li>)}
             </ul>
           )}
         </div>

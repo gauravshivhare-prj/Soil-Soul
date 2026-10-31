@@ -20,6 +20,7 @@ import ProductGallery from "@/components/store/ProductGallery";
 import ProductPurchase from "@/components/store/ProductPurchase";
 import ProductTabs from "@/components/store/ProductTabs";
 import ProductCard from "@/components/store/ProductCard";
+import ProductReviews from "@/components/store/ProductReviews";
 
 const SPEC_ICONS = ["ruler", "box", "sprout", "paw"];
 
@@ -146,7 +147,7 @@ export default function ProductDetailView({ slug }) {
 
   const tabs = [
     { id: "details", label: "Product Details", content: <DetailsPanel product={product} /> },
-    ...(product.care.length ? [{ id: "care", label: product.categorySlug === "live-plants" ? "Care Guide" : "Usage & Care", content: <CarePanel product={product} /> }] : []),
+    ...(product.care.length ? [{ id: "care", label: product.category?.mainCategorySlug === "plants" ? "Care Guide" : "Usage & Care", content: <CarePanel product={product} /> }] : []),
     ...(product.specs.length ? [{ id: "specs", label: "Specifications", content: <SpecsPanel product={product} /> }] : []),
   ];
 
@@ -178,6 +179,8 @@ export default function ProductDetailView({ slug }) {
         <Card padded={false} className="mt-10 min-w-0 px-4 sm:px-6 pb-6">
           <ProductTabs tabs={tabs} />
         </Card>
+
+        <ProductReviews slug={product.slug} />
 
         {related.length > 0 && (
           <section aria-labelledby="related-heading" className="mt-12">

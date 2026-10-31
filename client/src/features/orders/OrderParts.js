@@ -7,7 +7,7 @@
 import Link from "next/link";
 import ProductImage from "@/components/ui/ProductImage";
 import Icon from "@/components/ui/Icon";
-import { formatPrice } from "@/lib/format";
+import { formatDate, formatPrice } from "@/lib/format";
 import { productHref } from "@/lib/routes";
 
 export const PAYMENT_METHOD_LABEL = { COD: "Cash on Delivery" };
@@ -106,4 +106,23 @@ export function OrderTimeline({ status }) {
       })}
     </ol>
   );
+}
+
+export function OrderStatusHistory({ history = [] }) {
+  if (!history.length) return null;
+  return (
+    <ol aria-label="Order status history" className="m-0 mt-4 grid list-none gap-2 border-t border-line pt-4">
+      {history.map((entry, index) => (
+        <li key={`${entry.changedAt}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm">
+          <span className="text-ink">{entry.previousStatus ? `${labelStatus(entry.previousStatus)} → ` : ""}{labelStatus(entry.nextStatus)}</span>
+          <time className="text-xs text-muted" dateTime={entry.changedAt}>{formatDate(entry.changedAt)}</time>
+          {entry.reason && <span className="basis-full text-xs text-muted">{entry.reason}</span>}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function labelStatus(status) {
+  return String(status ?? "").toLowerCase().replace(/(^|_)([a-z])/g, (_, space, letter) => `${space ? " " : ""}${letter.toUpperCase()}`);
 }

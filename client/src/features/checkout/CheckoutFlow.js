@@ -133,7 +133,7 @@ function PaymentStep({ methods, loadError, selected, onSelect }) {
   );
 }
 
-function ReviewStep({ address, payment, lines, agreed, onAgree, error }) {
+function ReviewStep({ address, payment, lines, agreed, onAgree, error, couponCode, onCouponCode, couponQuote, couponError, couponBusy, onApplyCoupon }) {
   return (
     <div className="grid gap-4">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -162,6 +162,15 @@ function ReviewStep({ address, payment, lines, agreed, onAgree, error }) {
         ))}
       </ul>
       <p className="m-0 text-xs text-muted">Final prices and stock are confirmed by the store when you place the order.</p>
+      <div className="grid gap-2 rounded-xl border border-line bg-[#f7f5ed] p-4">
+        <label htmlFor="checkout-coupon" className="text-sm font-medium text-ink">Coupon code</label>
+        <div className="flex flex-wrap gap-2">
+          <input id="checkout-coupon" value={couponCode} maxLength={32} onChange={(event) => onCouponCode(event.target.value.toUpperCase())} className="h-10 min-w-0 flex-1 rounded-lg border border-line bg-white px-3 text-base sm:text-sm" autoComplete="off" />
+          <Button type="button" variant="outline" disabled={couponBusy || !couponCode.trim()} onClick={onApplyCoupon}>{couponBusy ? "Checking…" : couponQuote ? "Recheck code" : "Apply code"}</Button>
+        </div>
+        {couponError && <FormMessage tone="error">{couponError}</FormMessage>}
+        {couponQuote && <FormMessage tone="success">{couponQuote.code} applied · {formatPrice(couponQuote.discount)} off this order.</FormMessage>}
+      </div>
       <div>
         <Checkbox label="I agree to the Terms & Conditions and Privacy Policy" checked={agreed} onChange={(e) => onAgree(e.target.checked)} />
       </div>
@@ -215,6 +224,10 @@ export default function CheckoutFlow() {
   const [error, setError] = useState("");
   const [isPlacing, setIsPlacing] = useState(false);
   const [placed, setPlaced] = useState(null); // { order, warning }
+  const [couponCode, setCouponCode] = useState("");
+  const [couponQuote, setCouponQuote] = useState(null);
+  const [couponError, setCouponError] = useState("");
+  const [couponBusy, setCouponBusy] = useState(false);
   const headingRef = useRef(null);
   const attemptKey = useRef(null);
 
@@ -233,6 +246,18 @@ export default function CheckoutFlow() {
     setError("");
     setStep(next);
     requestAnimationFrame(() => headingRef.current?.focus());
+  }
+
+  async function applyCoupon() {
+    setCouponBusy(true);
+    setCouponError("");
+    setCouponQuote(null);
+    try {
+      const data = await authRequest("/coupons/quote", { method: "POST", body: { code: couponCode } });
+      setCouponQuote(data.quote);
+      attemptKey.current = null;
+    } catch (err) { setCouponError(err.message); }
+    finally { setCouponBusy(false); }
   }
 
   if (placed) return <Confirmation order={placed.order} warning={placed.warning} />;
@@ -287,7 +312,7 @@ export default function CheckoutFlow() {
       const data = await authRequest("/orders", {
         method: "POST",
         headers: { "Idempotency-Key": attemptKey.current },
-        body: { paymentMethod: payment.id, deliveryAddress: toApiAddress(address) },
+        body: { paymentMethod: payment.id, deliveryAddress: toApiAddress(address), ...(couponQuote ? { couponCode: couponQuote.code } : {}) },
         timeoutMs: 30000,
       });
       setPlaced({ order: data.order, warning: data.warning ?? null });
@@ -338,7 +363,13 @@ export default function CheckoutFlow() {
         )}
         {step === 2 && (
           <Panel title="3. Review Order" icon="bag" headingRef={headingRef}>
-            <ReviewStep address={address} payment={payment} lines={lines} agreed={agreed} onAgree={(v) => { setAgreed(v); setError(""); }} error={error} />
+            <ReviewStep
+              address={address} payment={payment} lines={lines} agreed={agreed}
+              onAgree={(v) => { setAgreed(v); setError(""); }} error={error}
+              couponCode={couponCode}
+              onCouponCode={(value) => { setCouponCode(value); setCouponQuote(null); setCouponError(""); attemptKey.current = null; }}
+              couponQuote={couponQuote} couponError={couponError} couponBusy={couponBusy} onApplyCoupon={applyCoupon}
+            />
           </Panel>
         )}
 
@@ -357,7 +388,7 @@ export default function CheckoutFlow() {
           ) : (
             <Button size="lg" onClick={placeOrder} disabled={isPlacing} aria-busy={isPlacing}>
               <Icon name="lock" size={16} />
-              {isPlacing ? "Placing order…" : `Place Order · ${formatPrice(totals.total)}`}
+              {isPlacing ? "Placing order…" : `Place Order · ${formatPrice(Math.max(0, totals.total - (couponQuote?.discount ?? 0)))}`}
             </Button>
           )}
         </div>
@@ -369,7 +400,7 @@ export default function CheckoutFlow() {
       </div>
 
       <div className="lg:sticky lg:top-28 space-y-3">
-        <OrderSummary totals={totals} lines={lines} />
+        <OrderSummary totals={{ ...totals, discount: couponQuote?.discount ?? 0, total: Math.max(0, totals.total - (couponQuote?.discount ?? 0)) }} lines={lines} />
       </div>
     </div>
   );

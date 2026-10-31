@@ -31,10 +31,11 @@ import CartLink from "./CartLink";
 /* ─── Navigation link definitions ─────────────────────────────────── */
 const NAV_LINKS = [
   { label: "Home", href: "/" },
-  { label: "Shop", href: "/shop", hasMenu: true },
-  { label: "Plants", href: "/plants", hasMenu: true },
-  { label: "Gardening", href: "/gardening", hasMenu: true },
-  { label: "Natural Care", href: "/natural-care", hasMenu: true },
+  { label: "Shop", href: "/shop" },
+  { label: "Plants", href: "/shop/plants" },
+  { label: "Tools", href: "/shop/tools" },
+  { label: "Seeds", href: "/shop/seeds" },
+  { label: "Natural Products", href: "/shop/natural-products" },
   { label: "Our Story", href: "/our-story" },
 ];
 
@@ -195,7 +196,7 @@ export default function Navbar() {
                   className="hidden sm:block text-[0.5rem] xl:text-[0.55rem] font-semibold tracking-[0.12em] xl:tracking-[0.14em] uppercase mt-1.5 text-[#1b2a1c]"
                   aria-hidden="true"
                 >
-                  Plants · Gardening · Natural Care
+                  Plants · Soil · Gardening
                 </span>
               </div>
             </Link>
