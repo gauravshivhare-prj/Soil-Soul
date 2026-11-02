@@ -1,10 +1,18 @@
-﻿import { Category } from './category.model.js';
+import { Category } from './category.model.js';
 import { Product } from '../products/product.model.js';
 import { createError } from '../../utils/createError.js';
 import { isDuplicateKeyError, toDuplicateKeyError } from '../../utils/duplicateKeyError.js';
 import * as v from '../../utils/input.js';
 import { withOptionalTransaction } from '../../utils/transaction.js';
 import { getCategoryRoot, isMainCategorySlug, MAIN_CATEGORIES } from './cataloguePolicy.js';
+import {
+  parseCategoryCsv,
+  validateCategoryBatch,
+  importCategoryBatch,
+  getCategoryCsvTemplate,
+} from './categoryImport.service.js';
+
+export { getCategoryCsvTemplate };
 
 const EDITABLE = ['name', 'shortName', 'tagline', 'description', 'image', 'displayOrder', 'isActive', 'parentId'];
 const STATUS_FILTERS = ['all', 'active', 'inactive', 'archived'];
@@ -33,14 +41,40 @@ async function saveOrConflict(promise) {
   }
 }
 
+function getParentIdString(parent) {
+  if (!parent) return null;
+  if (typeof parent === 'object') {
+    return String(parent.id || parent._id || parent);
+  }
+  return String(parent);
+}
+
 async function withProductCounts(categories) {
-  const allCategories = await Category.find({}).select('_id parent').lean();
+  const allCategories = await Category.find({}).select('_id parent name slug').lean();
   const ids = allCategories.map((c) => c._id);
   const counts = await Product.aggregate([
     { $match: { category: { $in: ids } } },
     { $group: { _id: '$category', total: { $sum: 1 }, active: { $sum: { $cond: [{ $and: [{ $ne: ['$isActive', false] }, { $in: ['$status', ['active', null]] }] }, 1, 0] } } } },
   ]);
   const byId = new Map(counts.map((c) => [String(c._id), c]));
+  const catById = new Map(allCategories.map((c) => [String(c._id), c]));
+
+  function getHierarchy(cat) {
+    const ancestors = [];
+    const parentVal = getParentIdString(cat.parent);
+    let curr = parentVal ? catById.get(parentVal) : null;
+    const seen = new Set([String(cat.id || cat._id)]);
+    while (curr && !seen.has(String(curr._id))) {
+      seen.add(String(curr._id));
+      ancestors.unshift({ id: String(curr._id), name: curr.name, slug: curr.slug });
+      const nextParent = getParentIdString(curr.parent);
+      curr = nextParent ? catById.get(nextParent) : null;
+    }
+    const level = Math.min(ancestors.length + 1, 3);
+    const hierarchyPath = [...ancestors.map((a) => a.name), cat.name].join(' → ');
+    return { level, ancestors, hierarchyPath };
+  }
+
   return categories.map((category) => {
     const descendants = new Set([String(category._id)]);
     let frontier = [String(category._id)];
@@ -54,11 +88,59 @@ async function withProductCounts(categories) {
       productCount += count?.total ?? 0;
       activeProductCount += count?.active ?? 0;
     }
-    return { ...category.toJSON(), productCount, activeProductCount };
+    const doc = category.toJSON ? category.toJSON() : category;
+    const { level, ancestors, hierarchyPath } = getHierarchy(doc);
+    return { ...doc, productCount, activeProductCount, level, ancestors, hierarchyPath };
   });
 }
 
-const MAX_CATEGORY_DEPTH = 10;
+const MAX_CATEGORY_DEPTH = 3;
+
+/**
+ * Returns the depth of a category (1 = root/main, 2 = subcategory, 3 = second-level subcategory).
+ */
+export async function getCategoryDepth(categoryId) {
+  if (!categoryId) return 0;
+  let current = categoryId;
+  let depth = 0;
+  const seen = new Set();
+  while (current) {
+    const idStr = String(current);
+    if (seen.has(idStr)) {
+      throw createError(400, 'VALIDATION_ERROR', 'A cycle was detected in the category hierarchy.');
+    }
+    seen.add(idStr);
+    depth++;
+    if (depth > 3) {
+      throw createError(400, 'LEVEL_LIMIT_EXCEEDED', 'Categories can be nested at most 3 levels deep (Main category → Subcategory → Second-level subcategory).');
+    }
+    const doc = await Category.findById(current).select('parent').lean();
+    if (!doc) throw createError(404, 'PARENT_CATEGORY_NOT_FOUND', 'Parent category not found.');
+    current = doc.parent;
+  }
+  return depth;
+}
+
+/**
+ * Compute the maximum depth of descendants under categoryId.
+ */
+export async function getMaxSubtreeDepth(categoryId) {
+  const allCategories = await Category.find({}).select('_id parent name slug').lean();
+  let maxDepth = 1;
+  let frontier = [String(categoryId)];
+  for (let depth = 1; frontier.length && depth <= 5; depth++) {
+    const children = allCategories
+      .filter((c) => frontier.includes(String(c.parent)))
+      .map((c) => String(c._id));
+    if (children.length > 0) {
+      maxDepth = depth + 1;
+      frontier = children;
+    } else {
+      break;
+    }
+  }
+  return maxDepth;
+}
 
 /**
  * Refuse a parent that would create a cycle: walk up from the proposed parent and fail if the
@@ -66,13 +148,16 @@ const MAX_CATEGORY_DEPTH = 10;
  */
 async function assertNoParentCycle(categoryId, parentId) {
   let current = parentId;
-  for (let depth = 0; current; depth++) {
-    if (String(current) === String(categoryId)) {
+  const seen = new Set();
+  while (current) {
+    const idStr = String(current);
+    if (idStr === String(categoryId)) {
       throw createError(400, 'VALIDATION_ERROR', 'A category cannot be placed under itself or one of its subcategories.');
     }
-    if (depth >= MAX_CATEGORY_DEPTH) {
-      throw createError(400, 'VALIDATION_ERROR', `Categories can be nested at most ${MAX_CATEGORY_DEPTH} levels deep.`);
+    if (seen.has(idStr)) {
+      throw createError(400, 'VALIDATION_ERROR', 'A cycle was detected in the category hierarchy.');
     }
+    seen.add(idStr);
     current = (await Category.findById(current).select('parent').lean())?.parent ?? null;
   }
 }
@@ -152,15 +237,20 @@ export async function createCategory(body) {
     const parent = await Category.findById(fields.parent).select('_id isActive archivedAt');
     if (!parent) throw createError(404, 'PARENT_CATEGORY_NOT_FOUND', 'Parent category not found.');
     if (!parent.isActive || parent.archivedAt) throw createError(409, 'PARENT_CATEGORY_ARCHIVED', 'Parent category must be active.');
+    const parentDepth = await getCategoryDepth(parent._id);
+    if (parentDepth >= 3) {
+      throw createError(400, 'LEVEL_LIMIT_EXCEEDED', 'Categories can be nested at most 3 levels deep (Main category → Subcategory → Second-level subcategory). Cannot add a subcategory under a Level 3 category.');
+    }
     const configuredRoot = await getCategoryRoot(parent._id);
     if (!configuredRoot || !isMainCategorySlug(configuredRoot.slug)) {
       throw createError(409, 'INVALID_CATEGORY_TREE', 'New subcategories must belong to one of the four main catalogue categories.');
     }
   } else {
     const canonical = MAIN_CATEGORIES.find((item) => item.slug === slug && item.name === fields.name);
-    if (!canonical) throw createError(409, 'TOP_LEVEL_CATEGORY_RESTRICTED', 'Only Plants, Tools, Seeds and Natural Products can be top-level categories. Use the initialize action to add canonical roots.');
+    if (!canonical) throw createError(409, 'TOP_LEVEL_CATEGORY_RESTRICTED', 'Only Plants, Tools, Seeds and Natural Products can be top-level categories.');
   }
   const category = await saveOrConflict(Category.create({ ...fields, image: fields.image ?? undefined, slug }));
+  await category.populate('parent', '_id name slug');
   return (await withProductCounts([category]))[0];
 }
 
@@ -175,7 +265,7 @@ export async function updateCategory(id, body) {
   if (!existing.parent && !canonicalRoot && fields.parent === undefined && fields.isActive !== false) {
     throw createError(409, 'TOP_LEVEL_CATEGORY_RESTRICTED', 'Move this legacy category under a canonical root, deactivate or archive it, or delete it if empty.');
   }
-  if (canonicalRoot && (fields.parent !== undefined || fields.isActive === false || (fields.name !== undefined && fields.name !== canonicalRoot.name))) {
+  if (canonicalRoot && (Boolean(fields.parent) || fields.isActive === false || (fields.name !== undefined && fields.name !== canonicalRoot.name))) {
     throw createError(409, 'MAIN_CATEGORY_PROTECTED', 'Main catalogue categories cannot be renamed, moved or deactivated.');
   }
   if (!existing.parent && fields.parent === null && !canonicalRoot) throw createError(409, 'TOP_LEVEL_CATEGORY_RESTRICTED', 'Only the four canonical catalogue roots can remain at the top level.');
@@ -200,6 +290,11 @@ export async function updateCategory(id, body) {
     const parent = await Category.findById(fields.parent).select('_id isActive archivedAt');
     if (!parent) throw createError(404, 'PARENT_CATEGORY_NOT_FOUND', 'Parent category not found.');
     if (!parent.isActive || parent.archivedAt) throw createError(409, 'PARENT_CATEGORY_ARCHIVED', 'Parent category must be active.');
+    const parentDepth = await getCategoryDepth(parent._id);
+    const subtreeDepth = await getMaxSubtreeDepth(existing._id);
+    if (parentDepth + subtreeDepth > 3) {
+      throw createError(400, 'LEVEL_LIMIT_EXCEEDED', 'Moving this category under the selected parent exceeds the maximum 3-level depth limit.');
+    }
     const configuredRoot = await getCategoryRoot(parent._id);
     if (!configuredRoot || !isMainCategorySlug(configuredRoot.slug)) {
       throw createError(409, 'INVALID_CATEGORY_TREE', 'Subcategories must belong to one of the four main catalogue categories.');
@@ -212,7 +307,7 @@ export async function updateCategory(id, body) {
     update.$unset = { image: 1 };
   }
   const category = await saveOrConflict(
-    Category.findByIdAndUpdate(existing._id, update, { returnDocument: 'after', runValidators: true })
+    Category.findByIdAndUpdate(existing._id, update, { returnDocument: 'after', runValidators: true }).populate('parent', '_id name slug')
   );
   return (await withProductCounts([category]))[0];
 }
@@ -249,7 +344,6 @@ export async function restoreCategory(id) {
   if (existing.parent) {
     const parent = await Category.findById(existing.parent).select('isActive archivedAt');
     if (!parent?.isActive || parent.archivedAt) throw createError(409, 'PARENT_CATEGORY_ARCHIVED', 'Restore or activate the parent category first.');
-    if (!(await getCategoryRoot(parent._id))) throw createError(409, 'INVALID_CATEGORY_TREE', 'Only subcategories beneath the four canonical roots can be restored.');
   }
   const category = await Category.findByIdAndUpdate(
     categoryId,

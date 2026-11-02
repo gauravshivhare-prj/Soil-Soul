@@ -17,6 +17,21 @@ const handle = (status, fn) => async (req, res, next) => {
 
 router.get('/', handle(200, async (req) => service.listCategoriesAdmin(req.query)));
 router.post('/initialize', handle(200, async () => service.initializeCanonicalCategories()));
+
+// Category CSV Template & Import routes (must precede /:id)
+router.get('/template', (req, res) => {
+  const template = service.getCategoryCsvTemplate();
+  if (req.headers.accept?.includes('application/json')) {
+    return res.status(200).json({ success: true, data: { template } });
+  }
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="categories_template.csv"');
+  return res.status(200).send(template);
+});
+
+router.post('/import/validate', handle(200, async (req) => service.validateCategoryImport(req.body)));
+router.post('/import', handle(201, async (req) => service.importCategories(req.body)));
+
 router.get('/:id', handle(200, async (req) => ({ category: await service.getCategoryAdmin(req.params.id) })));
 // What a deletion would involve (read-only), then the delete itself (empty categories only; confirmation required).
 router.get('/:id/deletion', handle(200, async (req) => service.getCategoryDeletion(req.params.id)));
