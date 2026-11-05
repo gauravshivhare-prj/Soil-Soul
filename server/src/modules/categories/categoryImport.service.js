@@ -24,6 +24,11 @@ export function parseCategoryCsv(text) {
     throw createError(400, 'CSV_EMPTY', 'The uploaded CSV file is empty.');
   }
 
+  // Strip UTF-8 BOM if present
+  if (text.charCodeAt(0) === 0xfeff) {
+    text = text.slice(1);
+  }
+
   const lines = [];
   let row = [];
   let inQuotes = false;
@@ -67,6 +72,10 @@ export function parseCategoryCsv(text) {
     }
   }
 
+  if (inQuotes) {
+    throw createError(400, 'MALFORMED_CSV', 'Malformed CSV: unclosed quote detected.');
+  }
+
   if (field.length > 0 || row.length > 0) {
     row.push(field.trim());
     if (row.some((f) => f.length > 0)) lines.push(row);
@@ -98,22 +107,42 @@ export function parseCategoryCsv(text) {
     };
 
     const name = getVal('name');
-    const slug = getVal('slug').toLowerCase();
+    const slug = getVal('slug');
     const shortName = getVal('shortName');
     const tagline = getVal('tagline');
     const description = getVal('description');
-    const parentSlug = getVal('parentSlug').toLowerCase();
+    const parentSlug = getVal('parentSlug');
     const displayOrderRaw = getVal('displayOrder');
     const imageUrl = getVal('imageUrl');
-    const visibleRaw = getVal('visibleInShop').toLowerCase();
+    const visibleRaw = getVal('visibleInShop');
 
-    // Skip empty lines
-    if (!name && !slug && !parentSlug) continue;
+    // Skip completely empty lines
+    if (!name && !slug && !parentSlug && !description) continue;
 
-    const visibleInShop = !['false', '0', 'no', 'off'].includes(visibleRaw);
+    let visibleInShop = true;
+    let visibleInShopValid = true;
+    if (visibleRaw !== '') {
+      const lower = visibleRaw.toLowerCase();
+      if (['true', '1', 'yes', 'on'].includes(lower)) {
+        visibleInShop = true;
+      } else if (['false', '0', 'no', 'off'].includes(lower)) {
+        visibleInShop = false;
+      } else {
+        visibleInShopValid = false;
+      }
+    }
+
     let displayOrder = 0;
-    if (displayOrderRaw && /^\d+$/.test(displayOrderRaw)) {
-      displayOrder = parseInt(displayOrderRaw, 10);
+    let displayOrderValid = true;
+    if (displayOrderRaw !== '') {
+      if (/^\d+$/.test(displayOrderRaw)) {
+        displayOrder = parseInt(displayOrderRaw, 10);
+        if (displayOrder > 10000) {
+          displayOrderValid = false;
+        }
+      } else {
+        displayOrderValid = false;
+      }
     }
 
     rows.push({
@@ -125,13 +154,22 @@ export function parseCategoryCsv(text) {
       description,
       parentSlug,
       displayOrder,
+      displayOrderValid,
+      displayOrderRaw,
       imageUrl,
       visibleInShop,
+      visibleInShopValid,
+      visibleInShopRaw: visibleRaw,
     });
   }
 
   if (rows.length === 0) {
     throw createError(400, 'CSV_EMPTY', 'No data rows found in the CSV.');
+  }
+
+  const MAX_IMPORT_ROWS = 500;
+  if (rows.length > MAX_IMPORT_ROWS) {
+    throw createError(400, 'CSV_TOO_LARGE', `CSV exceeds maximum limit of ${MAX_IMPORT_ROWS} rows.`);
   }
 
   return rows;
@@ -165,46 +203,94 @@ export function validateCategoryBatch(rawRows, existingCategories = []) {
     let isDuplicate = false;
 
     // Name check
-    if (!row.name || row.name.length < 2) {
+    const rawName = row.name !== undefined && row.name !== null ? String(row.name) : '';
+    const trimmedName = rawName.trim();
+    if (!trimmedName) {
+      errors.push('Category name is required.');
+    } else if (trimmedName.length < 2) {
       errors.push('Category name must be at least 2 characters.');
-    } else if (row.name.length > 60) {
+    } else if (trimmedName.length > 60) {
       errors.push('Category name cannot exceed 60 characters.');
     }
 
     // Slug check
-    if (!row.slug) {
+    const rawSlug = row.slug !== undefined && row.slug !== null ? String(row.slug) : '';
+    const trimmedSlug = rawSlug.trim();
+    const normalizedSlug = trimmedSlug.toLowerCase();
+
+    if (!trimmedSlug) {
       errors.push('Category slug is required.');
-    } else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(row.slug)) {
+    } else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(trimmedSlug)) {
       errors.push('Slug must be lowercase alphanumeric with hyphens (e.g. "indoor-plants").');
-    } else if (row.slug.length > 80) {
+    } else if (trimmedSlug.length > 80) {
       errors.push('Slug cannot exceed 80 characters.');
     } else {
       // In-CSV duplicate slug check
-      if (seenSlugsInCsv.has(row.slug)) {
-        errors.push(`Duplicate slug "${row.slug}" found in CSV (first seen at row ${seenSlugsInCsv.get(row.slug)}).`);
+      if (seenSlugsInCsv.has(normalizedSlug)) {
+        errors.push(`Duplicate slug "${trimmedSlug}" found in CSV (first seen at row ${seenSlugsInCsv.get(normalizedSlug)}).`);
         isDuplicate = true;
       } else {
-        seenSlugsInCsv.set(row.slug, row._rowNumber);
+        seenSlugsInCsv.set(normalizedSlug, row._rowNumber);
       }
 
       // Existing DB duplicate slug check
-      if (existingBySlug.has(row.slug)) {
-        errors.push(`Category with slug "${row.slug}" already exists in the database.`);
+      if (existingBySlug.has(normalizedSlug)) {
+        errors.push(`Category with slug "${trimmedSlug}" already exists in the database.`);
         isDuplicate = true;
       }
     }
 
+    // Parent slug check
+    const rawParentSlug = row.parentSlug !== undefined && row.parentSlug !== null ? String(row.parentSlug) : '';
+    const trimmedParentSlug = rawParentSlug.trim();
+    const normalizedParentSlug = trimmedParentSlug.toLowerCase();
+
+    // Self-parent check
+    if (trimmedParentSlug && trimmedSlug && normalizedParentSlug === normalizedSlug) {
+      errors.push('A category cannot be its own parent.');
+    }
+
     // Level 1 Canonical Root validation
-    if (!row.parentSlug) {
-      if (row.slug && !CANONICAL_ROOTS_MAP.has(row.slug)) {
+    if (!trimmedParentSlug) {
+      if (trimmedSlug && !CANONICAL_ROOTS_MAP.has(normalizedSlug)) {
         errors.push(
-          `Only canonical roots ("plants", "tools", "seeds", "natural-products") can be main categories without a parent.`
+          'Only canonical roots ("plants", "tools", "seeds", "natural-products") can be main categories without a parent.'
         );
-      } else if (row.slug && CANONICAL_ROOTS_MAP.get(row.slug) !== row.name) {
+      } else if (trimmedSlug && CANONICAL_ROOTS_MAP.get(normalizedSlug) !== trimmedName) {
         errors.push(
-          `Canonical root "${row.slug}" must have exact name "${CANONICAL_ROOTS_MAP.get(row.slug)}".`
+          `Canonical root "${trimmedSlug}" must have exact name "${CANONICAL_ROOTS_MAP.get(normalizedSlug)}".`
         );
       }
+    } else {
+      // If it HAS a parent, it CANNOT be a canonical root
+      if (trimmedSlug && CANONICAL_ROOTS_MAP.has(normalizedSlug)) {
+        errors.push(
+          `Canonical root "${trimmedSlug}" cannot have a parent category or be placed under another category.`
+        );
+      }
+    }
+
+    // Display order check
+    if (row.displayOrderValid === false) {
+      errors.push('Display order must be a valid integer between 0 and 10000.');
+    } else if (typeof row.displayOrder === 'number' && (!Number.isInteger(row.displayOrder) || row.displayOrder < 0 || row.displayOrder > 10000)) {
+      errors.push('Display order must be a valid integer between 0 and 10000.');
+    } else if (typeof row.displayOrder === 'string' && row.displayOrder.trim() !== '') {
+      if (!/^\d+$/.test(row.displayOrder.trim()) || parseInt(row.displayOrder.trim(), 10) > 10000) {
+        errors.push('Display order must be a valid integer between 0 and 10000.');
+      }
+    }
+
+    // visibleInShop boolean check
+    if (row.visibleInShopValid === false) {
+      errors.push('visibleInShop must be a valid boolean ("true", "false", "yes", "no", "1", "0") or empty.');
+    } else if (typeof row.visibleInShop === 'string' && row.visibleInShop.trim() !== '') {
+      const lower = row.visibleInShop.trim().toLowerCase();
+      if (!['true', 'false', '1', '0', 'yes', 'no', 'on', 'off'].includes(lower)) {
+        errors.push('visibleInShop must be a valid boolean ("true", "false", "yes", "no", "1", "0") or empty.');
+      }
+    } else if (typeof row.visibleInShop !== 'boolean' && row.visibleInShop !== undefined && row.visibleInShop !== null) {
+      errors.push('visibleInShop must be a valid boolean ("true", "false", "yes", "no", "1", "0") or empty.');
     }
 
     // Other field bounds
@@ -212,19 +298,26 @@ export function validateCategoryBatch(rawRows, existingCategories = []) {
     if (row.tagline && row.tagline.length > 120) errors.push('Tagline cannot exceed 120 characters.');
     if (row.description && row.description.length > 1000) errors.push('Description cannot exceed 1000 characters.');
 
+    let finalDisplayOrder = 0;
+    if (typeof row.displayOrder === 'number' && Number.isInteger(row.displayOrder)) {
+      finalDisplayOrder = row.displayOrder;
+    } else if (typeof row.displayOrder === 'string' && /^\d+$/.test(row.displayOrder.trim())) {
+      finalDisplayOrder = parseInt(row.displayOrder.trim(), 10);
+    }
+
     const validatedRow = {
       rowNumber: row._rowNumber,
-      name: row.name,
-      slug: row.slug,
-      shortName: row.shortName,
-      tagline: row.tagline,
-      description: row.description,
-      parentSlug: row.parentSlug || '',
-      displayOrder: row.displayOrder ?? 0,
+      name: trimmedName,
+      slug: trimmedSlug,
+      shortName: row.shortName || trimmedName,
+      tagline: row.tagline || '',
+      description: row.description || '',
+      parentSlug: trimmedParentSlug,
+      displayOrder: finalDisplayOrder,
       imageUrl: row.imageUrl || '',
       visibleInShop: row.visibleInShop !== false,
-      level: row.parentSlug ? 2 : 1, // initial estimate, refined in Pass 2
-      hierarchyPath: row.name,
+      level: trimmedParentSlug ? 2 : 1, // initial estimate, refined in Pass 2
+      hierarchyPath: trimmedName,
       status: errors.length > 0 ? (isDuplicate ? 'duplicate' : 'error') : 'valid',
       errors,
     };
@@ -236,16 +329,17 @@ export function validateCategoryBatch(rawRows, existingCategories = []) {
   }
 
   // Pass 2: Parent resolution, cycle detection, and exact 3-level depth calculation
-  const candidateBySlug = new Map(validCandidates.map((r) => [r.slug, r]));
+  const candidateBySlug = new Map(validCandidates.map((r) => [r.slug.toLowerCase(), r]));
+  const allCsvBySlug = new Map(rawRows.filter((r) => r.slug).map((r) => [String(r.slug).trim().toLowerCase(), r]));
 
   // Helper to trace parent chain for a candidate row
   function traceHierarchy(r) {
     const chain = [r];
-    const visited = new Set([r.slug]);
+    const visited = new Set([r.slug.toLowerCase()]);
     let current = r;
 
     while (current.parentSlug) {
-      const pSlug = current.parentSlug;
+      const pSlug = current.parentSlug.toLowerCase();
 
       if (visited.has(pSlug)) {
         return { error: `Cyclic hierarchy detected involving "${current.slug}" and "${pSlug}".` };
@@ -271,15 +365,21 @@ export function validateCategoryBatch(rawRows, existingCategories = []) {
         const dbChain = [];
         const dbVisited = new Set();
         while (dbCurr) {
-          if (dbVisited.has(String(dbCurr._id || dbCurr.id))) {
+          const dbId = String(dbCurr._id || dbCurr.id);
+          if (dbVisited.has(dbId)) {
             return { error: `Cyclic parent relationship found in database for "${pSlug}".` };
           }
-          dbVisited.add(String(dbCurr._id || dbCurr.id));
+          dbVisited.add(dbId);
           dbChain.unshift(dbCurr);
           dbCurr = dbCurr.parent ? existingCategories.find((c) => String(c._id || c.id) === String(dbCurr.parent?._id || dbCurr.parent)) : null;
         }
 
         return { chain: [...dbChain, ...chain], rootSlug: dbChain[0]?.slug };
+      }
+
+      // If parent is present in CSV but had errors
+      if (allCsvBySlug.has(pSlug)) {
+        return { error: `Parent category with slug "${pSlug}" has validation errors and cannot be used as a parent.` };
       }
 
       // Parent missing everywhere
@@ -308,7 +408,7 @@ export function validateCategoryBatch(rawRows, existingCategories = []) {
     r.hierarchyPath = result.chain.map((c) => c.name).join(' → ');
 
     // Canonical root verification
-    if (!isMainCategorySlug(result.rootSlug)) {
+    if (!isMainCategorySlug(result.rootSlug?.toLowerCase())) {
       r.status = 'error';
       r.errors.push(`Hierarchy must trace back to a canonical root (Plants, Tools, Seeds, Natural Products). Found root: "${result.rootSlug}".`);
       continue;
@@ -390,47 +490,60 @@ export async function importCategoryBatch(rows, { Category, withOptionalTransact
     const slugToId = new Map(existingCategories.map((c) => [c.slug.toLowerCase(), c._id]));
     const createdDocs = [];
 
-    // Insert level-by-level (Level 1, then Level 2, then Level 3)
-    for (const r of validation.sortedValidRows) {
-      const parentId = r.parentSlug ? slugToId.get(r.parentSlug.toLowerCase()) : null;
+    try {
+      // Insert level-by-level (Level 1, then Level 2, then Level 3)
+      for (const r of validation.sortedValidRows) {
+        const parentId = r.parentSlug ? slugToId.get(r.parentSlug.toLowerCase()) : null;
 
-      if (r.parentSlug && !parentId) {
-        throw createError(
-          500,
-          'IMPORT_DEPENDENCY_ERROR',
-          `Could not resolve parent ObjectId for slug "${r.parentSlug}" while importing "${r.slug}".`
-        );
+        if (r.parentSlug && !parentId) {
+          throw createError(
+            500,
+            'IMPORT_DEPENDENCY_ERROR',
+            `Could not resolve parent ObjectId for slug "${r.parentSlug}" while importing "${r.slug}".`
+          );
+        }
+
+        const docData = {
+          name: r.name,
+          slug: r.slug,
+          shortName: r.shortName || r.name,
+          tagline: r.tagline || undefined,
+          description: r.description || undefined,
+          displayOrder: r.displayOrder ?? 0,
+          parent: parentId || null,
+          image: r.imageUrl ? { src: r.imageUrl, alt: r.name } : undefined,
+          isActive: r.visibleInShop !== false,
+        };
+
+        const [created] = await Category.create([docData], session ? { session } : {});
+        slugToId.set(r.slug.toLowerCase(), created._id);
+        createdDocs.push({
+          id: String(created._id),
+          name: created.name,
+          slug: created.slug,
+          level: r.level,
+          hierarchyPath: r.hierarchyPath,
+          parentSlug: r.parentSlug || null,
+        });
       }
 
-      const docData = {
-        name: r.name,
-        slug: r.slug,
-        shortName: r.shortName || r.name,
-        tagline: r.tagline || undefined,
-        description: r.description || undefined,
-        displayOrder: r.displayOrder ?? 0,
-        parent: parentId || null,
-        image: r.imageUrl ? { src: r.imageUrl, alt: r.name } : undefined,
-        isActive: r.visibleInShop !== false,
+      return {
+        success: true,
+        count: createdDocs.length,
+        categories: createdDocs,
       };
-
-      const [created] = await Category.create([docData], session ? { session } : {});
-      slugToId.set(r.slug.toLowerCase(), created._id);
-      createdDocs.push({
-        id: String(created._id),
-        name: created.name,
-        slug: created.slug,
-        level: r.level,
-        hierarchyPath: r.hierarchyPath,
-        parentSlug: r.parentSlug || null,
-      });
+    } catch (err) {
+      if (!session && createdDocs.length > 0) {
+        const createdIds = createdDocs.map((d) => d.id);
+        try {
+          await Category.deleteMany({ _id: { $in: createdIds } });
+        } catch (rollbackErr) {
+          err.rollbackError = rollbackErr;
+          console.error('[categoryImport] Standalone rollback cleanup failed:', rollbackErr);
+        }
+      }
+      throw err;
     }
-
-    return {
-      success: true,
-      count: createdDocs.length,
-      categories: createdDocs,
-    };
   });
 }
 

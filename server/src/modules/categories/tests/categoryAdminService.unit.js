@@ -68,3 +68,30 @@ test('active admin category filter does not resolve or apply public category IDs
   assert.deepEqual(findFilters[0], { isActive: true });
   assert.deepEqual(findFilters[1], {});
 });
+
+test('category import service exports and regression checks', async (t) => {
+  const { validateCategoryImport, importCategories, getCategoryCsvTemplate } = await import('../category.admin.service.js');
+
+  // Verify functions are exported properly
+  assert.equal(typeof validateCategoryImport, 'function', 'validateCategoryImport must be exported');
+  assert.equal(typeof importCategories, 'function', 'importCategories must be exported');
+  assert.equal(typeof getCategoryCsvTemplate, 'function', 'getCategoryCsvTemplate must be exported');
+
+  // Verify template structure
+  const template = getCategoryCsvTemplate();
+  assert.ok(typeof template === 'string');
+  assert.ok(template.includes('name,slug,shortName'));
+  assert.ok(template.includes('Plants,plants'));
+
+  // Validation on empty csvContent throws CSV_EMPTY
+  await assert.rejects(
+    () => validateCategoryImport({ csvContent: '' }),
+    (err) => err.code === 'CSV_EMPTY'
+  );
+
+  // Import on empty rows throws VALIDATION_ERROR
+  await assert.rejects(
+    () => importCategories({ rows: [] }),
+    (err) => err.code === 'VALIDATION_ERROR'
+  );
+});

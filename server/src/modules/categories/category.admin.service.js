@@ -14,6 +14,24 @@ import {
 
 export { getCategoryCsvTemplate };
 
+export async function validateCategoryImport(body) {
+  const csvContent = body?.csvContent;
+  if (typeof csvContent !== 'string' || !csvContent.trim()) {
+    throw createError(400, 'CSV_EMPTY', 'The uploaded CSV file is empty.');
+  }
+  const rawRows = parseCategoryCsv(csvContent);
+  const existingCategories = await Category.find({}).select('_id slug parent name isActive archivedAt').lean();
+  return validateCategoryBatch(rawRows, existingCategories);
+}
+
+export async function importCategories(body) {
+  const rows = body?.rows;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw createError(400, 'VALIDATION_ERROR', 'No rows provided to import.');
+  }
+  return importCategoryBatch(rows, { Category, withOptionalTransaction });
+}
+
 const EDITABLE = ['name', 'shortName', 'tagline', 'description', 'image', 'displayOrder', 'isActive', 'parentId'];
 const STATUS_FILTERS = ['all', 'active', 'inactive', 'archived'];
 
