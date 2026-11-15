@@ -16,6 +16,21 @@ const handle = (status, fn) => async (req, res, next) => {
 };
 
 router.get('/', handle(200, async (req) => service.listProductsAdmin(req.query)));
+
+// Product CSV Template & Import routes (must precede /:id)
+router.get('/template', (req, res) => {
+  const template = service.getProductCsvTemplate();
+  if (req.headers.accept?.includes('application/json')) {
+    return res.status(200).json({ success: true, data: { template } });
+  }
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="products_template.csv"');
+  return res.status(200).send(template);
+});
+
+router.post('/import/validate', handle(200, async (req) => service.validateProductImport(req.body)));
+router.post('/import', handle(201, async (req) => service.importProducts(req.body, req.user?.id)));
+
 router.get('/:id', handle(200, async (req) => ({ product: await service.getProductAdmin(req.params.id) })));
 // What a deletion would involve (read-only), then the delete itself (explicit confirmation required).
 router.get('/:id/deletion', handle(200, async (req) => service.getProductDeletion(req.params.id)));

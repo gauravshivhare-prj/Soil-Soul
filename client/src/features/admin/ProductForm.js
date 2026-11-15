@@ -224,7 +224,7 @@ export default function ProductForm({ product }) {
               onChange={set("categoryId")}
               error={errors.categoryId ?? (categories.status === "error" ? categories.error.message : undefined)}
               required
-              options={[{ value: "", label: categories.status === "loading" ? "Loading…" : "Select category" }, ...categoryOptions.map((c) => ({ value: c.id, label: `${c.parent?.name ? `${c.parent.name} / ` : ""}${c.name}${c.isActive ? "" : " (hidden)"}` }))]}
+              options={[{ value: "", label: categories.status === "loading" ? "Loading…" : "Select category" }, ...categoryOptions.map((c) => ({ value: c.id, label: `${c.hierarchyPath || (c.parent?.name ? `${c.parent.name} / ` : "") + c.name}${c.isActive ? "" : " (hidden)"}` }))]}
             />
             <TextField label="SKU (optional)" name="sku" value={values.sku} onChange={set("sku")} error={errors.sku} maxLength={40} />
             <TextField label="Short summary" name="summary" value={values.summary} onChange={set("summary")} maxLength={300} className="sm:col-span-2" />

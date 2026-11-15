@@ -8,7 +8,7 @@
  * and bulk CSV import with validation and preview.
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import Card, { CardHeader } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Icon from "@/components/ui/Icon";
@@ -75,6 +75,9 @@ function validateForm(form, isNew) {
   if (isNew && form.slug && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(form.slug)) {
     errors.slug = "Use lowercase letters, numbers and hyphens.";
   }
+  if (isNew && !form.parentId) {
+    errors.parentId = "Select a parent category. All new categories must belong to Plants, Tools, Seeds, or Natural Products.";
+  }
   if (!/^\d+$/.test(form.displayOrder.trim())) errors.displayOrder = "Enter a whole number (0 or more).";
   if (form.imageSrc.trim() && form.imageAlt.trim().length < 2) {
     errors.imageAlt = "Describe the image (at least 2 characters).";
@@ -120,6 +123,7 @@ export default function CategoryManager() {
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
 
   const isNew = editing === null;
+  const formCardRef = useRef(null);
   const isMainCategory = (category) =>
     Boolean(category && !category.parent && CANONICAL_ROOT_SLUGS.includes(category.slug));
 
@@ -158,8 +162,11 @@ export default function CategoryManager() {
   }, [allCategories, editing]);
 
   const parentSelectOptions = useMemo(() => {
+    const defaultLabel = isNew
+      ? "— Select Parent Category (Plants, Tools, Seeds, Natural Products) —"
+      : "Main Category (Level 1)";
     const options = [
-      { value: "", label: "Main Category (Level 1)" },
+      { value: "", label: defaultLabel },
       ...parentOptions.map((c) => {
         const lvl = getCategoryLevel(c, allCategories);
         const path = getHierarchyPath(c, allCategories);
@@ -184,7 +191,7 @@ export default function CategoryManager() {
     }
 
     return options;
-  }, [parentOptions, allCategories, form.parentId]);
+  }, [parentOptions, allCategories, form.parentId, isNew]);
 
   // Compute determined level for dynamic feedback in the form
   const selectedParent = form.parentId
@@ -215,6 +222,11 @@ export default function CategoryManager() {
     });
     setErrors({});
     setServerError(null);
+    setTimeout(() => {
+      formCardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const el = document.querySelector('input[name="name"]');
+      if (el) el.focus();
+    }, 60);
   };
 
   async function submit(e) {
@@ -363,8 +375,8 @@ export default function CategoryManager() {
                           {level < 3 && (
                             <Button
                               size="sm"
-                              variant="ghost"
-                              className="!text-forest font-medium"
+                              variant="outline"
+                              className="!text-forest border-forest/30 hover:bg-forest/5 font-medium"
                               onClick={() => startAddSubcategory(c)}
                               title={`Add subcategory under ${c.name}`}
                             >
@@ -391,62 +403,88 @@ export default function CategoryManager() {
         </Card>
 
         {/* Add / Edit Category Form */}
-        <Card>
-          <CardHeader
-            title={
-              isNew
-                ? form.parentId && selectedParent
-                  ? `Add Subcategory under “${selectedParent.name}”`
-                  : "Add Category"
-                : `Edit “${editing.name}”`
-            }
-            action={
-              !isNew && (
-                <Button size="sm" variant="outline" onClick={reset}>
-                  <Icon name="plus" size={13} /> Add Category
-                </Button>
-              )
-            }
-          />
-          <form onSubmit={submit} noValidate className="grid gap-4">
-            {serverError && <FormMessage tone="error">{serverError}</FormMessage>}
-            <TextField
-              label="Name"
-              name="name"
-              value={form.name}
-              onChange={set("name")}
-              error={errors.name}
-              maxLength={60}
-              required
-              readOnly={!isNew && isMainCategory(editing)}
+        <div ref={formCardRef}>
+          <Card>
+            <CardHeader
+              title={
+                isNew
+                  ? form.parentId && selectedParent
+                    ? `Add Subcategory under “${selectedParent.name}”`
+                    : "Add Category"
+                  : `Edit “${editing.name}”`
+              }
+              action={
+                !isNew && (
+                  <Button size="sm" variant="outline" onClick={reset}>
+                    <Icon name="plus" size={13} /> Add Category
+                  </Button>
+                )
+              }
             />
-            {isNew ? (
-              <TextField
-                label="Slug (optional)"
-                name="slug"
-                value={form.slug}
-                onChange={set("slug")}
-                error={errors.slug}
-                maxLength={80}
-                hint={`URL: /shop/${form.slug || toSlug(form.name) || "…"} — can't be changed later`}
-              />
-            ) : (
-              <p className="m-0 text-sm text-muted">URL: /shop/{editing.slug}</p>
+            {selectedParent && (
+              <div className="mb-4 p-3 bg-forest/5 border border-forest/20 rounded-xl flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="text-[0.6875rem] font-bold text-forest uppercase tracking-wider block">
+                    Creating Subcategory
+                  </span>
+                  <span className="text-xs font-semibold text-ink truncate block">
+                    Under: {getHierarchyPath(selectedParent, allCategories)} (Level {parentLevel}) &rarr;{" "}
+                    <span className="text-forest font-bold">Level {determinedLevel}</span>
+                  </span>
+                </div>
+                {isNew && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setForm((f) => ({ ...f, parentId: "" }))}
+                    title="Clear parent"
+                  >
+                    Clear
+                  </Button>
+                )}
+              </div>
             )}
-            <TextField label="Short name (optional)" name="shortName" value={form.shortName} onChange={set("shortName")} maxLength={40} />
-            <TextField label="Tagline (optional)" name="tagline" value={form.tagline} onChange={set("tagline")} maxLength={120} hint="Short line shown on category pages" />
-            <TextField label="Description (optional)" name="description" value={form.description} onChange={set("description")} maxLength={1000} />
-
-            {/* Parent Category & Determined Level Display */}
-            <div>
-              <SelectField
-                label="Parent category"
-                name="parentId"
-                value={form.parentId}
-                onChange={set("parentId")}
-                disabled={!isNew && isMainCategory(editing)}
-                options={parentSelectOptions}
+            <form onSubmit={submit} noValidate className="grid gap-4">
+              {serverError && <FormMessage tone="error">{serverError}</FormMessage>}
+              <TextField
+                label="Name"
+                name="name"
+                value={form.name}
+                onChange={set("name")}
+                error={errors.name}
+                maxLength={60}
+                required
+                readOnly={!isNew && isMainCategory(editing)}
               />
+              {isNew ? (
+                <TextField
+                  label="Slug (optional)"
+                  name="slug"
+                  value={form.slug}
+                  onChange={set("slug")}
+                  error={errors.slug}
+                  maxLength={80}
+                  hint={`URL: /shop/${form.slug || toSlug(form.name) || "…"} — can't be changed later`}
+                />
+              ) : (
+                <p className="m-0 text-sm text-muted">URL: /shop/{editing.slug}</p>
+              )}
+              <TextField label="Short name (optional)" name="shortName" value={form.shortName} onChange={set("shortName")} maxLength={40} />
+              <TextField label="Tagline (optional)" name="tagline" value={form.tagline} onChange={set("tagline")} maxLength={120} hint="Short line shown on category pages" />
+              <TextField label="Description (optional)" name="description" value={form.description} onChange={set("description")} maxLength={1000} />
+
+              {/* Parent Category & Determined Level Display */}
+              <div>
+                <SelectField
+                  label="Parent category"
+                  name="parentId"
+                  value={form.parentId}
+                  onChange={set("parentId")}
+                  error={errors.parentId}
+                  disabled={!isNew && isMainCategory(editing)}
+                  options={parentSelectOptions}
+                />
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 <span className="text-xs text-muted">Resulting Level:</span>
                 {determinedLevel === 1 && <Badge tone="forest">Level 1 · Main Category</Badge>}
@@ -506,7 +544,8 @@ export default function CategoryManager() {
               {!isNew && <Button variant="outline" onClick={reset}>Cancel</Button>}
             </div>
           </form>
-        </Card>
+          </Card>
+        </div>
       </div>
 
       {/* CSV Import Modal */}

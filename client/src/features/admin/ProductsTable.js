@@ -14,7 +14,7 @@ import Card from "@/components/ui/Card";
 import Button, { buttonClass } from "@/components/ui/Button";
 import Icon from "@/components/ui/Icon";
 import ProductImage from "@/components/ui/ProductImage";
-import { StatusBadge, stockStatus } from "@/components/ui/Badge";
+import Badge, { StatusBadge, stockStatus } from "@/components/ui/Badge";
 import { EmptyState, FormMessage, Skeleton } from "@/components/ui/States";
 import { useToast } from "@/components/ui/Toast";
 import { DataTable } from "@/components/admin/AdminParts";
@@ -22,6 +22,7 @@ import { useAuth } from "@/features/auth/AuthProvider";
 import { useAuthedResource } from "@/features/auth/useAuthedResource";
 import { availableStock } from "@/services/catalogApi";
 import { runDeletion } from "./deletion";
+import ProductCsvModal, { triggerProductTemplateDownload } from "./ProductCsvModal";
 
 const PAGE_SIZE = 25;
 // Mirrors the storefront rule: visible only when active, status "active" and not archived.
@@ -62,6 +63,7 @@ export default function ProductsTable() {
   const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState(null);
   const [actionError, setActionError] = useState(null);
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
 
   const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE), status, sort });
   if (query) params.set("q", query);
@@ -121,6 +123,20 @@ export default function ProductsTable() {
 
   return (
     <Card>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-line">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-heading">Catalog Operations</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={triggerProductTemplateDownload}>
+            <Icon name="arrow-right" size={13} className="rotate-90" /> Download CSV Template
+          </Button>
+          <Button size="sm" variant="primary" onClick={() => setIsCsvModalOpen(true)}>
+            <Icon name="plus" size={13} /> Import Products CSV
+          </Button>
+        </div>
+      </div>
+
       <div className="flex flex-col gap-2.5 md:flex-row md:items-center mb-4">
         <form
           role="search"
@@ -158,6 +174,7 @@ export default function ProductsTable() {
           <label className="sr-only" htmlFor="admin-product-sort">Sort</label>
           <select id="admin-product-sort" value={sort} onChange={change(setSort)} className={`${control} cursor-pointer`}>
             <option value="newest">Newest</option>
+            <option value="featured">Featured first</option>
             <option value="name">Name</option>
             <option value="price-asc">Price: low to high</option>
             <option value="price-desc">Price: high to low</option>
@@ -188,7 +205,10 @@ export default function ProductsTable() {
                       <span className="min-w-0">
                         <Link href={adminProductHref(p.id)} className="block font-medium text-ink no-underline hover:text-forest">{p.name}</Link>
                         <span className="block text-xs text-muted">/{p.slug}{p.sku ? ` · ${p.sku}` : ""}</span>
-                        {p.hasUsableImage === false && <span className="mt-0.5 inline-block"><StatusBadge status="failed" label="No usable image" /></span>}
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          {p.hasUsableImage === false && <StatusBadge status="failed" label="No usable image" />}
+                          {p.isFeatured && <Badge tone="amber">Featured</Badge>}
+                        </div>
                       </span>
                     </span>
                   </td>
@@ -230,6 +250,13 @@ export default function ProductsTable() {
           )}
         </>
       )}
+
+      {/* Product CSV Import Modal */}
+      <ProductCsvModal
+        isOpen={isCsvModalOpen}
+        onClose={() => setIsCsvModalOpen(false)}
+        onSuccess={() => list.reload()}
+      />
     </Card>
   );
 }

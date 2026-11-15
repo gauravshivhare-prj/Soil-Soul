@@ -36,23 +36,21 @@ export async function createReturnRequest(userId, orderId, { itemIndex, quantity
   if (Date.now() > expiresAt.getTime()) throw createError(409, 'RETURN_WINDOW_EXPIRED', 'The return request window has expired.');
   const item = order.items[itemIndex];
   if (!item || quantity > item.quantity) throw createError(400, 'VALIDATION_ERROR', 'Return quantity exceeds the order item quantity.');
-  const prior = await ReturnRequest.aggregate([
-    { $match: { order: order._id, itemIndex, status: { $ne: 'REJECTED' } } },
-    { $group: { _id: null, quantity: { $sum: '$quantity' } } },
-  ]);
-  const priorQuantity = prior[0]?.quantity ?? 0;
+  const existingActive = await ReturnRequest.findOne({ order: order._id, itemIndex, status: { $ne: 'REJECTED' } });
+  if (existingActive) throw createError(409, 'RETURN_EXISTS', 'This return request conflicts with an existing request.');
   const itemPath = `items.${itemIndex}.returnReservedQuantity`;
-  const reservedExpression = { $ifNull: [`$${itemPath}`, 0] };
-  const baseReservedExpression = { $max: [reservedExpression, priorQuantity] };
-  const nextReservedExpression = { $add: [baseReservedExpression, quantity] };
-  const reserved = await Order.updateOne({
-    _id: order._id,
-    user: userId,
-    orderStatus: 'DELIVERED',
-    $expr: {
-      $lte: [nextReservedExpression, { $arrayElemAt: ['$items.quantity', itemIndex] }],
+  const reserved = await Order.updateOne(
+    {
+      _id: order._id,
+      user: userId,
+      orderStatus: 'DELIVERED',
+      $or: [
+        { [itemPath]: { $exists: false } },
+        { [itemPath]: { $lte: item.quantity - quantity } },
+      ],
     },
-  }, [{ $set: { [itemPath]: nextReservedExpression } }]);
+    { $inc: { [itemPath]: quantity } },
+  );
   if (reserved.modifiedCount !== 1) throw createError(409, 'RETURN_QUANTITY_EXHAUSTED', 'The remaining eligible quantity has changed. Reload the order and try again.');
   const now = new Date();
   const reservationId = new mongoose.Types.ObjectId();
@@ -131,7 +129,7 @@ export async function recordCodRefund(id, { adminId, note } = {}) {
   if (!existing) throw createError(404, 'RETURN_NOT_FOUND', 'Return request not found.');
   if (existing.order?.paymentMethod !== 'COD') throw createError(409, 'REFUND_NOT_RECORDABLE', 'This bookkeeping action is only for COD orders.');
   const result = await ReturnRequest.findOneAndUpdate(
-    { _id: id, status: 'RECEIVED', refundStatus: 'PENDING' },
+    { _id: id, status: { $in: ['APPROVED', 'RECEIVED'] }, refundStatus: 'PENDING' },
     { $set: { refundStatus: 'RECORDED', refundRecordedAt: new Date(), refundRecordedBy: adminId, refundNote: note.trim() } },
     { returnDocument: 'after' },
   );

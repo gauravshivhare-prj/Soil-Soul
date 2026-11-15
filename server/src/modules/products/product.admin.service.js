@@ -10,6 +10,33 @@ import { Order } from '../orders/order.model.js';
 import { Cart } from '../cart/cart.model.js';
 import { StockMovement } from '../inventory/stockMovement.model.js';
 import { MISSING_IMAGE_FILTER, hasUsableImage } from './imageUsability.js';
+import {
+  getProductCsvTemplate,
+  parseProductCsv,
+  validateProductBatch,
+  importProductBatch,
+} from './productImport.service.js';
+
+export { getProductCsvTemplate };
+
+export async function validateProductImport(body) {
+  const csvContent = body?.csvContent;
+  if (typeof csvContent !== 'string' || !csvContent.trim()) {
+    throw createError(400, 'CSV_EMPTY', 'The uploaded CSV file is empty.');
+  }
+  const rawRows = parseProductCsv(csvContent);
+  const existingCategories = await Category.find({}).select('_id slug parent name isActive archivedAt').lean();
+  const existingProducts = await Product.find({}).select('_id slug sku category categorySlug status isActive naturalProductSlot').lean();
+  return validateProductBatch(rawRows, { existingProducts, existingCategories });
+}
+
+export async function importProducts(body, actorId = null) {
+  const rows = body?.rows;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw createError(400, 'VALIDATION_ERROR', 'No rows provided to import.');
+  }
+  return importProductBatch(rows, actorId, { Product, Category, withOptionalTransaction, recordMovement });
+}
 
 /**
  * Admin product management. Stock is set once at creation; afterwards it changes only through
