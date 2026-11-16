@@ -169,7 +169,7 @@ function FilterPanel({ isOpen, onClose, children }) {
 }
 
 /* ─── Catalog ──────────────────────────────────────────────────── */
-export default function ShopCatalog({ initialCategories = [] }) {
+export default function ShopCatalog({ currentCategory = null, initialCategories = [] }) {
   const catalog = useCatalog();
   if (catalog.status === "loading") {
     return <ProductGridSkeleton count={8} />;
@@ -182,11 +182,18 @@ export default function ShopCatalog({ initialCategories = [] }) {
       </div>
     );
   }
-  return <CatalogBody initialCategories={initialCategories} categories={catalog.categories} facets={catalog.facets} />;
+  return (
+    <CatalogBody
+      currentCategory={currentCategory}
+      initialCategories={initialCategories}
+      categories={catalog.categories}
+      facets={catalog.facets}
+    />
+  );
 }
 
 /* Product filtering, sorting and pagination are performed by the API. */
-function CatalogBody({ initialCategories, categories, facets }) {
+function CatalogBody({ currentCategory, initialCategories, categories, facets }) {
   const options = useMemo(() => filterOptionsFor(facets), [facets]);
   const urlQuery = useSyncExternalStore(subscribeToLocation, readUrlQuery, serverUrlQuery);
   const [typedQuery, setTypedQuery] = useState(null);
@@ -202,11 +209,22 @@ function CatalogBody({ initialCategories, categories, facets }) {
   const deferredQuery = useDeferredValue(query);
   const deferredSort = useDeferredValue(sort);
   const isUpdating = deferredFilters !== filters || deferredQuery !== query || deferredSort !== sort;
+
+  const categoryParam = useMemo(() => {
+    if (deferredFilters.categories.length > 0) {
+      return deferredFilters.categories.join(",");
+    }
+    if (currentCategory?.slug) {
+      return currentCategory.slug;
+    }
+    return undefined;
+  }, [deferredFilters.categories, currentCategory]);
+
   const params = useMemo(() => ({
     page,
     limit: PAGE_SIZE,
     ...(deferredQuery.trim() ? { search: deferredQuery } : {}),
-    ...(deferredFilters.categories.length ? { category: deferredFilters.categories.join(",") } : {}),
+    ...(categoryParam ? { category: categoryParam } : {}),
     ...(deferredFilters.priceMin !== options.priceMin ? { priceMin: deferredFilters.priceMin } : {}),
     ...(deferredFilters.priceMax !== options.priceMax ? { priceMax: deferredFilters.priceMax } : {}),
     ...(deferredFilters.tags.length ? { tag: deferredFilters.tags.join(",") } : {}),
@@ -214,16 +232,17 @@ function CatalogBody({ initialCategories, categories, facets }) {
     ...(deferredFilters.sizes.length ? { size: deferredFilters.sizes.join(",") } : {}),
     ...(deferredFilters.inStockOnly ? { inStock: true } : {}),
     sort: deferredSort,
-  }), [page, deferredQuery, deferredFilters, deferredSort, options]);
+  }), [page, deferredQuery, categoryParam, deferredFilters, deferredSort, options]);
   const requestKey = JSON.stringify(params);
   const [result, setResult] = useState({ key: "", status: "loading", products: [], pagination: null, error: null });
+
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(() => fetchProducts(params, { signal: controller.signal })
       .then(({ products, pagination }) => setResult({ key: requestKey, status: "ready", products, pagination, error: null }))
       .catch((error) => {
         if (!controller.signal.aborted) setResult({ key: requestKey, status: "error", products: [], pagination: null, error });
-      }), 180);
+      }), 200);
     return () => {
       clearTimeout(timer);
       controller.abort();
@@ -251,7 +270,15 @@ function CatalogBody({ initialCategories, categories, facets }) {
     document.getElementById("shop-results")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  const filterProps = { filters, onChange: updateFilters, onClear: clearAll, categories, options, activeCount };
+  const filterProps = {
+    filters,
+    onChange: updateFilters,
+    onClear: clearAll,
+    categories,
+    options,
+    activeCount,
+    currentCategory,
+  };
   const from = total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
   const to = Math.min(currentPage * PAGE_SIZE, total);
 
@@ -259,10 +286,10 @@ function CatalogBody({ initialCategories, categories, facets }) {
   if (current.status === "error") return <FormMessage tone="error">{current.error.message}</FormMessage>;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[250px_1fr] xl:grid-cols-[270px_1fr] xl:gap-8">
+    <div className="grid gap-6 lg:grid-cols-[275px_1fr] xl:grid-cols-[295px_1fr] xl:gap-8 min-w-0">
       {/* Sidebar (desktop) */}
-      <aside aria-label="Product filters" className="hidden lg:block">
-        <div className="sticky top-28 rounded-2xl border border-line bg-white p-5 shadow-[0_1px_3px_rgba(36,69,42,0.05)]">
+      <aside aria-label="Product filters" className="hidden lg:block min-w-0 w-full">
+        <div className="sticky top-28 rounded-2xl border border-line bg-white p-4.5 shadow-[0_1px_3px_rgba(36,69,42,0.05)] overflow-hidden w-full min-w-0">
           <ShopFilters {...filterProps} />
         </div>
       </aside>
@@ -334,13 +361,51 @@ function CatalogBody({ initialCategories, categories, facets }) {
           </div>
         </div>
 
-        <p className="m-0 mb-4 text-sm text-muted" aria-live="polite">
+        <p className="m-0 mb-3 text-sm text-muted" aria-live="polite">
           {total > 0 ? (
             <>Showing <strong className="font-semibold text-ink">{from}–{to}</strong> of {total} products</>
           ) : (
             "No products match your filters"
           )}
         </p>
+
+        {/* Active Category Filter Chips */}
+        {filters.categories.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <span className="text-xs text-muted font-medium">Filtered by:</span>
+            {filters.categories.map((slug) => {
+              const cat = categories.find((c) => c.slug === slug);
+              return (
+                <button
+                  key={slug}
+                  type="button"
+                  onClick={() => {
+                    setFilters((prev) => ({
+                      ...prev,
+                      categories: prev.categories.filter((s) => s !== slug),
+                    }));
+                    setPage(1);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-forest/10 text-forest hover:bg-forest/20 transition-colors cursor-pointer border-0"
+                  title={`Remove ${cat?.name || slug} filter`}
+                >
+                  <span>{cat?.name || cat?.shortName || slug}</span>
+                  <Icon name="x" size={12} />
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              onClick={() => {
+                setFilters((prev) => ({ ...prev, categories: [] }));
+                setPage(1);
+              }}
+              className="text-xs text-muted hover:text-forest hover:underline cursor-pointer bg-transparent border-0 ml-1"
+            >
+              Reset
+            </button>
+          </div>
+        )}
 
         {/* Results */}
         <div className={`transition-opacity duration-150 ${isUpdating ? "opacity-60" : "opacity-100"}`} aria-busy={isUpdating}>

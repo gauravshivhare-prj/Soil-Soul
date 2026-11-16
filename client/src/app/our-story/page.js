@@ -4,24 +4,25 @@ import { brandSerif } from "@/app/fonts";
 import { PageContainer } from "@/components/ui/PageHeader";
 
 export const metadata = {
-  title: "Our Story | Soil & Soul",
-  description: "Explore plants, gardening essentials and a small Natural Products collection at Soil & Soul.",
+  title: "Our Story — Mindful Living & Living Soil | Soil & Soul",
+  description:
+    "Explore plants, living microbial soil, gardening essentials and natural-care collections crafted for mindful everyday spaces.",
 };
 
 const collections = [
   {
-    title: "Plants",
-    text: "Explore plants for the spaces you call home, from a bright windowsill to a quiet corner.",
+    title: "Living Plants",
+    text: "Resilient foliage, gentle succulents and air-purifying companions acclimatized for homes, from sunlit sills to quiet corners.",
     href: "/shop/plants",
   },
   {
-    title: "Grow at your own pace",
-    text: "Find pots, soil, seeds and tools for the projects you are ready to start.",
+    title: "Tools & Living Soil",
+    text: "Bio-active potting blends, organic vermicompost and forged carbon-steel tools crafted to nurture roots and endure for seasons.",
     href: "/shop/tools",
   },
   {
     title: "Natural Products",
-    text: "Browse a small supporting collection of relevant natural-care products.",
+    text: "Pure organic plant feeds, chemical-free pest care and botanical soil conditioners made to support natural growth.",
     href: "/shop/natural-products",
   },
 ];
@@ -47,9 +48,13 @@ export default function OurStoryPage() {
               A place to grow good things
             </h1>
             <p className="m-0 mt-5 max-w-xl text-base leading-relaxed text-[#465343]">
-              Soil &amp; Soul brings together plants, soil and gardening essentials, with a small Natural Products collection.
-              Browse at your own pace, find what suits your space, and make room for the things
-              you want to grow.
+              Soil &amp; Soul was born out of a quiet realization: in a high-speed world, our living spaces need the
+              grounding calm of nature. We believe thriving plants don&apos;t require an elusive green thumb—just living,
+              microbial soil and thoughtful, time-honoured care.
+            </p>
+            <p className="m-0 mt-3 max-w-xl text-sm leading-relaxed text-[#596254]">
+              From bio-active potting blends and breathable terracotta to hardy indoor foliage and organic nourishment,
+              everything is consciously curated to help you slow down and cultivate life at your own pace.
             </p>
             <Link
               href="/shop"
@@ -70,7 +75,10 @@ export default function OurStoryPage() {
               <article key={item.title} className="rounded-2xl border border-[#e8e1d3] bg-white p-6 sm:p-7">
                 <h3 className={`${brandSerif.className} m-0 text-xl font-semibold text-[#24452a]`}>{item.title}</h3>
                 <p className="m-0 mt-3 text-sm leading-relaxed text-[#596254]">{item.text}</p>
-                <Link href={item.href} className="mt-5 inline-flex min-h-10 items-center text-sm font-medium text-[#315937] underline decoration-[#a8b19d] underline-offset-4 hover:text-[#1b3520] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#24452a]">
+                <Link
+                  href={item.href}
+                  className="mt-5 inline-flex min-h-10 items-center text-sm font-medium text-[#315937] underline decoration-[#a8b19d] underline-offset-4 hover:text-[#1b3520] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#24452a]"
+                >
                   Browse collection <span aria-hidden="true" className="ml-1">→</span>
                 </Link>
               </article>
