@@ -4,6 +4,7 @@
  * Client-side providers shared by every page: toasts, session, cart and wishlist.
  */
 
+import { Suspense } from "react";
 import { ToastProvider } from "@/components/ui/Toast";
 import { AuthProvider } from "@/features/auth/AuthProvider";
 import { CartProvider } from "@/features/cart/CartProvider";
@@ -17,7 +18,9 @@ export default function Providers({ children }) {
         <CartProvider>
           <WishlistProvider>
             {children}
-            <ChatbotWidget />
+            <Suspense fallback={null}>
+              <ChatbotWidget />
+            </Suspense>
           </WishlistProvider>
         </CartProvider>
       </AuthProvider>

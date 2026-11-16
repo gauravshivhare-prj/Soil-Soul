@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -87,7 +87,7 @@ function formatText(text, isUser = false) {
   });
 }
 
-export default function ChatbotWidget() {
+function ChatbotWidgetContent() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState(loadInitialMessages);
@@ -397,5 +397,13 @@ export default function ChatbotWidget() {
         </aside>
       )}
     </>
+  );
+}
+
+export default function ChatbotWidget() {
+  return (
+    <Suspense fallback={null}>
+      <ChatbotWidgetContent />
+    </Suspense>
   );
 }
