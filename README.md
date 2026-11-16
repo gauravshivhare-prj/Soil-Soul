@@ -1,20 +1,23 @@
-# Soil & Soul
+# Soil & Soul — Botanical E-Commerce Platform
 
-Soil & Soul is a full-stack e-commerce application organized around four catalogue categories:
+Soil & Soul is an enterprise-grade full-stack botanical e-commerce application organized around four core departments:
 
-1. Plants.
-2. Tools.
-3. Seeds.
-4. Natural Products.
+1. **Plants** (Indoor, outdoor, low-light, pet-friendly)
+2. **Tools** (Handcrafted gardening tools, watering cans)
+3. **Seeds** (Organic vegetables, culinary herbs, seasonal blooms)
+4. **Soil & Plant Care** (Bio-active potting mixes, vermicompost, seaweed fertiliser, cocopeat)
 
-## Technology
+> 📘 **Stage 2 Assessment Documentation**: For the complete technical report, architecture breakdown, Mermaid ER diagram, and testing metrics, refer to [PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md).
 
-- Frontend: Next.js App Router, JavaScript, React, Tailwind CSS.
-- Backend: Node.js, Express.js, JavaScript ES modules.
-- Database: MongoDB with Mongoose.
-- Checkout: Cash on Delivery; coupon redemption requires a transaction-capable MongoDB deployment. No external payment gateway is enabled.
-- AI assistant: mock responses first; OpenAI API integration in the final phase.
-- Images: local files under `client/public/images/` during initial development.
+## Technology Stack
+
+- **Frontend**: Next.js 16 (App Router, Turbopack), React 19, Tailwind CSS v4, Lucide Botanical Icons.
+- **Backend**: Node.js, Express.js (Layered MVC/Service architecture, ES modules).
+- **Database**: MongoDB Atlas with Mongoose ORM (11 relational schemas).
+- **AI Concierge**: Sprout Botanical Assistant powered by Google Gemini API (`gemini-1.5-flash`) with offline rule fallback.
+- **Checkout**: Cash on Delivery (COD) with concurrency-safe stock deduction.
+- **Security & RBAC**: JWT with HttpOnly cookies, Role-Based Access Control (`customer` & `admin`), Helmet, Rate-Limiting, Mongo-Sanitize, Joi Validation.
+- **Testing**: 119 automated tests (102 backend tests + 17 frontend tests), zero ESLint warnings/errors.
 
 ## Repository layout
 
