@@ -35,7 +35,7 @@ const NAV_LINKS = [
   { label: "Plants", href: "/shop/plants" },
   { label: "Tools", href: "/shop/tools" },
   { label: "Seeds", href: "/shop/seeds" },
-  { label: "Natural Products", href: "/shop/natural-products" },
+  { label: "Soil & Plant Care", href: "/shop/soil-plant-care" },
   { label: "Our Story", href: "/our-story" },
 ];
 

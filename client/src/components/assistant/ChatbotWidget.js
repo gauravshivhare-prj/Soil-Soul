@@ -49,13 +49,14 @@ function formatText(text, isUser = false) {
   const lines = text.split("\n");
   const textColor = isUser ? "text-white" : "text-body";
   const strongColor = isUser ? "text-white" : "text-ink";
+  const inlineStyle = isUser ? { color: "#ffffff" } : undefined;
 
   return lines.map((line, idx) => {
     const parts = line.split(/(\*\*.*?\*\*)/g);
     const formattedParts = parts.map((part, pIdx) => {
       if (part.startsWith("**") && part.endsWith("**")) {
         return (
-          <strong key={pIdx} className={`font-semibold ${strongColor}`}>
+          <strong key={pIdx} className={`font-semibold ${strongColor}`} style={inlineStyle}>
             {part.slice(2, -2)}
           </strong>
         );
@@ -65,13 +66,21 @@ function formatText(text, isUser = false) {
 
     if (line.trim().startsWith("•")) {
       return (
-        <li key={idx} className={`ml-3.5 list-disc text-sm ${textColor} leading-relaxed my-0.5`}>
+        <li
+          key={idx}
+          className={`ml-3.5 list-disc text-sm ${textColor} leading-relaxed my-0.5`}
+          style={inlineStyle}
+        >
           {formattedParts}
         </li>
       );
     }
     return (
-      <p key={idx} className={`my-1 text-sm ${textColor} leading-relaxed last:mb-0 first:mt-0 whitespace-pre-wrap`}>
+      <p
+        key={idx}
+        className={`my-1 text-sm ${textColor} leading-relaxed last:mb-0 first:mt-0 whitespace-pre-wrap`}
+        style={inlineStyle}
+      >
         {formattedParts}
       </p>
     );
@@ -270,6 +279,7 @@ export default function ChatbotWidget() {
                       ? "bg-forest text-white rounded-br-xs"
                       : "bg-white border border-line text-ink rounded-bl-xs"
                   }`}
+                  style={msg.role === "user" ? { color: "#ffffff" } : undefined}
                 >
                   {formatText(msg.content, msg.role === "user")}
                 </div>

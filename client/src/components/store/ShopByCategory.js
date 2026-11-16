@@ -160,7 +160,7 @@ export default function ShopByCategory() {
               Shop by Category
             </h2>
             <p className="m-0 mt-1 text-[0.8125rem] sm:text-sm leading-relaxed text-[#5e6858]">
-              Explore Plants, Tools, Seeds and a small Natural Products collection.
+              Explore Plants, Tools, Seeds and our Soil &amp; Plant Care collection.
             </p>
           </div>
           <Link

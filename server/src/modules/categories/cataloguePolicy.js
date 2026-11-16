@@ -4,6 +4,7 @@ export const MAIN_CATEGORIES = Object.freeze([
   { name: 'Plants', slug: 'plants', displayOrder: 1 },
   { name: 'Tools', slug: 'tools', displayOrder: 2 },
   { name: 'Seeds', slug: 'seeds', displayOrder: 3 },
+  { name: 'Soil & Plant Care', slug: 'soil-plant-care', displayOrder: 4 },
   { name: 'Natural Products', slug: 'natural-products', displayOrder: 4 },
 ]);
 

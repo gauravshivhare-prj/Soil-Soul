@@ -125,7 +125,7 @@ export default function HeroSection() {
             className="mt-4 sm:mt-5 md:mt-[1.2vw] mb-0 max-w-[25rem] md:max-w-[22.5em] text-[0.975rem] sm:text-base md:text-[clamp(0.9rem,1.17vw,1.0625rem)]
                        leading-relaxed text-[#38422f]"
           >
-            Plants, gardening essentials and Natural Products for a
+            Plants, living soil, gardening essentials and plant care for a
             healthier home and a greener tomorrow.
           </p>
 

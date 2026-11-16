@@ -13,5 +13,5 @@ export const FEATURED_FILTERS = [
   { id: "plants", label: "Plants", categories: ["plants"] },
   { id: "tools", label: "Tools", categories: ["tools"] },
   { id: "seeds", label: "Seeds", categories: ["seeds"] },
-  { id: "natural-products", label: "Natural Products", categories: ["natural-products"] },
+  { id: "soil-plant-care", label: "Soil & Plant Care", categories: ["soil-plant-care"] },
 ];

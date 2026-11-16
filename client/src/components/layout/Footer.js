@@ -30,7 +30,7 @@ const LINK_COLUMNS = [
       { label: "Plants", href: categoryHref("plants") },
       { label: "Tools", href: categoryHref("tools") },
       { label: "Seeds", href: categoryHref("seeds") },
-      { label: "Natural Products", href: categoryHref("natural-products") },
+      { label: "Soil & Plant Care", href: categoryHref("soil-plant-care") },
     ],
   },
   {
@@ -42,7 +42,7 @@ const LINK_COLUMNS = [
       { label: "Plants", href: categoryHref("plants") },
       { label: "Tools", href: categoryHref("tools") },
       { label: "Seeds", href: categoryHref("seeds") },
-      { label: "Natural Products", href: categoryHref("natural-products") },
+      { label: "Soil & Plant Care", href: categoryHref("soil-plant-care") },
     ],
   },
   {

@@ -77,7 +77,7 @@ export async function listProducts(queryParams = {}) {
   const categoryIds = publicCategories.map((category) => category._id);
   const requestedCategories = listParam(queryParams.category, 'category', { maxLength: 80 });
   if (requestedCategories.length > 0) {
-    const selected = requestedCategories.map((value) => publicCategories.find((category) => category.slug === value || String(category._id) === value)).filter(Boolean);
+    const selected = requestedCategories.map((value) => publicCategories.find((category) => category.slug === value || String(category._id) === value || (value === 'natural-products' && category.slug === 'soil-plant-care'))).filter(Boolean);
     if (selected.length === 0) {
       return { products: [], pagination: { page, limit, total: 0, totalPages: 1, hasNextPage: false, hasPrevPage: page > 1 } };
     }

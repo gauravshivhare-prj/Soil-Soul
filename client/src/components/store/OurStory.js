@@ -82,7 +82,7 @@ export default function OurStory() {
                 Grow Good Things
               </h2>
               <p className="m-0 mt-3 text-sm xl:text-[0.9375rem] leading-relaxed text-[#3f4a3a]">
-                A place to explore plants, soil, gardening essentials and Natural Products for the
+                A place to explore plants, living soil, gardening essentials and plant care for the
                 everyday spaces where life happens. Find something that fits your home and the
                 way you like to grow.
               </p>

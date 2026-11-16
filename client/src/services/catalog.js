@@ -25,10 +25,15 @@ export const COLLECTIONS = Object.freeze({
     description: "Seeds for your next planting project.",
     categories: ["seeds"],
   },
+  "soil-plant-care": {
+    title: "Soil & Plant Care",
+    description: "Living soil, organic fertilisers, compost, and plant care essentials.",
+    categories: ["soil-plant-care"],
+  },
   "natural-products": {
-    title: "Natural Products",
-    description: "A small selection of relevant natural-care products.",
-    categories: ["natural-products"],
+    title: "Soil & Plant Care",
+    description: "Living soil, organic fertilisers, compost, and plant care essentials.",
+    categories: ["soil-plant-care"],
   },
 });
 

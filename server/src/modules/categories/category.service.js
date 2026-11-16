@@ -23,7 +23,11 @@ export async function getCategoryBySlugOrId(slugOrId) {
   let category;
   try {
     const categories = await getPublicCatalogueCategories();
-    category = categories.find((item) => (isObjectId ? String(item._id) === trimmed || item.slug === trimmed : item.slug === trimmed));
+    category = categories.find((item) =>
+      isObjectId
+        ? String(item._id) === trimmed || item.slug === trimmed
+        : item.slug === trimmed || (trimmed === 'natural-products' && item.slug === 'soil-plant-care')
+    );
   } catch {
     throw createError(400, 'VALIDATION_ERROR', 'Invalid category identifier.');
   }

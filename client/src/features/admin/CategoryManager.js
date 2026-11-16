@@ -76,7 +76,7 @@ function validateForm(form, isNew) {
     errors.slug = "Use lowercase letters, numbers and hyphens.";
   }
   if (isNew && !form.parentId) {
-    errors.parentId = "Select a parent category. All new categories must belong to Plants, Tools, Seeds, or Natural Products.";
+    errors.parentId = "Select a parent category. All new categories must belong to Plants, Tools, Seeds, or Soil & Plant Care.";
   }
   if (!/^\d+$/.test(form.displayOrder.trim())) errors.displayOrder = "Enter a whole number (0 or more).";
   if (form.imageSrc.trim() && form.imageAlt.trim().length < 2) {
@@ -284,7 +284,7 @@ export default function CategoryManager() {
 
   const parentSelectOptions = useMemo(() => {
     const defaultLabel = isNew
-      ? "— Select Parent Category (Plants, Tools, Seeds, Natural Products) —"
+      ? "— Select Parent Category (Plants, Tools, Seeds, Soil & Plant Care) —"
       : "Main Category (Level 1)";
     const options = [
       { value: "", label: defaultLabel },
@@ -869,7 +869,7 @@ export default function CategoryManager() {
                       {!isNew && isMainCategory(editing)
                         ? `${editing.name} is a canonical root category and must remain a top-level category without a parent.`
                         : determinedLevel === 1
-                        ? "Top-level category. Note: Only canonical roots (Plants, Tools, Seeds, Natural Products) can be top-level categories."
+                        ? "Top-level category. Note: Only canonical roots (Plants, Tools, Seeds, Soil & Plant Care) can be top-level categories."
                         : determinedLevel === 2
                         ? `Will be created under ${selectedParent?.name || "selected parent"}.`
                         : `Will be created under ${selectedParent ? getHierarchyPath(selectedParent, allCategories) : "selected parent"}.`}

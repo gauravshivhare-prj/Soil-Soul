@@ -18,7 +18,7 @@ export const CSV_TEMPLATE_CONTENT = [
   "Seeds,seeds,Seeds,Premium seeds for flowering and herbs,Start your garden from seed with tested varieties,,3,,true",
   "Flower Seeds,flower-seeds,Flower Seeds,Vibrant seasonal flower seeds,Easy to grow flower seeds for pots and beds,seeds,1,,true",
   "Annual Flower Seeds,annual-flower-seeds,Annuals,Year-round seasonal blooms,Beautiful annual flowering varieties,flower-seeds,1,,true",
-  "Natural Products,natural-products,Natural Products,Pure plant-based care and wellness,Handcrafted natural care products,,4,,true",
+  "Soil & Plant Care,soil-plant-care,Soil & Care,Living soil and organic plant care,Handcrafted bio-active soils and feeds,,4,,true",
   "Skin Care,skin-care,Skin Care,Gentle natural skin treatments,Botanical face and body care formulations,natural-products,1,,true",
   "Aloe Vera Products,aloe-vera-products,Aloe Vera,Soothing aloe vera skin care,Pure organic aloe vera gels and creams,skin-care,1,,true",
 ].join("\n");

@@ -21,7 +21,7 @@ import { useProductList } from "@/features/catalog/useProductList";
 import { productHref } from "@/lib/routes";
 import { formatPrice } from "@/lib/format";
 
-const loadSpotlight = (signal) => fetchProducts({ category: "natural-products", limit: 3 }, { signal }).then((data) => data.products);
+const loadSpotlight = (signal) => fetchProducts({ category: "soil-plant-care", limit: 3 }, { signal }).then((data) => data.products);
 
 function ArrowRightIcon({ size = 14 }) {
   return (
@@ -107,20 +107,20 @@ export default function NaturalCare() {
               className={`${brandSerif.className} m-0 font-bold text-[#1f3d24] leading-tight
                           text-[1.375rem] sm:text-[1.5rem] xl:text-[1.75rem]`}
             >
-              Natural Products
+              Soil &amp; Plant Care
             </h2>
             <p className="m-0 mt-1 text-[0.8125rem] sm:text-sm leading-relaxed text-[#5e6858]">
-              A small supporting collection of Natural Products.
+              Bio-active living soils, organic nutrition, and essential plant care.
             </p>
           </div>
           <Link
-            href="/shop/natural-products"
+            href="/shop/soil-plant-care"
             className="group inline-flex flex-shrink-0 items-center gap-1.5 pb-1 text-[0.8125rem] sm:text-sm font-semibold
                        text-[#24452a] no-underline whitespace-nowrap hover:text-[#1b3520]
                        focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#24452a] rounded"
           >
             <span>
-              View All<span className="hidden sm:inline"> Natural Products</span>
+              View All<span className="hidden sm:inline"> Soil &amp; Plant Care</span>
             </span>
             <ArrowRightIcon size={15} />
           </Link>

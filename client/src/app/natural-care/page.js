@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
-export const metadata = { title: "Natural Products | Soil & Soul" };
+export const metadata = { title: "Soil & Plant Care | Soil & Soul" };
 
 export default function Page() {
-  redirect("/shop/natural-products");
+  redirect("/shop/soil-plant-care");
 }

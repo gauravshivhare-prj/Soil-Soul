@@ -21,9 +21,9 @@ const collections = [
     href: "/shop/tools",
   },
   {
-    title: "Natural Products",
+    title: "Soil & Plant Care",
     text: "Pure organic plant feeds, chemical-free pest care and botanical soil conditioners made to support natural growth.",
-    href: "/shop/natural-products",
+    href: "/shop/soil-plant-care",
   },
 ];
 
