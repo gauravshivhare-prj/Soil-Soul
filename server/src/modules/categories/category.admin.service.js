@@ -61,9 +61,10 @@ async function saveOrConflict(promise) {
 
 function getParentIdString(parent) {
   if (!parent) return null;
-  if (typeof parent === 'object') {
-    return String(parent.id || parent._id || parent);
-  }
+  if (typeof parent === 'string') return parent;
+  if (parent._id) return String(parent._id);
+  if (typeof parent.id === 'string') return parent.id;
+  if (typeof parent.toHexString === 'function') return parent.toHexString();
   return String(parent);
 }
 

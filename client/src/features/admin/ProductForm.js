@@ -9,7 +9,7 @@
  * and specs aren't edited here and are left unchanged on save. The API validates everything again.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Card, { CardHeader } from "@/components/ui/Card";
@@ -22,6 +22,7 @@ import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { useAuthedResource } from "@/features/auth/useAuthedResource";
 import { productHref } from "@/lib/routes";
+import { getParentId, getCategoryLevel, getHierarchyPath } from "./categoryHierarchy";
 
 const toSlug = (s) => s.toLowerCase().trim().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const isMoney = (v) => /^\d+(\.\d{1,2})?$/.test(String(v).trim());
@@ -197,8 +198,89 @@ export default function ProductForm({ product }) {
     }
   }
 
+  const allCategories = useMemo(() => categories.data?.categories ?? [], [categories.data?.categories]);
+
   // Archived categories can't take products; keep the current one listed when editing.
-  const categoryOptions = (categories.data?.categories ?? []).filter((c) => (c.isActive && !c.archivedAt) || c.id === values.categoryId);
+  const activeCategories = useMemo(
+    () => allCategories.filter((c) => (c.isActive && !c.archivedAt) || c.id === values.categoryId),
+    [allCategories, values.categoryId]
+  );
+
+  const mainCategoryOptions = useMemo(() => {
+    return activeCategories
+      .filter((c) => !getParentId(c.parent))
+      .map((c) => ({ value: c.id, label: c.name }));
+  }, [activeCategories]);
+
+  // Find the currently assigned category
+  const currentCategory = useMemo(() => {
+    return allCategories.find((c) => c.id === values.categoryId) || null;
+  }, [allCategories, values.categoryId]);
+
+  // Derive active ancestry cleanly without synchronous setState-in-effect
+  const categoryHierarchySelection = useMemo(() => {
+    if (!values.categoryId || allCategories.length === 0) {
+      return { mainId: "", subId: "", nestedId: "" };
+    }
+    const cat = allCategories.find((c) => c.id === values.categoryId);
+    if (!cat) return { mainId: "", subId: "", nestedId: "" };
+    const lvl = getCategoryLevel(cat, allCategories);
+    if (lvl === 1) {
+      return { mainId: cat.id, subId: "", nestedId: "" };
+    }
+    if (lvl === 2) {
+      const pId = getParentId(cat.parent);
+      return { mainId: pId || "", subId: cat.id, nestedId: "" };
+    }
+    if (lvl === 3) {
+      const pId = getParentId(cat.parent);
+      const parent = allCategories.find((c) => c.id === pId);
+      const grandParentId = getParentId(parent?.parent);
+      return { mainId: grandParentId || "", subId: pId || "", nestedId: cat.id };
+    }
+    return { mainId: "", subId: "", nestedId: "" };
+  }, [values.categoryId, allCategories]);
+
+  // Temporary selection of main category before subcategory is chosen
+  const [userMainId, setUserMainId] = useState(null);
+  const selectedMainId = userMainId !== null ? userMainId : categoryHierarchySelection.mainId;
+  const selectedSubId = categoryHierarchySelection.subId;
+  const selectedNestedId = categoryHierarchySelection.nestedId;
+
+  // Subcategories belonging to the chosen main category
+  const subcategoryOptions = useMemo(() => {
+    if (!selectedMainId) return [];
+    return activeCategories
+      .filter((c) => getParentId(c.parent) === selectedMainId)
+      .map((c) => ({ value: c.id, label: c.name }));
+  }, [selectedMainId, activeCategories]);
+
+  // Nested categories belonging to the chosen subcategory
+  const nestedOptions = useMemo(() => {
+    if (!selectedSubId) return [];
+    return activeCategories
+      .filter((c) => getParentId(c.parent) === selectedSubId)
+      .map((c) => ({ value: c.id, label: c.name }));
+  }, [selectedSubId, activeCategories]);
+
+  const handleMainCategoryChange = (mainId) => {
+    setUserMainId(mainId);
+    setValues((v) => ({ ...v, categoryId: "" }));
+    if (errors.categoryId) setErrors((errs) => ({ ...errs, categoryId: "" }));
+  };
+
+  const handleSubcategoryChange = (subId) => {
+    setUserMainId(null);
+    setValues((v) => ({ ...v, categoryId: subId }));
+    if (errors.categoryId) setErrors((errs) => ({ ...errs, categoryId: "" }));
+  };
+
+  const handleNestedCategoryChange = (nestedId) => {
+    setUserMainId(null);
+    setValues((v) => ({ ...v, categoryId: nestedId || selectedSubId }));
+    if (errors.categoryId) setErrors((errs) => ({ ...errs, categoryId: "" }));
+  };
+
   const preview = values.images.find((img) => img.isPrimary && /^(https:\/\/|\/images\/)/.test(img.src.trim()))
     ?? values.images.find((img) => /^(https:\/\/|\/images\/)/.test(img.src.trim()));
 
@@ -217,15 +299,69 @@ export default function ProductForm({ product }) {
                 URL: <Link href={productHref(product.slug)} className="text-forest">/products/{product.slug}</Link>
               </p>
             )}
-            <SelectField
-              label="Category"
-              name="categoryId"
-              value={values.categoryId}
-              onChange={set("categoryId")}
-              error={errors.categoryId ?? (categories.status === "error" ? categories.error.message : undefined)}
-              required
-              options={[{ value: "", label: categories.status === "loading" ? "Loading…" : "Select category" }, ...categoryOptions.map((c) => ({ value: c.id, label: `${c.hierarchyPath || (c.parent?.name ? `${c.parent.name} / ` : "") + c.name}${c.isActive ? "" : " (hidden)"}` }))]}
-            />
+            {/* Cascading Category Selector: Select Main Category -> Reveals Subcategories -> Nested */}
+            <div className="sm:col-span-2 p-3.5 bg-sand/20 rounded-xl border border-line space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="text-xs font-bold text-ink uppercase tracking-wider flex items-center gap-1.5">
+                  <Icon name="tag" size={13} className="text-forest" />
+                  Category Hierarchy
+                </span>
+                {values.categoryId && currentCategory && (
+                  <span className="text-xs font-semibold text-forest bg-forest/10 px-2.5 py-0.5 rounded-full">
+                    Selected: {getHierarchyPath(currentCategory, allCategories)}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {/* 1. Main Category */}
+                <SelectField
+                  label="1. Main Category"
+                  value={selectedMainId}
+                  onChange={(e) => handleMainCategoryChange(e.target.value)}
+                  options={[
+                    { value: "", label: categories.status === "loading" ? "Loading…" : "— Choose Main Category —" },
+                    ...mainCategoryOptions,
+                  ]}
+                  required
+                />
+
+                {/* 2. Subcategory */}
+                <SelectField
+                  label="2. Subcategory"
+                  name="categoryId"
+                  value={selectedSubId}
+                  onChange={(e) => handleSubcategoryChange(e.target.value)}
+                  disabled={!selectedMainId || subcategoryOptions.length === 0}
+                  options={[
+                    {
+                      value: "",
+                      label: !selectedMainId
+                        ? "← Select Main Category first"
+                        : subcategoryOptions.length === 0
+                        ? "No subcategories available"
+                        : "— Choose Subcategory —",
+                    },
+                    ...subcategoryOptions,
+                  ]}
+                  error={errors.categoryId ?? (categories.status === "error" ? categories.error.message : undefined)}
+                  required
+                />
+
+                {/* 3. Nested Subcategory (Level 3 - Optional if subcategory has children) */}
+                {nestedOptions.length > 0 && (
+                  <SelectField
+                    label="3. Nested Subcategory (Optional)"
+                    value={selectedNestedId}
+                    onChange={(e) => handleNestedCategoryChange(e.target.value)}
+                    options={[
+                      { value: "", label: "— Specific Type (Optional) —" },
+                      ...nestedOptions,
+                    ]}
+                  />
+                )}
+              </div>
+            </div>
             <TextField label="SKU (optional)" name="sku" value={values.sku} onChange={set("sku")} error={errors.sku} maxLength={40} />
             <TextField label="Short summary" name="summary" value={values.summary} onChange={set("summary")} maxLength={300} className="sm:col-span-2" />
             <TextArea label="Description" name="description" value={values.description} onChange={set("description")} rows={5} maxLength={5000} className="sm:col-span-2" />

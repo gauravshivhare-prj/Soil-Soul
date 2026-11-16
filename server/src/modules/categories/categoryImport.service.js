@@ -198,7 +198,9 @@ export function validateCategoryBatch(rawRows, existingCategories = []) {
   const validCandidates = [];
 
   // Pass 1: Syntax, field lengths, and duplicate checks
-  for (const row of rawRows) {
+  for (let idx = 0; idx < rawRows.length; idx++) {
+    const row = rawRows[idx];
+    const rowNum = row._rowNumber ?? row.rowNumber ?? (idx + 1);
     const errors = [];
     let isDuplicate = false;
 
@@ -230,7 +232,7 @@ export function validateCategoryBatch(rawRows, existingCategories = []) {
         errors.push(`Duplicate slug "${trimmedSlug}" found in CSV (first seen at row ${seenSlugsInCsv.get(normalizedSlug)}).`);
         isDuplicate = true;
       } else {
-        seenSlugsInCsv.set(normalizedSlug, row._rowNumber);
+        seenSlugsInCsv.set(normalizedSlug, rowNum);
       }
 
       // Existing DB duplicate slug check
@@ -306,7 +308,8 @@ export function validateCategoryBatch(rawRows, existingCategories = []) {
     }
 
     const validatedRow = {
-      rowNumber: row._rowNumber,
+      _rowNumber: rowNum,
+      rowNumber: rowNum,
       name: trimmedName,
       slug: trimmedSlug,
       shortName: row.shortName || trimmedName,

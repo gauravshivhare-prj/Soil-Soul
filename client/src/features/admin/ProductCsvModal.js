@@ -96,9 +96,10 @@ export default function ProductCsvModal({ isOpen, onClose, onSuccess }) {
     setErrorMessage(null);
 
     try {
+      const validRowsToImport = validationResult.rows.filter((r) => r.isValid);
       const res = await authRequest("/admin/products/import", {
         method: "POST",
-        body: { rows: validationResult.rows },
+        body: { rows: validRowsToImport },
       });
       setImportSummary(res);
       notify(`Successfully imported ${res.importedCount} products!`);

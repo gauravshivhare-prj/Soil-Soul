@@ -118,43 +118,51 @@ export function parseProductCsv(text) {
     throw createError(400, 'CSV_EMPTY', 'The uploaded CSV file has no content.');
   }
 
-  // Normalize header names (lowercase, trimmed)
+  // Normalize header names (lowercase, trimmed, strip whitespace, underscores, dashes, parens)
+  const cleanHeader = (h) => (h || '').toLowerCase().trim().replace(/[\s_\-()]/g, '');
   const rawHeaders = lines[0].map((h) => h.trim());
-  const headerMap = new Map(rawHeaders.map((h, idx) => [h.toLowerCase(), idx]));
+  const headerMap = new Map(rawHeaders.map((h, idx) => [cleanHeader(h), idx]));
 
-  if (!headerMap.has('name') || !headerMap.has('categoryslug')) {
+  const getCol = (rawRow, ...aliases) => {
+    for (const a of aliases) {
+      const idx = headerMap.get(cleanHeader(a));
+      if (idx !== undefined && rawRow[idx] !== undefined) {
+        return String(rawRow[idx]).trim();
+      }
+    }
+    return '';
+  };
+
+  const hasCol = (...aliases) => aliases.some((a) => headerMap.has(cleanHeader(a)));
+
+  if (!hasCol('name', 'productName', 'title') || !hasCol('categorySlug', 'category', 'categoryName', 'category_slug', 'categories')) {
     throw createError(
       400,
       'INVALID_CSV_HEADERS',
-      'CSV must include at least "name" and "categorySlug" columns. Expected: ' + PRODUCT_CSV_COLUMNS.join(',')
+      'CSV must include at least "name" and "categorySlug" (or "category") columns. Expected: ' + PRODUCT_CSV_COLUMNS.join(',')
     );
   }
 
   const rows = [];
   for (let rIdx = 1; rIdx < lines.length; rIdx++) {
     const rawRow = lines[rIdx];
-    const getVal = (col) => {
-      const colIdx = headerMap.get(col.toLowerCase());
-      if (colIdx === undefined || rawRow[colIdx] === undefined) return '';
-      return String(rawRow[colIdx]).trim();
-    };
 
-    const name = getVal('name');
-    const slug = getVal('slug');
-    const categorySlug = getVal('categoryslug');
-    const priceRaw = getVal('price');
-    const mrpRaw = getVal('mrp');
-    const stockRaw = getVal('stock');
-    const statusRaw = getVal('status');
-    const skuRaw = getVal('sku');
-    const summary = getVal('summary');
-    const description = getVal('description');
-    const tagsRaw = getVal('tags');
-    const lightRaw = getVal('light');
-    const sizeRaw = getVal('size');
-    const isFeaturedRaw = getVal('isfeatured');
-    const imageUrl = getVal('imageurl');
-    const imageAlt = getVal('imagealt');
+    const name = getCol(rawRow, 'name', 'productName', 'title');
+    const slug = getCol(rawRow, 'slug', 'handle');
+    const categorySlug = getCol(rawRow, 'categorySlug', 'category', 'categoryName', 'category_slug', 'categories');
+    const priceRaw = getCol(rawRow, 'price', 'priceInr', 'price_inr', 'sellingPrice', 'rate');
+    const mrpRaw = getCol(rawRow, 'mrp', 'originalPrice', 'compareAtPrice', 'mrpInr');
+    const stockRaw = getCol(rawRow, 'stock', 'inventory', 'quantity', 'qty');
+    const statusRaw = getCol(rawRow, 'status');
+    const skuRaw = getCol(rawRow, 'sku', 'code', 'productCode');
+    const summary = getCol(rawRow, 'summary', 'shortDescription', 'tagline');
+    const description = getCol(rawRow, 'description', 'details');
+    const tagsRaw = getCol(rawRow, 'tags', 'keywords');
+    const lightRaw = getCol(rawRow, 'light', 'sunlight');
+    const sizeRaw = getCol(rawRow, 'size');
+    const isFeaturedRaw = getCol(rawRow, 'isFeatured', 'featured', 'is_featured');
+    const imageUrl = getCol(rawRow, 'imageUrl', 'image', 'imagesrc', 'photo', 'img');
+    const imageAlt = getCol(rawRow, 'imageAlt', 'alt', 'imageDescription', 'image_alt');
 
     // Skip blank lines
     if (!name && !slug && !categorySlug && !priceRaw && !description) continue;
@@ -192,6 +200,15 @@ export function parseProductCsv(text) {
   return rows;
 }
 
+export function getParentId(parent) {
+  if (!parent) return null;
+  if (typeof parent === 'string') return parent;
+  if (parent._id) return String(parent._id);
+  if (typeof parent.id === 'string') return parent.id;
+  if (typeof parent.toHexString === 'function') return parent.toHexString();
+  return String(parent);
+}
+
 /**
  * Helper to resolve the canonical root category in memory without hitting the DB repeatedly.
  */
@@ -200,10 +217,10 @@ function resolveRootInMemory(category, catById) {
   let curr = category;
   const seen = new Set();
   for (let depth = 0; curr && depth <= 10; depth++) {
-    const id = String(curr._id || curr.id);
+    const id = getParentId(curr._id || curr.id);
     if (seen.has(id) || curr.isActive === false || curr.archivedAt) return null;
     seen.add(id);
-    const parentId = curr.parent ? String(curr.parent.id || curr.parent._id || curr.parent) : null;
+    const parentId = getParentId(curr.parent);
     if (!parentId) {
       return isMainCategorySlug(curr.slug) ? curr : null;
     }
@@ -220,7 +237,13 @@ export async function validateProductBatch(rawRows, { existingProducts = [], exi
     existingCategories.map((c) => [c.slug.toLowerCase(), c])
   );
   const categoryById = new Map(
-    existingCategories.map((c) => [String(c._id || c.id), c])
+    existingCategories.map((c) => [getParentId(c._id || c.id), c])
+  );
+  const categoryByName = new Map(
+    existingCategories.map((c) => [c.name.trim().toLowerCase(), c])
+  );
+  const categoryByShortName = new Map(
+    existingCategories.filter((c) => c.shortName).map((c) => [c.shortName.trim().toLowerCase(), c])
   );
   const existingProductSlugs = new Set(
     existingProducts.map((p) => p.slug.toLowerCase())
@@ -251,7 +274,9 @@ export async function validateProductBatch(rawRows, { existingProducts = [], exi
 
   const validatedRows = [];
 
-  for (const row of rawRows) {
+  for (let idx = 0; idx < rawRows.length; idx++) {
+    const row = rawRows[idx];
+    const rowNum = row._rowNumber ?? row.rowNumber ?? (idx + 1);
     const errors = [];
     const warnings = [];
 
@@ -281,7 +306,7 @@ export async function validateProductBatch(rawRows, { existingProducts = [], exi
       if (seenSlugsInCsv.has(resolvedSlug)) {
         errors.push(`Duplicate slug "${resolvedSlug}" in CSV (first seen at row ${seenSlugsInCsv.get(resolvedSlug)}).`);
       } else {
-        seenSlugsInCsv.set(resolvedSlug, row._rowNumber);
+        seenSlugsInCsv.set(resolvedSlug, rowNum);
       }
 
       if (existingProductSlugs.has(resolvedSlug)) {
@@ -290,14 +315,21 @@ export async function validateProductBatch(rawRows, { existingProducts = [], exi
     }
 
     // 3. Category validation
-    const trimmedCatSlug = (row.categorySlug || '').trim().toLowerCase();
+    const trimmedCatSlug = (row.categorySlug || '').trim();
     let resolvedCategory = null;
     let isNaturalProduct = false;
 
     if (!trimmedCatSlug) {
-      errors.push('Category slug is required.');
+      errors.push('Category slug or name is required.');
     } else {
-      resolvedCategory = categoryBySlug.get(trimmedCatSlug);
+      const lowerCat = trimmedCatSlug.toLowerCase();
+      const slugified = toSlug(trimmedCatSlug);
+      resolvedCategory =
+        categoryBySlug.get(lowerCat) ||
+        categoryBySlug.get(slugified) ||
+        categoryByName.get(lowerCat) ||
+        categoryByShortName.get(lowerCat);
+
       if (!resolvedCategory) {
         errors.push(`Category "${trimmedCatSlug}" does not exist in the database.`);
       } else if (resolvedCategory.isActive === false || resolvedCategory.archivedAt) {
@@ -316,10 +348,16 @@ export async function validateProductBatch(rawRows, { existingProducts = [], exi
     let resolvedStatus = 'active';
     if (row.statusRaw) {
       const lowerStatus = row.statusRaw.trim().toLowerCase();
-      if (!VALID_STATUSES.includes(lowerStatus)) {
-        errors.push(`Status must be one of: ${VALID_STATUSES.join(', ')}.`);
-      } else {
+      if (['active', 'in stock', 'instock', 'available', 'live', 'published', 'yes', 'true', '1'].includes(lowerStatus)) {
+        resolvedStatus = 'active';
+      } else if (['inactive', 'out of stock', 'outofstock', 'archived', 'disabled', 'hidden', 'no', 'false', '0'].includes(lowerStatus)) {
+        resolvedStatus = 'inactive';
+      } else if (['draft', 'unpublished'].includes(lowerStatus)) {
+        resolvedStatus = 'draft';
+      } else if (VALID_STATUSES.includes(lowerStatus)) {
         resolvedStatus = lowerStatus;
+      } else {
+        errors.push(`Status must be one of: ${VALID_STATUSES.join(', ')}.`);
       }
     }
 
@@ -334,8 +372,12 @@ export async function validateProductBatch(rawRows, { existingProducts = [], exi
 
     // 5. Price validation
     let resolvedPrice = null;
-    if (row.priceRaw !== '' && row.priceRaw !== undefined && row.priceRaw !== null) {
-      const parsedPrice = Number(row.priceRaw);
+    const cleanPriceStr = (row.priceRaw !== '' && row.priceRaw !== undefined && row.priceRaw !== null)
+      ? String(row.priceRaw).replace(/^[₹\sRs.INR$]+/i, '').replace(/,/g, '').trim()
+      : '';
+
+    if (cleanPriceStr !== '') {
+      const parsedPrice = Number(cleanPriceStr);
       if (!Number.isFinite(parsedPrice) || parsedPrice <= 0 || parsedPrice > 1000000) {
         errors.push('Price must be a number between 0.01 and 1,000,000.');
       } else {
@@ -347,8 +389,12 @@ export async function validateProductBatch(rawRows, { existingProducts = [], exi
 
     // 6. MRP validation
     let resolvedMrp = null;
-    if (row.mrpRaw !== '' && row.mrpRaw !== undefined && row.mrpRaw !== null) {
-      const parsedMrp = Number(row.mrpRaw);
+    const cleanMrpStr = (row.mrpRaw !== '' && row.mrpRaw !== undefined && row.mrpRaw !== null)
+      ? String(row.mrpRaw).replace(/^[₹\sRs.INR$]+/i, '').replace(/,/g, '').trim()
+      : '';
+
+    if (cleanMrpStr !== '') {
+      const parsedMrp = Number(cleanMrpStr);
       if (!Number.isFinite(parsedMrp) || parsedMrp <= 0 || parsedMrp > 1000000) {
         errors.push('MRP must be a number between 0.01 and 1,000,000.');
       } else if (resolvedPrice !== null && parsedMrp < resolvedPrice) {
@@ -360,11 +406,15 @@ export async function validateProductBatch(rawRows, { existingProducts = [], exi
 
     // 7. Stock validation
     let resolvedStock = 0;
-    if (row.stockRaw !== '' && row.stockRaw !== undefined && row.stockRaw !== null) {
-      if (!/^\d+$/.test(String(row.stockRaw).trim())) {
+    const cleanStockStr = (row.stockRaw !== '' && row.stockRaw !== undefined && row.stockRaw !== null)
+      ? String(row.stockRaw).replace(/,/g, '').trim()
+      : '';
+
+    if (cleanStockStr !== '') {
+      if (!/^\d+$/.test(cleanStockStr)) {
         errors.push('Stock must be a non-negative whole integer.');
       } else {
-        const parsedStock = parseInt(String(row.stockRaw).trim(), 10);
+        const parsedStock = parseInt(cleanStockStr, 10);
         if (parsedStock > 100000) {
           errors.push('Stock cannot exceed 100,000.');
         } else {
@@ -383,7 +433,7 @@ export async function validateProductBatch(rawRows, { existingProducts = [], exi
         if (seenSkusInCsv.has(upperSku)) {
           errors.push(`Duplicate SKU "${upperSku}" in CSV (first seen at row ${seenSkusInCsv.get(upperSku)}).`);
         } else {
-          seenSkusInCsv.set(upperSku, row._rowNumber);
+          seenSkusInCsv.set(upperSku, rowNum);
         }
 
         if (existingSkus.has(upperSku)) {
@@ -408,7 +458,7 @@ export async function validateProductBatch(rawRows, { existingProducts = [], exi
     let resolvedTags = [];
     if (row.tagsRaw) {
       const rawTagList = row.tagsRaw
-        .split(/[;,]/)
+        .split(/[;,|]/)
         .map((t) => t.trim().toLowerCase())
         .filter(Boolean);
       resolvedTags = [...new Set(rawTagList)];
@@ -426,21 +476,33 @@ export async function validateProductBatch(rawRows, { existingProducts = [], exi
     // 11. Light & Size
     let resolvedLight = null;
     if (row.lightRaw) {
-      const lowerLight = row.lightRaw.trim().toLowerCase();
-      if (!VALID_LIGHTS.includes(lowerLight)) {
-        errors.push(`Light must be one of: ${VALID_LIGHTS.join(', ')}.`);
-      } else {
+      const lowerLight = row.lightRaw.trim().toLowerCase().replace(/\s+/g, '-');
+      if (VALID_LIGHTS.includes(lowerLight)) {
         resolvedLight = lowerLight;
+      } else if (lowerLight === 'bright-indirect' || lowerLight === 'indirect' || lowerLight === 'medium') {
+        resolvedLight = 'bright-indirect';
+      } else if (lowerLight === 'low' || lowerLight === 'shade' || lowerLight === 'low-light') {
+        resolvedLight = 'low';
+      } else if (lowerLight === 'full-sun' || lowerLight === 'direct' || lowerLight === 'direct-sun' || lowerLight === 'high') {
+        resolvedLight = 'full-sun';
+      } else {
+        errors.push(`Light must be one of: ${VALID_LIGHTS.join(', ')}.`);
       }
     }
 
     let resolvedSize = null;
     if (row.sizeRaw) {
       const lowerSize = row.sizeRaw.trim().toLowerCase();
-      if (!VALID_SIZES.includes(lowerSize)) {
-        errors.push(`Size must be one of: ${VALID_SIZES.join(', ')}.`);
-      } else {
+      if (VALID_SIZES.includes(lowerSize)) {
         resolvedSize = lowerSize;
+      } else if (lowerSize === 's' || lowerSize === 'sm') {
+        resolvedSize = 'small';
+      } else if (lowerSize === 'm' || lowerSize === 'med') {
+        resolvedSize = 'medium';
+      } else if (lowerSize === 'l' || lowerSize === 'lg') {
+        resolvedSize = 'large';
+      } else {
+        errors.push(`Size must be one of: ${VALID_SIZES.join(', ')}.`);
       }
     }
 
@@ -448,9 +510,9 @@ export async function validateProductBatch(rawRows, { existingProducts = [], exi
     let resolvedIsFeatured = false;
     if (row.isFeaturedRaw !== '' && row.isFeaturedRaw !== undefined && row.isFeaturedRaw !== null) {
       const lower = String(row.isFeaturedRaw).trim().toLowerCase();
-      if (['true', '1', 'yes', 'on'].includes(lower)) {
+      if (['true', '1', 'yes', 'on', 'y'].includes(lower)) {
         resolvedIsFeatured = true;
-      } else if (['false', '0', 'no', 'off'].includes(lower)) {
+      } else if (['false', '0', 'no', 'off', 'n', ''].includes(lower)) {
         resolvedIsFeatured = false;
       } else {
         errors.push('isFeatured must be a boolean (true/false/yes/no).');
@@ -460,7 +522,10 @@ export async function validateProductBatch(rawRows, { existingProducts = [], exi
     // 13. Image validation
     let resolvedImages = [];
     const trimmedImgUrl = (row.imageUrl || '').trim();
-    const trimmedImgAlt = (row.imageAlt || '').trim();
+    let trimmedImgAlt = (row.imageAlt || '').trim();
+    if (!trimmedImgAlt && trimmedName) {
+      trimmedImgAlt = trimmedName;
+    }
 
     if (trimmedImgUrl) {
       if (!/^(https:\/\/|\/images\/)/.test(trimmedImgUrl)) {
@@ -489,14 +554,15 @@ export async function validateProductBatch(rawRows, { existingProducts = [], exi
     const isValid = errors.length === 0;
 
     validatedRows.push({
-      _rowNumber: row._rowNumber,
+      _rowNumber: rowNum,
+      rowNumber: rowNum,
       isValid,
       errors,
       warnings,
       data: {
         name: trimmedName,
         slug: resolvedSlug,
-        categorySlug: trimmedCatSlug,
+        categorySlug: resolvedCategory ? resolvedCategory.slug : trimmedCatSlug,
         categoryId: resolvedCategory ? String(resolvedCategory._id) : null,
         categoryName: resolvedCategory ? resolvedCategory.name : null,
         price: resolvedPrice,
@@ -547,7 +613,8 @@ export async function importProductBatch(
   const rawRowsToValidate = inputRows.map((r, idx) => {
     const raw = r.data || r;
     return {
-      _rowNumber: r._rowNumber || idx + 1,
+      _rowNumber: r._rowNumber ?? r.rowNumber ?? (idx + 1),
+      rowNumber: r._rowNumber ?? r.rowNumber ?? (idx + 1),
       name: raw.name,
       slug: raw.slug,
       categorySlug: raw.categorySlug,
