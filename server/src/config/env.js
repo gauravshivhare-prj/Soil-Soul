@@ -95,6 +95,8 @@ if (emailProvider === 'gmail_smtp' && (!emailFrom || !smtpUser || !smtpAppPasswo
   throw new Error('Missing EMAIL_FROM, SMTP_USER or SMTP_APP_PASSWORD: all are required when EMAIL_PROVIDER=gmail_smtp.');
 }
 
+const geminiApiKey = (process.env.GEMINI_API_KEY || '').trim();
+
 export const env = Object.freeze({
   env: nodeEnv,
   isProduction,
@@ -112,6 +114,8 @@ export const env = Object.freeze({
   emailApiKey,
   smtpUser,
   smtpAppPassword,
+  // Optional Google Gemini API key for AI assistant
+  geminiApiKey,
   // Max auth requests per client IP per 15 minutes.
   authRateLimitMax: int('AUTH_RATE_LIMIT_MAX', 20, 1, 10000),
   // Max API requests per client IP per 15 minutes.

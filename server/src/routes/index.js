@@ -17,6 +17,7 @@ import adminReviewRouter from '../modules/reviews/admin.review.routes.js';
 import couponRouter from '../modules/coupons/coupon.routes.js';
 import adminCouponRouter from '../modules/coupons/admin.coupon.routes.js';
 import adminReturnRouter from '../modules/orders/admin.return.routes.js';
+import assistantRouter from '../modules/assistant/assistant.routes.js';
 
 const router = Router();
 
@@ -67,5 +68,9 @@ router.use('/admin/reviews', adminReviewRouter);
 router.use('/coupons', couponRouter);
 router.use('/admin/coupons', adminCouponRouter);
 router.use('/admin/returns', adminReturnRouter);
+
+// Assistant / AI Chatbot routes (/api/v1/assistant, /api/v1/chat)
+router.use('/assistant', assistantRouter);
+router.use('/chat', assistantRouter);
 
 export default router;

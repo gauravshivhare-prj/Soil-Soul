@@ -8,13 +8,17 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { AuthProvider } from "@/features/auth/AuthProvider";
 import { CartProvider } from "@/features/cart/CartProvider";
 import { WishlistProvider } from "@/features/wishlist/WishlistProvider";
+import ChatbotWidget from "@/components/assistant/ChatbotWidget";
 
 export default function Providers({ children }) {
   return (
     <ToastProvider>
       <AuthProvider>
         <CartProvider>
-          <WishlistProvider>{children}</WishlistProvider>
+          <WishlistProvider>
+            {children}
+            <ChatbotWidget />
+          </WishlistProvider>
         </CartProvider>
       </AuthProvider>
     </ToastProvider>

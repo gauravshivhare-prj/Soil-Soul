@@ -41,20 +41,16 @@ export default function PriceRange({ min, max, value, onChange, step = 10 }) {
   };
 
   return (
-    <div className="w-full select-none">
-      <div className="flex items-center justify-between text-xs mb-3 font-mono">
-        <span className="font-medium text-ink bg-sand/60 px-2 py-0.5 rounded-md">
-          {formatPrice(lo)}
-        </span>
-        <span className="text-muted text-[11px] font-sans">to</span>
-        <span className="font-medium text-ink bg-sand/60 px-2 py-0.5 rounded-md">
-          {formatPrice(hi)}
-        </span>
+    <div className="w-full select-none pt-1">
+      {/* Price Labels (matching Image 4 design: clean ₹59 and ₹700 on left and right) */}
+      <div className="flex items-center justify-between text-sm font-medium text-ink mb-2 px-0.5">
+        <span>{formatPrice(lo)}</span>
+        <span>{formatPrice(hi)}</span>
       </div>
 
       <div className="relative h-5 flex items-center px-0.5">
         {/* Inactive Track */}
-        <div className="absolute inset-x-0 h-1.5 rounded-full bg-sand/80" />
+        <div className="absolute inset-x-0 h-1.5 rounded-full bg-[#e5e8e3]" />
 
         {/* Active Track Highlight */}
         <div
