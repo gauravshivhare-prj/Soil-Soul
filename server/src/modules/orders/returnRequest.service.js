@@ -162,6 +162,29 @@ export async function recordCodRefund(id, { adminId, note } = {}) {
     { returnDocument: 'after' },
   );
   if (!result) throw createError(409, 'REFUND_NOT_RECORDABLE', 'This return has no pending refund bookkeeping entry.');
+
+  // Automatically update parent Order ledger: increment totalRefunded & record refund
+  const orderDoc = await Order.findById(result.order);
+  if (orderDoc) {
+    const currentRefunded = Number(orderDoc.totalRefunded || 0);
+    const newTotalRefunded = Math.round((currentRefunded + result.amount) * 100) / 100;
+    orderDoc.totalRefunded = newTotalRefunded;
+    if (!Array.isArray(orderDoc.refunds)) orderDoc.refunds = [];
+    orderDoc.refunds.push({
+      amount: result.amount,
+      reason: result.reason || 'Return Request Refund',
+      note: note.trim(),
+      refundedAt: new Date(),
+      refundedBy: adminId,
+    });
+    if (newTotalRefunded >= orderDoc.total) {
+      orderDoc.paymentStatus = 'REFUNDED';
+    } else if (newTotalRefunded > 0) {
+      orderDoc.paymentStatus = 'PARTIALLY_REFUNDED';
+    }
+    await orderDoc.save();
+  }
+
   return result;
 }
 

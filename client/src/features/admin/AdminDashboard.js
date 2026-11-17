@@ -26,6 +26,7 @@ const RANGES = [
   { id: "7d", label: "Last 7 days" },
   { id: "30d", label: "Last 30 days" },
 ];
+
 const STATUS_COLORS = {
   PLACED: "#d9c9a3",
   CONFIRMED: "#c6d6b3",
@@ -34,11 +35,13 @@ const STATUS_COLORS = {
   DELIVERED: "#24452a",
   CANCELLED: "#e07a5f",
 };
+
 const QUICK_ACTIONS = [
   { icon: "sprout", title: "Manage Products", text: "Add, edit or archive products.", href: "/admin/products" },
   { icon: "grid", title: "Manage Categories", text: "Organise products into categories.", href: "/admin/categories" },
   { icon: "list", title: "Inventory", text: "Adjust stock and review stock history.", href: "/admin/inventory" },
   { icon: "bag", title: "Orders", text: "Confirm, ship and complete orders.", href: "/admin/orders" },
+  { icon: "refresh", title: "Returns & Refunds", text: "Review returns and process customer refunds.", href: "/admin/returns" },
 ];
 
 function ViewAll({ href, children }) {
@@ -77,7 +80,9 @@ export default function AdminDashboard() {
 
       {status === "loading" && (
         <div role="status" aria-label="Loading dashboard" className="grid gap-4">
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
+            {[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+          </div>
           <Skeleton className="h-64 rounded-2xl" />
         </div>
       )}
@@ -88,18 +93,39 @@ export default function AdminDashboard() {
         const statusTotal = Object.values(s.ordersByStatus).reduce((a, b) => a + b, 0);
         return (
           <>
-            <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
               <StatCard icon="box" label="Orders placed" value={formatNumber(s.ordersInRange)} note={rangeLabel} />
-              <StatCard icon="cart" label="Order value" value={formatPrice(s.orderValue)} note="Excludes cancelled orders" tone="gold" />
-              <StatCard icon="cash" label="Cash collected" value={formatPrice(s.collectedAmount)} note={s.refundedAmount > 0 ? `${formatPrice(s.refundedAmount)} refunded` : rangeLabel} />
+              <StatCard icon="cart" label="Order value" value={formatPrice(s.orderValue)} note="Gross revenue" tone="gold" />
+              <StatCard icon="cash" label="Cash collected" value={formatPrice(s.collectedAmount)} note={rangeLabel} />
+              <StatCard
+                icon="refresh"
+                label="Refunds issued"
+                value={formatPrice(s.refundedAmount)}
+                note={s.refundedAmount > 0 ? `${s.refundCount || 0} refunds · Net: ${formatPrice(s.netRevenue)}` : "Zero refunds"}
+                tone={s.refundedAmount > 0 ? "rose" : "default"}
+              />
               <StatCard
                 icon="alert"
-                label="Stock alerts"
-                value={formatNumber(s.lowStockCount + s.outOfStockCount)}
-                note={`${s.outOfStockCount} out · ${s.lowStockCount} at ${s.lowStockThreshold} or fewer`}
-                tone="gold"
+                label="Alerts & Returns"
+                value={formatNumber((s.lowStockCount || 0) + (s.outOfStockCount || 0) + (s.pendingReturnsCount || 0))}
+                note={`${s.pendingReturnsCount || 0} returns to review · ${s.outOfStockCount || 0} out`}
+                tone={s.pendingReturnsCount > 0 ? "gold" : "default"}
               />
             </div>
+
+            {s.pendingReturnsCount > 0 && (
+              <div className="mt-4 p-3.5 rounded-xl border border-amber-300 bg-amber-50 flex items-center justify-between text-xs text-amber-900">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">📦</span>
+                  <span>
+                    You have <strong>{s.pendingReturnsCount} customer return {s.pendingReturnsCount === 1 ? "request" : "requests"}</strong> pending review.
+                  </span>
+                </div>
+                <Link href="/admin/returns" className="font-bold text-forest underline hover:text-leaf">
+                  Review in Returns &rarr;
+                </Link>
+              </div>
+            )}
 
             {s.pendingReconciliation > 0 && (
               <FormMessage tone="error" className="mt-4">
@@ -141,7 +167,7 @@ export default function AdminDashboard() {
         );
       })()}
 
-      <ul className="list-none m-0 p-0 mt-5 grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+      <ul className="list-none m-0 p-0 mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {QUICK_ACTIONS.map((a) => (
           <li key={a.title}>
             <Link href={a.href} className="group flex items-center gap-3.5 h-full rounded-2xl border border-line bg-white p-4 no-underline shadow-[0_1px_3px_rgba(36,69,42,0.05)] hover:border-forest/40">

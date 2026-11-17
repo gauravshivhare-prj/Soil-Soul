@@ -170,6 +170,11 @@ const orderSchema = new mongoose.Schema(
       default: 0,
       min: [0, 'Shipping fee cannot be negative.'],
     },
+    tax: {
+      type: Number,
+      default: 0,
+      min: [0, 'Tax cannot be negative.'],
+    },
     discount: {
       type: Number,
       default: 0,

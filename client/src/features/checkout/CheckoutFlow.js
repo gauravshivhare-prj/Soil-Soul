@@ -735,7 +735,17 @@ export default function CheckoutFlow() {
           ) : (
             <Button size="lg" onClick={placeOrder} disabled={isPlacing} aria-busy={isPlacing}>
               <Icon name="lock" size={16} />
-              {isPlacing ? "Placing order…" : `Place Order · ${formatPrice(Math.max(0, totals.total - (couponQuote?.discount ?? 0)))}`}
+              {isPlacing
+                ? "Placing order…"
+                : `Place Order · ${formatPrice(
+                    Math.round(
+                      (totals.subtotal -
+                        (couponQuote?.discount ?? 0) +
+                        Math.round(Math.max(0, totals.subtotal - (couponQuote?.discount ?? 0)) * 0.05 * 100) / 100 +
+                        (totals.subtotal >= 499 || totals.subtotal === 0 ? 0 : 49)) *
+                        100
+                    ) / 100
+                  )}`}
             </Button>
           )}
         </div>
@@ -747,7 +757,14 @@ export default function CheckoutFlow() {
       </div>
 
       <div className="lg:sticky lg:top-28 space-y-3">
-        <OrderSummary totals={{ ...totals, discount: couponQuote?.discount ?? 0, total: Math.max(0, totals.total - (couponQuote?.discount ?? 0)) }} lines={lines} />
+        {(() => {
+          const discount = couponQuote?.discount ?? 0;
+          const taxable = Math.max(0, totals.subtotal - discount);
+          const tax = Math.round(taxable * 0.05 * 100) / 100;
+          const shipping = totals.subtotal >= 499 || totals.subtotal === 0 ? 0 : 49;
+          const total = Math.round((totals.subtotal - discount + tax + shipping) * 100) / 100;
+          return <OrderSummary totals={{ ...totals, discount, tax, shipping, total }} lines={lines} />;
+        })()}
       </div>
     </div>
   );

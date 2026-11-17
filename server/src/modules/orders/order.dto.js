@@ -60,6 +60,7 @@ export function toCustomerOrder(order) {
     deliveryAddress: toCustomerAddress(o.deliveryAddress),
     subtotal: o.subtotal,
     shippingFee: o.shippingFee ?? 0,
+    tax: o.tax ?? 0,
     discount: o.discount ?? 0,
     coupon: o.coupon ? { code: o.coupon.code, discountType: o.coupon.discountType, discount: o.coupon.discount } : null,
     total: o.total,

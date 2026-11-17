@@ -327,6 +327,7 @@ async function executeOrderPlacement(orderData) {
             deliveryAddress: orderData.deliveryAddress,
             subtotal: orderData.subtotal,
             shippingFee: orderData.shippingFee,
+            tax: orderData.tax ?? 0,
             discount: orderData.discount,
             total: orderData.total,
             paymentMethod: orderData.paymentMethod,
@@ -416,6 +417,7 @@ async function executeOrderPlacement(orderData) {
           deliveryAddress: orderData.deliveryAddress,
           subtotal: orderData.subtotal,
           shippingFee: orderData.shippingFee,
+          tax: orderData.tax ?? 0,
           discount: orderData.discount,
           total: orderData.total,
           paymentMethod: orderData.paymentMethod,
@@ -655,9 +657,13 @@ export async function createOrder(userId, { paymentMethod, deliveryAddress, idem
   }
 
   const couponQuote = couponCode ? await calculateCoupon(userId, couponCode, { subtotal: calculatedSubtotal, items: orderItemSnapshots }) : null;
-  const shippingFee = 0;
   const discount = couponQuote?.discount ?? 0;
-  const total = Math.round((calculatedSubtotal + shippingFee - discount) * 100) / 100;
+  // Free delivery for orders Rs. 499 and above; Rs. 49 delivery fee below 499
+  const shippingFee = calculatedSubtotal >= 499 || calculatedSubtotal === 0 ? 0 : 49;
+  // 5% Indian GST on nursery plants, potting soil, seeds & botanical care
+  const taxableAmount = Math.max(0, calculatedSubtotal - discount);
+  const tax = Math.round(taxableAmount * 0.05 * 100) / 100;
+  const total = Math.round((calculatedSubtotal + shippingFee + tax - discount) * 100) / 100;
 
     const placement = {
       userId,
@@ -668,6 +674,7 @@ export async function createOrder(userId, { paymentMethod, deliveryAddress, idem
       deliveryAddress: validatedAddress,
       subtotal: calculatedSubtotal,
       shippingFee,
+      tax,
       discount,
       total,
       paymentMethod: validatedPaymentMethod,

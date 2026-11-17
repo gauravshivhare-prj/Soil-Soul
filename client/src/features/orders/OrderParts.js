@@ -43,16 +43,25 @@ export function OrderItems({ items, linkProducts = true }) {
 }
 
 export function OrderTotals({ order }) {
+  const isFreeDelivery = (order.shippingFee ?? 0) === 0;
   return (
     <dl className="m-0 grid gap-2 text-sm">
       <div className="flex justify-between"><dt className="text-muted">Subtotal</dt><dd className="m-0 text-ink">{formatPrice(order.subtotal)}</dd></div>
       {order.discount > 0 && (
-        <div className="flex justify-between"><dt className="text-muted">Discount</dt><dd className="m-0 text-ink">−{formatPrice(order.discount)}</dd></div>
+        <div className="flex justify-between"><dt className="text-muted">Discount</dt><dd className="m-0 text-forest font-semibold">−{formatPrice(order.discount)}</dd></div>
       )}
-      <div className="flex justify-between"><dt className="text-muted">Shipping</dt><dd className="m-0 text-ink">{formatPrice(order.shippingFee ?? 0)}</dd></div>
+      {order.tax > 0 && (
+        <div className="flex justify-between"><dt className="text-muted">GST (5%)</dt><dd className="m-0 text-ink">{formatPrice(order.tax)}</dd></div>
+      )}
+      <div className="flex justify-between">
+        <dt className="text-muted">Shipping</dt>
+        <dd className="m-0 text-ink">
+          {isFreeDelivery ? <span className="text-forest font-semibold">FREE (Order ₹499+)</span> : formatPrice(order.shippingFee)}
+        </dd>
+      </div>
       <div className="flex justify-between pt-2 mt-1 border-t border-line"><dt className="font-semibold text-ink">Total</dt><dd className="m-0 font-bold text-ink">{formatPrice(order.total)}</dd></div>
       {order.totalRefunded > 0 && (
-        <div className="flex justify-between"><dt className="text-muted">Refunded</dt><dd className="m-0 text-ink">{formatPrice(order.totalRefunded)}</dd></div>
+        <div className="flex justify-between pt-1 text-danger font-medium"><dt>Total Refunded</dt><dd className="m-0">−{formatPrice(order.totalRefunded)}</dd></div>
       )}
     </dl>
   );

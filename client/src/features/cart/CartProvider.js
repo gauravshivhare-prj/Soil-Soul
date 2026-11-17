@@ -69,17 +69,21 @@ export function CartProvider({ children }) {
   const activeCart = isAuthenticated && loadedFor === token ? cart ?? EMPTY_CART : EMPTY_CART;
 
   const lines = useMemo(() => activeCart.items.map(toLine), [activeCart]);
-  const totals = useMemo(
-    () => ({
+  const totals = useMemo(() => {
+    const subtotal = activeCart.subtotal || 0;
+    const shipping = activeCart.shippingFee ?? (subtotal >= 499 || subtotal === 0 ? 0 : 49);
+    const tax = activeCart.tax ?? Math.round(subtotal * 0.05 * 100) / 100;
+    const total = activeCart.total ?? Math.round((subtotal + shipping + tax) * 100) / 100;
+    return {
       itemCount: activeCart.itemCount,
-      subtotal: activeCart.subtotal,
+      subtotal,
       discount: 0,
-      shipping: 0,
-      total: activeCart.total,
+      shipping,
+      tax,
+      total,
       hasUnavailable: activeCart.items.some((i) => i.isAvailable === false),
-    }),
-    [activeCart]
-  );
+    };
+  }, [activeCart]);
 
   const mutate = useCallback(
     async (path, options) => {
