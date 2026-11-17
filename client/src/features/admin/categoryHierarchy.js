@@ -3,7 +3,7 @@
  * Enforces strict 3-level depth rules and hierarchical tree ordering.
  */
 
-export const CANONICAL_ROOT_SLUGS = ["plants", "tools", "seeds", "natural-products"];
+export const CANONICAL_ROOT_SLUGS = ["plants", "tools", "seeds", "soil-plant-care", "natural-products"];
 
 export const CSV_TEMPLATE_CONTENT = [
   "name,slug,shortName,tagline,description,parentSlug,displayOrder,imageUrl,visibleInShop",

@@ -10,7 +10,7 @@
  * variant starts tracking stock on the variant itself.
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Card, { CardHeader } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge, { StatusBadge, stockStatus } from "@/components/ui/Badge";
@@ -343,9 +343,19 @@ export default function InventoryManager() {
 
   const current = selectedKey ? data?.items.find((u) => unitKey(u) === selectedKey) ?? selectedSnapshot : null;
 
+  // Escape key closes modal
+  useEffect(() => {
+    if (!selectedKey) return undefined;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") setSelectedKey(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedKey]);
+
   return (
-    <div className="grid gap-5 xl:grid-cols-[1fr_380px] items-start">
-      <Card className="min-w-0">
+    <div className="w-full">
+      <Card className="w-full">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
           <div role="group" aria-label="Filter stock" className="flex flex-wrap gap-2">
             {[["all", "All"], ["low", `Low (≤${THRESHOLD})`], ["out", "Out of stock"]].map(([id, label]) => (
@@ -384,7 +394,7 @@ export default function InventoryManager() {
           </div>
         </div>
         <p className="m-0 mb-4 text-xs text-muted">
-          {filter === "all" ? "Every product and variant, including drafts and hidden products." : "Only products and variants that are on sale."} Products with variants are listed per variant.
+          {filter === "all" ? "Every product and variant, including drafts and hidden products." : "Only products and variants that are on sale."} Products with variants are listed per variant. Click &ldquo;Adjust&rdquo; to open the stock update popup.
         </p>
         {status === "loading" && (
           <div role="status" aria-label="Loading stock" className="grid gap-2">
@@ -421,7 +431,7 @@ export default function InventoryManager() {
                     <td><ShopState unit={unit} /></td>
                     <td>
                       <Button size="sm" variant={selected ? "primary" : "outline"} onClick={() => { setSelectedKey(key); setSelectedSnapshot(unit); }}>
-                        {selected ? "Editing" : "Adjust"}
+                        Adjust Stock
                         <span className="sr-only"> {unitName(unit)}</span>
                       </Button>
                     </td>
@@ -439,35 +449,64 @@ export default function InventoryManager() {
         )}
       </Card>
 
-      <div className="grid gap-5 content-start">
-        {current ? (
-          <>
-            <Card>
-              <CardHeader title={`Adjust: ${unitName(current)}`} />
-              <p className="m-0 mb-3 text-sm text-muted">
-                Current stock: <strong className="text-ink">{current.stock ?? "not set"}</strong>
-                {current.sharesProductStock ? " (shared with the product)" : ""}
-              </p>
+      {/* ─── Adjust Stock Pop-up Modal ─────────────────────────────────────── */}
+      {current && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="adjust-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-150"
+          onClick={() => setSelectedKey(null)}
+        >
+          <div
+            className="relative w-full max-w-xl bg-white rounded-2xl shadow-2xl border border-line flex flex-col max-h-[90vh] overflow-hidden my-auto animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-line px-6 py-4 bg-sand/30">
+              <div className="min-w-0 pr-4">
+                <h2 id="adjust-modal-title" className="text-lg font-bold text-heading m-0 truncate">
+                  Adjust Stock: {unitName(current)}
+                </h2>
+                <p className="text-xs text-muted m-0 mt-0.5">
+                  Current stock: <strong className="text-ink">{current.stock ?? "not set"}</strong>
+                  {current.sharesProductStock ? " (shared with product)" : ""}
+                  {current.sku ? ` · SKU: ${current.sku}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedKey(null)}
+                className="w-8 h-8 rounded-full bg-white border border-line flex items-center justify-center text-muted hover:text-ink hover:bg-sand/40 transition-colors cursor-pointer shrink-0"
+                title="Close dialog"
+                aria-label="Close dialog"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6">
               <AdjustForm
                 key={`${unitKey(current)}-${current.stock}-${current.sharesProductStock}`}
                 unit={current}
                 onDone={() => {
                   reload();
                   setHistoryKey((k) => k + 1);
+                  setSelectedKey(null);
                 }}
               />
-            </Card>
-            <Card>
-              <CardHeader title="Stock History" />
-              <History key={`${unitKey(current)}-${historyKey}`} unit={current} />
-            </Card>
-          </>
-        ) : (
-          <Card>
-            <p className="m-0 text-sm text-muted">Choose &ldquo;Adjust&rdquo; on a product or variant to change its stock and see its history. Orders and cancellations update stock automatically.</p>
-          </Card>
-        )}
-      </div>
+
+              <div className="border-t border-line pt-4">
+                <h3 className="text-xs font-bold text-ink uppercase tracking-wider mb-2.5">
+                  Recent Stock History
+                </h3>
+                <History key={`${unitKey(current)}-${historyKey}`} unit={current} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

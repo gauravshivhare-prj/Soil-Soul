@@ -132,11 +132,6 @@ export default function CategoryManager() {
   // Hierarchical list of categories for table rendering
   const displayCategories = useMemo(() => buildCategoryTree(allCategories), [allCategories]);
 
-  // User toggle overrides for expanding/collapsing tree nodes: { [id]: boolean }
-  // By default, categories are expanded so admin can see all subcategories and their action buttons
-  const [toggleOverrides, setToggleOverrides] = useState({});
-  const [searchQuery, setSearchQuery] = useState("");
-
   // Map of direct children by parent ID
   const childrenMap = useMemo(() => {
     const map = new Map();
@@ -178,33 +173,38 @@ export default function CategoryManager() {
     };
   }, [allCategories]);
 
+  // Track explicitly collapsed categories. By default (empty Set), all categories are expanded so subcategories are immediately visible.
+  const [collapsedIds, setCollapsedIds] = useState(() => new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+
   const isCategoryExpanded = useCallback(
-    (id) => {
-      const idStr = String(id);
-      if (toggleOverrides[idStr] !== undefined) return toggleOverrides[idStr];
-      return true; // Default expanded so subcategories and their delete/archive actions are visible
-    },
-    [toggleOverrides]
+    (id) => !collapsedIds.has(String(id)),
+    [collapsedIds]
   );
 
   const toggleExpand = (id) => {
     const idStr = String(id);
-    setToggleOverrides((prev) => ({
-      ...prev,
-      [idStr]: !prev[idStr],
-    }));
+    setCollapsedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(idStr)) {
+        next.delete(idStr);
+      } else {
+        next.add(idStr);
+      }
+      return next;
+    });
   };
 
   const expandAll = () => {
-    const overrides = {};
-    for (const c of allCategories) {
-      overrides[String(c.id || c._id)] = true;
-    }
-    setToggleOverrides(overrides);
+    setCollapsedIds(new Set());
   };
 
   const collapseAll = () => {
-    setToggleOverrides({});
+    const allParentIds = new Set();
+    for (const c of allCategories) {
+      allParentIds.add(String(c.id || c._id));
+    }
+    setCollapsedIds(allParentIds);
   };
 
   // Search filtering with ancestor chain inclusion
