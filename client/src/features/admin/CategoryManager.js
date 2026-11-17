@@ -402,6 +402,7 @@ export default function CategoryManager() {
   async function deleteCategory(category) {
     setBusy(`delete:${category.id}`);
     setListMessage(null);
+    setServerError(null);
     try {
       const outcome = await runDeletion({
         label: category.name,
@@ -410,15 +411,26 @@ export default function CategoryManager() {
         remove: () => authRequest(`/admin/categories/${category.id}`, { method: "DELETE", body: { confirmSlug: category.slug } }),
       });
       if (outcome.status === "blocked") {
-        setListMessage({ tone: "error", text: `“${category.name}” can't be deleted. ${outcome.message}` });
+        const errorText = `“${category.name}” can't be deleted. ${outcome.message}`;
+        setListMessage({ tone: "error", text: errorText });
+        setServerError(errorText);
+        return false;
       }
       if (outcome.status === "deleted") {
         notify(`Category “${category.name}” deleted.`);
-        if (editing?.id === category.id) reset();
+        if (editing?.id === category.id) {
+          setIsFormModalOpen(false);
+          reset();
+        }
         reload();
+        return true;
       }
+      return false;
     } catch (err) {
-      setListMessage({ tone: "error", text: `“${category.name}”: ${err.message}` });
+      const errorText = `“${category.name}”: ${err.message}`;
+      setListMessage({ tone: "error", text: errorText });
+      setServerError(errorText);
+      return false;
     } finally {
       setBusy(null);
     }
@@ -431,10 +443,15 @@ export default function CategoryManager() {
     try {
       await authRequest(`/admin/categories/${category.id}/${action}`, { method: "POST" });
       notify(`Category “${category.name}” ${action === "archive" ? "archived" : "restored"}.`);
-      if (editing?.id === category.id) reset();
+      if (editing?.id === category.id) {
+        setIsFormModalOpen(false);
+        reset();
+      }
       reload();
+      return true;
     } catch (err) {
       setServerError(err.message);
+      return false;
     } finally {
       setBusy(null);
     }
@@ -936,23 +953,60 @@ export default function CategoryManager() {
                       />
                     </div>
                   )}
+
+                  {/* Actions Section inside Edit Modal Body */}
+                  {!isNew && (
+                    <div className="sm:col-span-2 pt-4 mt-2 border-t border-line">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-sand/40 border border-line/60">
+                        <div>
+                          <p className="text-xs font-semibold text-ink">Manage Category Status</p>
+                          <p className="text-[0.75rem] text-muted">
+                            {editing.archivedAt
+                              ? "Category is currently archived."
+                              : isMainCategory(editing)
+                              ? "Root category protected by system. Subcategories and products can be managed."
+                              : "Archive to hide without deleting, or delete permanently if empty."}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-xs"
+                            disabled={busy !== null}
+                            onClick={() => archiveOrRestore(editing)}
+                          >
+                            {editing.archivedAt ? "Restore Category" : "Archive Category"}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="!text-danger !border-red-200 hover:!bg-red-50 text-xs"
+                            disabled={busy !== null}
+                            onClick={() => deleteCategory(editing)}
+                          >
+                            Delete Category
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Modal Footer */}
               <div className="border-t border-line px-6 py-4 bg-sand/20 flex flex-wrap items-center justify-between gap-3 shrink-0">
-                {!isNew && !isMainCategory(editing) ? (
+                {!isNew ? (
                   <div className="flex items-center gap-2">
                     <Button
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="text-xs"
+                      className="text-xs font-medium text-muted hover:text-ink"
                       disabled={busy !== null}
-                      onClick={async () => {
-                        await archiveOrRestore(editing);
-                        closeFormModal();
-                      }}
+                      onClick={() => archiveOrRestore(editing)}
                     >
                       {editing.archivedAt ? "Restore Category" : "Archive Category"}
                     </Button>
@@ -960,12 +1014,9 @@ export default function CategoryManager() {
                       type="button"
                       size="sm"
                       variant="ghost"
-                      className="!text-danger hover:bg-red-50 text-xs"
+                      className="!text-danger hover:bg-red-50 text-xs font-medium"
                       disabled={busy !== null}
-                      onClick={async () => {
-                        await deleteCategory(editing);
-                        closeFormModal();
-                      }}
+                      onClick={() => deleteCategory(editing)}
                     >
                       Delete Category
                     </Button>
@@ -974,7 +1025,7 @@ export default function CategoryManager() {
                   <div />
                 )}
 
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2.5 ml-auto">
                   <Button type="button" variant="outline" onClick={closeFormModal}>
                     Cancel
                   </Button>
