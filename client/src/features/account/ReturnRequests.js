@@ -15,7 +15,7 @@ import { formatDate, formatPrice } from "@/lib/format";
 
 const STATUS_LABEL = {
   REQUESTED: "Under Review",
-  APPROVED: "Approved",
+  APPROVED: "Approved for Pickup",
   REJECTED: "Rejected",
   RECEIVED: "Received & Inspected",
 };
@@ -28,6 +28,7 @@ export default function ReturnRequests({ order }) {
   const [state, setState] = useState({ status: "loading", returns: [], policy: null, isExpired: false, error: null });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [requestType, setRequestType] = useState("RETURN");
+  const [upiId, setUpiId] = useState("");
   const [selectedItems, setSelectedItems] = useState({});
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -59,7 +60,7 @@ export default function ReturnRequests({ order }) {
       0,
       (order.items[index]?.quantity ?? 0) -
         state.returns
-          .filter((entry) => entry.itemIndex === index && entry.status !== "REJECTED")
+          .filter((entry) => entry.itemIndex === index)
           .reduce((sum, entry) => sum + entry.quantity, 0)
     );
 
@@ -75,6 +76,8 @@ export default function ReturnRequests({ order }) {
       }
     });
     setSelectedItems(initial);
+    setUpiId("");
+    setReason("");
     setModalError("");
     setIsModalOpen(true);
   }
@@ -150,6 +153,15 @@ export default function ReturnRequests({ order }) {
       return;
     }
 
+    if (requestType === "RETURN") {
+      const cleanUpi = upiId.trim();
+      if (!cleanUpi || !cleanUpi.includes("@")) {
+        setModalError("Please enter a valid UPI ID (e.g. yourname@okhdfcbank or 98741512xx@upi) to receive your refund.");
+        setBusy(false);
+        return;
+      }
+    }
+
     if (!reason.trim() || reason.trim().length < 5) {
       setModalError("Please provide a reason of at least 5 characters.");
       setBusy(false);
@@ -158,13 +170,19 @@ export default function ReturnRequests({ order }) {
 
     const typeLabel = requestType === "EXCHANGE" ? "EXCHANGE / REPLACEMENT" : "RETURN FOR REFUND";
     const prefixedReason = `[${typeLabel}] ${reason.trim()}`;
+    const cleanUpi = requestType === "RETURN" ? upiId.trim() : null;
 
     try {
       const responses = await Promise.all(
         itemsToSubmit.map(({ itemIndex, quantity }) =>
           authRequest(`/orders/${encodeURIComponent(order.orderNumber)}/returns`, {
             method: "POST",
-            body: { itemIndex, quantity, reason: prefixedReason },
+            body: {
+              itemIndex,
+              quantity,
+              reason: prefixedReason,
+              upiId: cleanUpi,
+            },
           })
         )
       );
@@ -172,6 +190,7 @@ export default function ReturnRequests({ order }) {
       const createdReturns = responses.map((r) => r.returnRequest).filter(Boolean);
       setState((previous) => ({ ...previous, returns: [...createdReturns, ...previous.returns] }));
       setReason("");
+      setUpiId("");
       setIsModalOpen(false);
       notify(
         `Your ${requestType === "EXCHANGE" ? "exchange" : "return"} request for ${itemsToSubmit.length} item(s) was submitted successfully.`
@@ -228,7 +247,7 @@ export default function ReturnRequests({ order }) {
               {state.returns.map((entry) => {
                 const isExchange = entry.reason?.includes("EXCHANGE");
                 return (
-                  <li key={entry.id} className="rounded-xl bg-[#faf8f2] p-3 text-sm border border-line space-y-1.5">
+                  <li key={entry.id} className="rounded-xl bg-[#faf8f2] p-3 text-sm border border-line space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -241,6 +260,23 @@ export default function ReturnRequests({ order }) {
                         {STATUS_LABEL[entry.status] || entry.status}
                       </span>
                     </div>
+
+                    {/* UPI and Refund Info */}
+                    {entry.upiId && !isExchange && (
+                      <div className="rounded-lg bg-sand/40 border border-line/60 px-2.5 py-1.5 text-[11px] text-muted flex items-center justify-between gap-2">
+                        <span>💳 Refund UPI: <strong className="font-mono text-ink">{entry.upiId}</strong></span>
+                        {entry.refundStatus === "RECORDED" ? (
+                          <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full">
+                            ✅ Refund Processed
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full">
+                            ⏳ Refund Pending
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     <div className="pt-1.5 border-t border-line/40 flex justify-between text-[11px] text-muted">
                       <span>Value: {formatPrice(entry.amount)}</span>
                       <span>{formatDate(entry.createdAt)}</span>
@@ -336,7 +372,7 @@ export default function ReturnRequests({ order }) {
                       <span className="text-base block mb-1">🔄</span>
                       <strong className="block text-xs sm:text-sm text-ink">Return (Refund)</strong>
                       <span className="block text-[11px] text-muted leading-tight mt-0.5">
-                        Refund to original payment method
+                        Refund transferred directly to your UPI
                       </span>
                     </button>
 
@@ -357,6 +393,27 @@ export default function ReturnRequests({ order }) {
                     </button>
                   </div>
                 </div>
+
+                {/* UPI ID for Refund Input */}
+                {requestType === "RETURN" && (
+                  <div className="rounded-xl border border-sage-300 bg-sage-50/70 p-3.5 space-y-1.5">
+                    <label htmlFor="refund-upi-input" className="block text-xs font-bold text-ink">
+                      UPI ID for Refund Transfer <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      id="refund-upi-input"
+                      type="text"
+                      value={upiId}
+                      onChange={(e) => setUpiId(e.target.value)}
+                      placeholder="e.g. 98741512xx@upi or yourname@okhdfcbank"
+                      className="w-full h-10 rounded-lg border border-line bg-white px-3 text-sm text-ink font-mono outline-none focus:border-forest focus:ring-2 focus:ring-forest/15"
+                      required
+                    />
+                    <p className="m-0 text-[11px] text-muted leading-relaxed">
+                      💡 Your refund of {formatPrice(totalEstimatedValue)} will be transferred directly to this UPI address after item pickup &amp; verification.
+                    </p>
+                  </div>
+                )}
 
                 {/* Items Selection */}
                 <div>

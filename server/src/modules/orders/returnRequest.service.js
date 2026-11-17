@@ -24,7 +24,7 @@ export async function listCustomerReturns(userId, orderId) {
   };
 }
 
-export async function createReturnRequest(userId, orderId, { itemIndex, quantity = 1, reason } = {}) {
+export async function createReturnRequest(userId, orderId, { itemIndex, quantity = 1, reason, upiId } = {}) {
   if (env.returnWindowDays === 0) throw createError(503, 'RETURN_POLICY_NOT_CONFIGURED', 'Return requests are not enabled until the return window is configured.');
   if (!Number.isInteger(itemIndex) || itemIndex < 0 || !Number.isInteger(quantity) || quantity < 1 || quantity > 10) throw createError(400, 'VALIDATION_ERROR', 'Select a valid order item and quantity.');
   if (typeof reason !== 'string' || reason.trim().length < 5 || reason.trim().length > 500) throw createError(400, 'VALIDATION_ERROR', 'Return reason must be 5 to 500 characters.');
@@ -59,11 +59,15 @@ export async function createReturnRequest(userId, orderId, { itemIndex, quantity
   if (reserved.modifiedCount !== 1) throw createError(409, 'RETURN_QUANTITY_EXHAUSTED', 'The remaining eligible quantity has changed. Reload the order and try again.');
   const now = new Date();
   const reservationId = new mongoose.Types.ObjectId();
+  const cleanUpi = typeof upiId === 'string' && upiId.trim() ? upiId.trim() : null;
+  const isExchange = typeof reason === 'string' && reason.includes('[EXCHANGE');
+  const refundStatus = isExchange ? 'NOT_APPLICABLE' : (cleanUpi || order.paymentMethod === 'COD') ? 'PENDING' : 'NOT_APPLICABLE';
   const data = {
     _id: reservationId,
     order: order._id, user: userId, itemIndex, product: item.product ?? null, productName: item.name,
     quantity, amount: Math.round(item.unitPrice * quantity * 100) / 100, amountBasis: 'GROSS_PRE_DISCOUNT', reason: reason.trim(), status: 'REQUESTED',
-    refundStatus: order.paymentMethod === 'COD' ? 'PENDING' : 'NOT_APPLICABLE',
+    refundStatus,
+    upiId: cleanUpi,
     statusHistory: [{ fromStatus: null, toStatus: 'REQUESTED', actor: userId, actorRole: 'customer', reason: reason.trim(), changedAt: now }],
   };
   try { return toCustomerReturn(await ReturnRequest.create(data)); }
@@ -82,18 +86,37 @@ export async function createReturnRequest(userId, orderId, { itemIndex, quantity
 
 export async function listAdminReturns(query = {}) {
   const page = Math.max(1, Number.parseInt(query.page, 10) || 1);
-  const limit = Math.min(100, Math.max(1, Number.parseInt(query.limit, 10) || 25));
+  const limit = Math.min(100, Math.max(1, Number.parseInt(query.limit, 10) || 50));
   const filter = {};
-  if (query.status !== undefined) {
+  if (query.status !== undefined && query.status !== '' && query.status.toUpperCase() !== 'ALL') {
     const status = typeof query.status === 'string' ? query.status.toUpperCase() : '';
     if (!['REQUESTED', 'APPROVED', 'REJECTED', 'RECEIVED'].includes(status)) throw createError(400, 'VALIDATION_ERROR', 'Return status is invalid.');
     filter.status = status;
   }
-  const [returns, total] = await Promise.all([
-    ReturnRequest.find(filter).populate('user', 'name email').populate('order', 'orderNumber paymentMethod orderStatus').sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit),
+  const [returns, total, aggregateCounts] = await Promise.all([
+    ReturnRequest.find(filter)
+      .populate('user', 'name email')
+      .populate('order', 'orderNumber paymentMethod orderStatus total')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit),
     ReturnRequest.countDocuments(filter),
+    ReturnRequest.aggregate([
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]),
   ]);
-  return { returns, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) } };
+
+  const counts = { ALL: 0, REQUESTED: 0, APPROVED: 0, RECEIVED: 0, REJECTED: 0 };
+  let allTotal = 0;
+  for (const entry of aggregateCounts) {
+    if (counts[entry._id] !== undefined) {
+      counts[entry._id] = entry.count;
+    }
+    allTotal += entry.count;
+  }
+  counts.ALL = allTotal;
+
+  return { returns, pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) }, counts };
 }
 
 export async function updateReturnStatus(id, { status, reason, adminId } = {}) {
@@ -132,13 +155,13 @@ export async function recordCodRefund(id, { adminId, note } = {}) {
   if (typeof note !== 'string' || note.trim().length < 3 || note.trim().length > 500) throw createError(400, 'VALIDATION_ERROR', 'A 3 to 500 character bookkeeping note is required.');
   const existing = await ReturnRequest.findById(id).populate('order', 'paymentMethod');
   if (!existing) throw createError(404, 'RETURN_NOT_FOUND', 'Return request not found.');
-  if (existing.order?.paymentMethod !== 'COD') throw createError(409, 'REFUND_NOT_RECORDABLE', 'This bookkeeping action is only for COD orders.');
+  if (existing.order?.paymentMethod !== 'COD' && !existing.upiId) throw createError(409, 'REFUND_NOT_RECORDABLE', 'This bookkeeping action is only for COD or UPI refund orders.');
   const result = await ReturnRequest.findOneAndUpdate(
     { _id: id, status: { $in: ['APPROVED', 'RECEIVED'] }, refundStatus: 'PENDING' },
     { $set: { refundStatus: 'RECORDED', refundRecordedAt: new Date(), refundRecordedBy: adminId, refundNote: note.trim() } },
     { returnDocument: 'after' },
   );
-  if (!result) throw createError(409, 'REFUND_NOT_RECORDABLE', 'This return has no pending COD bookkeeping entry.');
+  if (!result) throw createError(409, 'REFUND_NOT_RECORDABLE', 'This return has no pending refund bookkeeping entry.');
   return result;
 }
 
@@ -155,6 +178,9 @@ function toCustomerReturn(record) {
     reason: data.reason,
     status: data.status,
     refundStatus: data.refundStatus,
+    refundRecordedAt: data.refundRecordedAt ?? null,
+    refundNote: data.refundNote ?? null,
+    upiId: data.upiId ?? null,
     statusHistory: (data.statusHistory ?? []).map((event) => ({ fromStatus: event.fromStatus, toStatus: event.toStatus, actorRole: event.actorRole, changedAt: event.changedAt, reason: event.actorRole === 'customer' ? event.reason : null })),
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,

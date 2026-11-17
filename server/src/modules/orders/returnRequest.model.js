@@ -25,6 +25,7 @@ const returnRequestSchema = new mongoose.Schema({
   refundRecordedAt: { type: Date, default: null },
   refundRecordedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   refundNote: { type: String, default: null, trim: true, maxlength: 500 },
+  upiId: { type: String, default: null, trim: true, maxlength: 100 },
 }, { timestamps: true });
 
 returnRequestSchema.index({ order: 1, itemIndex: 1, createdAt: -1 });
