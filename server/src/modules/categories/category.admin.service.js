@@ -331,20 +331,10 @@ export async function updateCategory(id, body) {
   return (await withProductCounts([category]))[0];
 }
 
-/** Archive (never delete). Refused while active products still belong to the category. */
+/** Archive (never delete). Sets isActive to false and records archivedAt. */
 export async function archiveCategory(id) {
   const category = await Category.findById(v.objectId(id, 'category id'));
   if (!category) throw notFound();
-  if (!category.parent && isMainCategorySlug(category.slug)) {
-    throw createError(409, 'MAIN_CATEGORY_PROTECTED', 'A main catalogue category cannot be archived.');
-  }
-  const activeProducts = await Product.countDocuments({ category: category._id, isActive: true });
-  const activeChildren = await Category.countDocuments({ parent: category._id, isActive: true });
-  if (activeProducts > 0 || activeChildren > 0) {
-    const details = [activeProducts ? `${activeProducts} active product(s)` : null, activeChildren ? `${activeChildren} active subcategory/subcategories` : null].filter(Boolean).join(' and ');
-    const err = createError(409, 'CATEGORY_HAS_ACTIVE_CONTENT', `Move or deactivate ${details} before archiving this category.`);
-    throw err;
-  }
   const archived = await Category.findOneAndUpdate(
     { _id: category._id },
     [{ $set: { isActive: false, archivedAt: { $ifNull: ['$archivedAt', '$$NOW'] } } }],

@@ -400,15 +400,16 @@ export default function CategoryManager() {
   // Delete an empty category (no products, archived ones included, and no subcategories).
   const [listMessage, setListMessage] = useState(null);
   async function deleteCategory(category) {
-    setBusy(`delete:${category.id}`);
+    const catId = category.id || category._id;
+    setBusy(`delete:${catId}`);
     setListMessage(null);
     setServerError(null);
     try {
       const outcome = await runDeletion({
         label: category.name,
-        loadCheck: () => authRequest(`/admin/categories/${category.id}/deletion`),
+        loadCheck: () => authRequest(`/admin/categories/${catId}/deletion`),
         confirm: (message) => window.confirm(message),
-        remove: () => authRequest(`/admin/categories/${category.id}`, { method: "DELETE", body: { confirmSlug: category.slug } }),
+        remove: () => authRequest(`/admin/categories/${catId}`, { method: "DELETE", body: { confirmSlug: category.slug } }),
       });
       if (outcome.status === "blocked") {
         const errorText = `“${category.name}” can't be deleted. ${outcome.message}`;
@@ -418,7 +419,7 @@ export default function CategoryManager() {
       }
       if (outcome.status === "deleted") {
         notify(`Category “${category.name}” deleted.`);
-        if (editing?.id === category.id) {
+        if ((editing?.id || editing?._id) === catId) {
           setIsFormModalOpen(false);
           reset();
         }
@@ -437,13 +438,14 @@ export default function CategoryManager() {
   }
 
   async function archiveOrRestore(category) {
+    const catId = category.id || category._id;
     const action = category.archivedAt ? "restore" : "archive";
-    setBusy(`${action}:${category.id}`);
+    setBusy(`${action}:${catId}`);
     setServerError(null);
     try {
-      await authRequest(`/admin/categories/${category.id}/${action}`, { method: "POST" });
+      await authRequest(`/admin/categories/${catId}/${action}`, { method: "POST" });
       notify(`Category “${category.name}” ${action === "archive" ? "archived" : "restored"}.`);
-      if (editing?.id === category.id) {
+      if ((editing?.id || editing?._id) === catId) {
         setIsFormModalOpen(false);
         reset();
       }
