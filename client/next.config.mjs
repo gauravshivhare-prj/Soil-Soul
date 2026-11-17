@@ -12,6 +12,9 @@ const SECURITY_HEADERS = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    agentUpgrade: "security",
+  },
   /* config options here */
   poweredByHeader: false, // don't advertise the framework (X-Powered-By)
   images: {
