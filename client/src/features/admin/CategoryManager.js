@@ -722,37 +722,6 @@ export default function CategoryManager() {
                               + Subcategory
                             </Button>
                           )}
-                          {!isMainCategory(c) ? (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-xs"
-                                disabled={busy !== null}
-                                onClick={() => archiveOrRestore(c)}
-                              >
-                                {c.archivedAt ? "Restore" : "Archive"}
-                                <span className="sr-only"> {c.name}</span>
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="!text-danger hover:bg-red-50 text-xs"
-                                disabled={busy !== null}
-                                onClick={() => deleteCategory(c)}
-                              >
-                                Delete
-                                <span className="sr-only"> {c.name}</span>
-                              </Button>
-                            </>
-                          ) : (
-                            <span
-                              className="text-[11px] font-medium text-muted bg-sand/80 px-2 py-0.5 rounded-full border border-line"
-                              title="Primary catalogue roots (Plants, Tools, Seeds, Soil & Plant Care) are protected. Subcategories under them can be archived or deleted."
-                            >
-                              Root Protected
-                            </span>
-                          )}
                         </div>
                       </td>
                     </tr>
@@ -971,13 +940,48 @@ export default function CategoryManager() {
               </div>
 
               {/* Modal Footer */}
-              <div className="border-t border-line px-6 py-4 bg-sand/20 flex items-center justify-end gap-3 shrink-0">
-                <Button type="button" variant="outline" onClick={closeFormModal}>
-                  Cancel
-                </Button>
-                <Button type="submit" variant="primary" disabled={busy !== null}>
-                  {busy === "save" ? "Saving…" : isNew ? "Add Category" : "Save Changes"}
-                </Button>
+              <div className="border-t border-line px-6 py-4 bg-sand/20 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                {!isNew && !isMainCategory(editing) ? (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs"
+                      disabled={busy !== null}
+                      onClick={async () => {
+                        await archiveOrRestore(editing);
+                        closeFormModal();
+                      }}
+                    >
+                      {editing.archivedAt ? "Restore Category" : "Archive Category"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="!text-danger hover:bg-red-50 text-xs"
+                      disabled={busy !== null}
+                      onClick={async () => {
+                        await deleteCategory(editing);
+                        closeFormModal();
+                      }}
+                    >
+                      Delete Category
+                    </Button>
+                  </div>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center gap-2.5">
+                  <Button type="button" variant="outline" onClick={closeFormModal}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" variant="primary" disabled={busy !== null}>
+                    {busy === "save" ? "Saving…" : isNew ? "Add Category" : "Save Changes"}
+                  </Button>
+                </div>
               </div>
             </form>
           </div>
