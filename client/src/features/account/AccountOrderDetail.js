@@ -28,7 +28,7 @@ import {
   canCustomerCancel,
   statusKey,
 } from "@/features/orders/OrderParts";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import ReturnRequests from "@/features/account/ReturnRequests";
 
 function CancelOrder({ order, onCancelled }) {
@@ -118,7 +118,7 @@ export default function AccountOrderDetail({ orderId }) {
           <StatusBadge status={statusKey(order.orderStatus)} />
         </div>
         <p className="m-0 mt-1 text-sm text-muted">
-          Placed on {formatDate(order.createdAt)} · {PAYMENT_METHOD_LABEL[order.paymentMethod] ?? order.paymentMethod}
+          Placed on <strong className="text-ink">{formatDateTime(order.createdAt)}</strong> · {PAYMENT_METHOD_LABEL[order.paymentMethod] ?? order.paymentMethod}
         </p>
 
         {order.orderStatus !== "CANCELLED" && order.orderStatus !== "DELIVERED" && (
@@ -132,7 +132,7 @@ export default function AccountOrderDetail({ orderId }) {
       </div>
 
       <Card>
-        <OrderTimeline status={order.orderStatus} />
+        <OrderTimeline status={order.orderStatus} history={order.statusHistory} />
         <OrderStatusHistory history={order.statusHistory} />
         {order.cancellation?.reason && <p className="m-0 mt-3 text-sm text-muted">Reason: {order.cancellation.reason}</p>}
       </Card>

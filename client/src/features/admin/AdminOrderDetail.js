@@ -21,7 +21,7 @@ import { AdminHeader, Avatar } from "@/components/admin/AdminParts";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { useAuthedResource } from "@/features/auth/useAuthedResource";
 import { DeliveryAddress, OrderItems, OrderStatusHistory, OrderTimeline, OrderTotals, PAYMENT_METHOD_LABEL, statusKey } from "@/features/orders/OrderParts";
-import { formatDate, formatPrice } from "@/lib/format";
+import { formatDate, formatDateTime, formatPrice } from "@/lib/format";
 
 // Mirrors server/src/modules/orders/order.transitions.js (PERMITTED_ORDER_TRANSITIONS).
 const NEXT_STATUSES = {
@@ -71,12 +71,12 @@ function StatusPanel({ order, onUpdated }) {
         <span className="text-sm text-muted">Current status:</span>
         <StatusBadge status={statusKey(order.orderStatus)} />
       </div>
-      <OrderTimeline status={order.orderStatus} />
+      <OrderTimeline status={order.orderStatus} history={order.statusHistory} />
       <OrderStatusHistory history={order.statusHistory} />
       {order.cancellation && (
         <p className="m-0 text-sm text-muted">
           Cancelled by {order.cancellation.actorRole ?? "—"}
-          {order.cancellation.cancelledAt ? ` on ${formatDate(order.cancellation.cancelledAt)}` : ""}
+          {order.cancellation.cancelledAt ? ` on ${formatDateTime(order.cancellation.cancelledAt)}` : ""}
           {order.cancellation.reason ? ` · ${order.cancellation.reason}` : ""}
         </p>
       )}
@@ -206,7 +206,7 @@ export default function AdminOrderDetail({ orderId }) {
       <Link href="/admin/orders" className="inline-flex items-center gap-1.5 mb-2 text-sm text-muted no-underline hover:text-forest">
         <Icon name="arrow-left" size={15} /> Back to orders
       </Link>
-      <AdminHeader title={`Order #${order.orderNumber}`} subtitle={`Placed on ${formatDate(order.createdAt)}`} />
+      <AdminHeader title={`Order #${order.orderNumber}`} subtitle={`Placed on ${formatDateTime(order.createdAt)}`} />
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_340px] items-start">
         <div className="grid grid-cols-1 gap-5 min-w-0">
           <Card>

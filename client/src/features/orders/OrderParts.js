@@ -7,7 +7,7 @@
 import Link from "next/link";
 import ProductImage from "@/components/ui/ProductImage";
 import Icon from "@/components/ui/Icon";
-import { formatDate, formatPrice } from "@/lib/format";
+import { formatDate, formatDateTime, formatPrice } from "@/lib/format";
 import { productHref } from "@/lib/routes";
 
 export const PAYMENT_METHOD_LABEL = { COD: "Cash on Delivery" };
@@ -78,7 +78,7 @@ const STEPS = [
   { id: "DELIVERED", label: "Delivered", icon: "home" },
 ];
 
-export function OrderTimeline({ status }) {
+export function OrderTimeline({ status, history = [] }) {
   if (status === "CANCELLED") {
     return (
       <p className="m-0 flex items-center gap-2 rounded-xl bg-[#fdecea] px-4 py-3 text-sm text-danger">
@@ -91,16 +91,23 @@ export function OrderTimeline({ status }) {
     <ol className="list-none m-0 p-0 grid grid-cols-5" aria-label="Order progress">
       {STEPS.map((s, i) => {
         const done = i <= reached;
+        const event = history.slice().reverse().find((e) => e.nextStatus === s.id);
+        const timeDisplay = event?.changedAt ? formatDateTime(event.changedAt) : null;
         return (
-          <li key={s.id} className="relative flex flex-col items-center text-center" aria-current={i === reached ? "step" : undefined}>
+          <li key={s.id} className="relative flex flex-col items-center text-center px-0.5 sm:px-1" aria-current={i === reached ? "step" : undefined}>
             {i > 0 && <span className={`absolute top-4 right-1/2 w-full h-0.5 ${i <= reached ? "bg-forest" : "bg-line"}`} aria-hidden="true" />}
             <span className={`relative flex items-center justify-center w-8 h-8 rounded-full ${done ? "bg-forest text-cream" : "bg-sand text-faint"}`}>
               <Icon name={s.icon} size={15} strokeWidth={2} />
             </span>
-            <span className={`mt-1.5 text-[0.6875rem] sm:text-xs ${done ? "text-ink font-medium" : "text-muted"}`}>
+            <span className={`mt-1.5 text-[0.6875rem] sm:text-xs ${done ? "text-ink font-semibold" : "text-muted"}`}>
               {s.label}
               <span className="sr-only">{done ? " (complete)" : " (pending)"}</span>
             </span>
+            {done && timeDisplay && (
+              <span className="mt-0.5 hidden md:block text-[10px] text-muted leading-tight">
+                {timeDisplay}
+              </span>
+            )}
           </li>
         );
       })}
@@ -113,9 +120,14 @@ export function OrderStatusHistory({ history = [] }) {
   return (
     <ol aria-label="Order status history" className="m-0 mt-4 grid list-none gap-2 border-t border-line pt-4">
       {history.map((entry, index) => (
-        <li key={`${entry.changedAt}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm">
-          <span className="text-ink">{entry.previousStatus ? `${labelStatus(entry.previousStatus)} → ` : ""}{labelStatus(entry.nextStatus)}</span>
-          <time className="text-xs text-muted" dateTime={entry.changedAt}>{formatDate(entry.changedAt)}</time>
+        <li key={`${entry.changedAt}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-sm py-1 border-b border-line/40 last:border-0">
+          <span className="font-semibold text-ink">
+            {entry.previousStatus ? `${labelStatus(entry.previousStatus)} → ` : ""}
+            {labelStatus(entry.nextStatus)}
+          </span>
+          <time className="text-xs font-medium text-forest bg-sage-50 border border-sage-200 px-2 py-0.5 rounded" dateTime={entry.changedAt}>
+            🕒 {formatDateTime(entry.changedAt)}
+          </time>
           {entry.reason && <span className="basis-full text-xs text-muted">{entry.reason}</span>}
         </li>
       ))}

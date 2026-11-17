@@ -43,7 +43,10 @@ export default function ReturnRequests({ order }) {
     finally { setBusy(false); }
   }
 
-  const canRequest = order.orderStatus === "DELIVERED" && state.status === "ready" && state.policy?.enabled && state.policy?.deliveredAt && Date.now() <= new Date(state.policy.deliveredAt).getTime() + state.policy.windowDays * 86400000;
+  const windowDays = state.policy?.windowDays || 7;
+  const deliveredTime = state.policy?.deliveredAt ? new Date(state.policy.deliveredAt).getTime() : Date.now();
+  const isWithinWindow = Date.now() <= deliveredTime + windowDays * 86400000;
+  const canRequest = order.orderStatus === "DELIVERED" && isWithinWindow;
   const remainingQuantity = (index) => Math.max(0, (order.items[index]?.quantity ?? 0) - state.returns.filter((entry) => entry.itemIndex === index && entry.status !== "REJECTED").reduce((sum, entry) => sum + entry.quantity, 0));
   const alreadyRequested = (index) => remainingQuantity(index) === 0;
 
@@ -52,8 +55,21 @@ export default function ReturnRequests({ order }) {
       <CardHeader title="Returns & Exchanges" />
       {state.status === "loading" && <Skeleton className="h-16" />}
       {state.error && <FormMessage tone="error">{state.error.message}</FormMessage>}
-      {state.status === "ready" && !state.policy.enabled && <p className="m-0 text-sm text-muted">Return and exchange requests are not enabled yet while the store return policy is being configured.</p>}
-      {state.status === "ready" && state.policy.enabled && order.orderStatus !== "DELIVERED" && <p className="m-0 text-sm text-muted">Returns and exchanges become available once your package has been delivered.</p>}
+      {state.status === "ready" && order.orderStatus !== "DELIVERED" && (
+        <div className="rounded-xl border border-sage-200 bg-sage-50/70 p-3.5 space-y-1 text-sm">
+          <div className="flex items-center gap-1.5 font-semibold text-forest text-xs uppercase tracking-wide">
+            <span>🪴 7-Day Healthy Plant Guarantee</span>
+          </div>
+          <p className="m-0 text-xs text-muted leading-relaxed">
+            Return and exchange options will become active right here once your package is delivered. You will have 7 full days from delivery to request a free plant replacement or refund under our Botanical Guarantee.
+          </p>
+        </div>
+      )}
+      {state.status === "ready" && order.orderStatus === "DELIVERED" && !canRequest && (
+        <p className="m-0 text-sm text-muted">
+          The 7-day return and exchange window for this delivered order has ended.
+        </p>
+      )}
       {state.returns.length > 0 && (
         <ul className="m-0 mb-4 grid list-none gap-2 p-0">
           {state.returns.map((entry) => (
@@ -94,7 +110,7 @@ export default function ReturnRequests({ order }) {
           <TextField label="Quantity" type="number" min="1" max={remainingQuantity(Number(itemIndex)) || 1} step="1" value={quantity} onChange={(event) => setQuantity(event.target.value)} required />
           <TextArea label={`Reason for ${requestType === "EXCHANGE" ? "exchange" : "return"}`} minLength={5} maxLength={500} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="e.g. Received damaged leaves, wrong size pot, seedling health issue" required rows={3} />
           {notice && <FormMessage tone="success">{notice}</FormMessage>}
-          <p className="m-0 text-xs text-muted">Guarantee window: {state.policy.windowDays} days from {formatDate(state.policy.deliveredAt)}. Botanical guarantee ensures 100% healthy arrival.</p>
+          <p className="m-0 text-xs text-muted">Guarantee window: {windowDays} days {state.policy?.deliveredAt ? `from ${formatDate(state.policy.deliveredAt)}` : "from delivery"}. Botanical guarantee ensures 100% healthy arrival.</p>
           <div>
             <Button type="submit" variant="outline" disabled={busy || order.items.every((_, index) => alreadyRequested(index)) || Number(quantity) > remainingQuantity(Number(itemIndex))}>
               {busy ? "Submitting…" : `Request ${requestType === "EXCHANGE" ? "Exchange" : "Return"}`}

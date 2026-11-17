@@ -16,10 +16,29 @@ export function formatNumber(value) {
 
 const dateFormat = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const monthYearFormat = new Intl.DateTimeFormat("en-IN", { month: "short", year: "numeric", timeZone: "UTC" });
+const dateTimeFormat = new Intl.DateTimeFormat("en-IN", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+});
 
 /* ISO date → "12 Oct 2026". UTC keeps server and browser output identical. */
 export function formatDate(iso) {
   return dateFormat.format(new Date(iso));
+}
+
+/* ISO date + time → "17 Nov 2026, 12:30 pm". */
+export function formatDateTime(iso) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? "" : dateTimeFormat.format(d);
+  } catch {
+    return formatDate(iso);
+  }
 }
 
 /* ISO date → "Nov 2024". */

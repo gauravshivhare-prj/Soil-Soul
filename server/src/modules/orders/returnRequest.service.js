@@ -13,12 +13,14 @@ function parseOrderFilter(userId, id) {
 }
 
 export async function listCustomerReturns(userId, orderId) {
-  const order = await Order.findOne(parseOrderFilter(userId, orderId)).select('_id orderStatus statusHistory');
+  const order = await Order.findOne(parseOrderFilter(userId, orderId)).select('_id orderStatus statusHistory createdAt updatedAt');
   if (!order) throw createError(404, 'ORDER_NOT_FOUND', 'Order not found.');
   const returns = await ReturnRequest.find({ order: order._id, user: userId }).sort({ createdAt: -1 });
+  const deliveredEntry = order.statusHistory?.slice().reverse().find((event) => event.nextStatus === 'DELIVERED');
+  const deliveredAt = deliveredEntry?.changedAt ?? (order.orderStatus === 'DELIVERED' ? (order.updatedAt || order.createdAt) : null);
   return {
     returns: returns.map(toCustomerReturn),
-    policy: { enabled: env.returnWindowDays > 0, windowDays: env.returnWindowDays, deliveredAt: order.statusHistory?.find((event) => event.nextStatus === 'DELIVERED')?.changedAt ?? null },
+    policy: { enabled: env.returnWindowDays > 0, windowDays: env.returnWindowDays, deliveredAt },
   };
 }
 
@@ -30,7 +32,10 @@ export async function createReturnRequest(userId, orderId, { itemIndex, quantity
   if (!order) throw createError(404, 'ORDER_NOT_FOUND', 'Order not found.');
   if (order.orderStatus !== 'DELIVERED') throw createError(409, 'RETURN_NOT_ELIGIBLE', 'Only delivered orders can be returned.');
   if (order.paymentStatus === 'REFUNDED' || order.orderStatus === 'CANCELLED') throw createError(409, 'RETURN_NOT_ELIGIBLE', 'This order has already been processed.');
-  const deliveredAt = order.statusHistory?.find((entry) => entry.nextStatus === 'DELIVERED')?.changedAt;
+  let deliveredAt = order.statusHistory?.slice().reverse().find((entry) => entry.nextStatus === 'DELIVERED')?.changedAt;
+  if (!deliveredAt && order.orderStatus === 'DELIVERED') {
+    deliveredAt = order.updatedAt || order.createdAt || new Date();
+  }
   if (!deliveredAt) throw createError(409, 'RETURN_NOT_ELIGIBLE', 'A delivery date is unavailable for this order. Contact support for help.');
   const expiresAt = new Date(deliveredAt.getTime() + env.returnWindowDays * 86400000);
   if (Date.now() > expiresAt.getTime()) throw createError(409, 'RETURN_WINDOW_EXPIRED', 'The return request window has expired.');
