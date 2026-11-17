@@ -21,7 +21,6 @@ import { useAuthedResource } from "@/features/auth/useAuthedResource";
 import {
   DeliveryAddress,
   OrderItems,
-  OrderStatusHistory,
   OrderTimeline,
   OrderTotals,
   PAYMENT_METHOD_LABEL,
@@ -147,7 +146,6 @@ export default function AccountOrderDetail({ orderId }) {
 
       <Card>
         <OrderTimeline status={order.orderStatus} history={order.statusHistory} />
-        <OrderStatusHistory history={order.statusHistory} />
         {order.cancellation?.reason && <p className="m-0 mt-3 text-sm text-muted">Reason: {order.cancellation.reason}</p>}
       </Card>
 

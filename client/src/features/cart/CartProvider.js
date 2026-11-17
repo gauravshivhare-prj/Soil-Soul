@@ -73,7 +73,7 @@ export function CartProvider({ children }) {
     const subtotal = activeCart.subtotal || 0;
     const shipping = activeCart.shippingFee ?? (subtotal >= 499 || subtotal === 0 ? 0 : 49);
     const tax = activeCart.tax ?? Math.round(subtotal * 0.05 * 100) / 100;
-    const total = activeCart.total ?? Math.round((subtotal + shipping + tax) * 100) / 100;
+    const total = subtotal === 0 ? 0 : Math.round((subtotal + shipping + tax) * 100) / 100;
     return {
       itemCount: activeCart.itemCount,
       subtotal,

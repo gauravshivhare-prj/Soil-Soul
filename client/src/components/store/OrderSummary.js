@@ -21,6 +21,7 @@ export default function OrderSummary({ totals, lines, title = "Order Summary", h
   const taxable = Math.max(0, subtotal - discount);
   const shipping = totals.shipping ?? (subtotal >= 499 || subtotal === 0 ? 0 : 49);
   const tax = totals.tax ?? Math.round(taxable * 0.05 * 100) / 100;
+  const total = subtotal === 0 ? 0 : Math.round((subtotal - discount + tax + shipping) * 100) / 100;
   const isFreeDelivery = shipping === 0 && subtotal > 0;
   const neededForFreeShipping = Math.max(0, 499 - subtotal);
   const progressPercent = Math.min(100, Math.round((subtotal / 499) * 100));
@@ -89,7 +90,7 @@ export default function OrderSummary({ totals, lines, title = "Order Summary", h
       <div className="mt-3 pt-3 border-t border-line flex items-center justify-between">
         <span className={`${brandSerif.className} text-lg font-bold text-ink`}>Total</span>
         <span className={`${brandSerif.className} text-xl font-bold text-ink`}>
-          {formatPrice(totals.total ?? Math.round((subtotal - discount + tax + shipping) * 100) / 100)}
+          {formatPrice(total)}
         </span>
       </div>
 

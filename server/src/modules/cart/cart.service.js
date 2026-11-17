@@ -57,6 +57,8 @@ export function formatEmptyCart() {
     items: [],
     itemCount: 0,
     subtotal: 0,
+    shippingFee: 0,
+    tax: 0,
     total: 0,
   };
 }
@@ -208,11 +210,17 @@ export async function formatCartResponse(cartDoc) {
     });
   }
 
+  const shippingFee = calculatedSubtotal >= 499 || calculatedSubtotal === 0 ? 0 : 49;
+  const tax = Math.round(calculatedSubtotal * 0.05 * 100) / 100;
+  const calculatedTotal = Math.round((calculatedSubtotal + shippingFee + tax) * 100) / 100;
+
   return {
     items: formattedItems,
     itemCount: totalItemCount,
     subtotal: calculatedSubtotal,
-    total: calculatedSubtotal,
+    shippingFee,
+    tax,
+    total: calculatedTotal,
   };
 }
 

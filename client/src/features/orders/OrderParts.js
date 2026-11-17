@@ -113,7 +113,7 @@ export function OrderTimeline({ status, history = [] }) {
               <span className="sr-only">{done ? " (complete)" : " (pending)"}</span>
             </span>
             {done && timeDisplay && (
-              <span className="mt-0.5 hidden md:block text-[10px] text-muted leading-tight">
+              <span className="mt-0.5 block text-[9px] sm:text-[10px] text-muted leading-tight">
                 {timeDisplay}
               </span>
             )}
