@@ -137,11 +137,41 @@ export default function AccountOrderDetail({ orderId }) {
         {order.cancellation?.reason && <p className="m-0 mt-3 text-sm text-muted">Reason: {order.cancellation.reason}</p>}
       </Card>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
-        <Card>
-          <CardHeader title="Items" />
-          <OrderItems items={order.items} />
-        </Card>
+      <div className="grid gap-5 xl:grid-cols-[1fr_340px] items-start">
+        <div className="space-y-5 min-w-0">
+          <Card>
+            <CardHeader
+              title={`Ordered Items (${order.items.reduce((sum, item) => sum + item.quantity, 0)})`}
+            />
+            <OrderItems items={order.items} />
+          </Card>
+
+          {/* Plant Care & Support Card */}
+          <div className="rounded-2xl border border-line bg-gradient-to-br from-[#faf8f2] via-cream to-sage-50/60 p-5 space-y-3 shadow-[0_1px_3px_rgba(36,69,42,0.04)]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="w-8 h-8 rounded-full bg-forest text-cream flex items-center justify-center text-sm font-bold shadow-xs">
+                  🪴
+                </span>
+                <div>
+                  <h3 className="m-0 text-sm font-bold text-ink">Botanical Care &amp; Support</h3>
+                  <p className="m-0 text-xs text-muted">Soil &amp; Soul Nursery, Bhopal</p>
+                </div>
+              </div>
+              <span className="text-[11px] font-semibold text-forest bg-sage-100 border border-sage-200 px-2.5 py-0.5 rounded-full">
+                Nursery Verified
+              </span>
+            </div>
+            <p className="m-0 text-xs text-muted leading-relaxed">
+              Need plant care instructions, soil moisture guidelines, or seasonal potting tips for your delivered plants? Ask our AI botanical companion Sprout anytime.
+            </p>
+            <div className="pt-2 border-t border-line/60 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <span className="text-muted">Customer Helpline: <strong className="text-ink">98741 512xx</strong></span>
+              <span className="text-muted">Direct Email: <strong className="text-ink">soil&soul@gmail.com</strong></span>
+            </div>
+          </div>
+        </div>
+
         <div className="grid gap-5 content-start">
           <Card>
             <CardHeader title="Order Total" />
