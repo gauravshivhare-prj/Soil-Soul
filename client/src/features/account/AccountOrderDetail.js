@@ -28,7 +28,7 @@ import {
   canCustomerCancel,
   statusKey,
 } from "@/features/orders/OrderParts";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime, formatPrice } from "@/lib/format";
 import ReturnRequests from "@/features/account/ReturnRequests";
 
 function CancelOrder({ order, onCancelled }) {
