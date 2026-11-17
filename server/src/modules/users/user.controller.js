@@ -23,3 +23,48 @@ export async function getAdminCustomers(req, res, next) {
     next(err);
   }
 }
+
+export async function getAddresses(req, res, next) {
+  try {
+    const addresses = await userService.getAddresses(req.user.id);
+    res.status(200).json({ success: true, data: { addresses } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function addAddress(req, res, next) {
+  try {
+    const addresses = await userService.addAddress(req.user.id, req.body);
+    res.status(201).json({ success: true, data: { addresses } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateAddress(req, res, next) {
+  try {
+    const addresses = await userService.updateAddress(req.user.id, req.params.addressId, req.body);
+    res.status(200).json({ success: true, data: { addresses } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteAddress(req, res, next) {
+  try {
+    const addresses = await userService.deleteAddress(req.user.id, req.params.addressId);
+    res.status(200).json({ success: true, data: { addresses } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function setDefaultAddress(req, res, next) {
+  try {
+    const addresses = await userService.setDefaultAddress(req.user.id, req.params.addressId);
+    res.status(200).json({ success: true, data: { addresses } });
+  } catch (err) {
+    next(err);
+  }
+}

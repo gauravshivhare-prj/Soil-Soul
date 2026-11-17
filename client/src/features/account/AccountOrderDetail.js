@@ -99,7 +99,7 @@ export default function AccountOrderDetail({ orderId }) {
 
   const { order } = data;
   const placedDate = new Date(order.createdAt || 0);
-  const estDate = new Date(placedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
+  const estDate = new Date(placedDate.getTime() + 7 * 24 * 60 * 60 * 1000);
   const estDeliveryFormatted = estDate.toLocaleDateString("en-IN", {
     weekday: "long",
     day: "numeric",
@@ -125,7 +125,7 @@ export default function AccountOrderDetail({ orderId }) {
           <div className="mt-3 flex items-center gap-2 rounded-xl bg-sage-50 border border-sage-200 px-4 py-2 text-xs sm:text-sm text-forest">
             <span aria-hidden="true">🚚</span>
             <span>
-              <strong>Estimated Delivery:</strong> {estDeliveryFormatted} (Express Botanical Transit)
+              <strong>Estimated Delivery:</strong> {estDeliveryFormatted} (Within 7 days)
             </span>
           </div>
         )}

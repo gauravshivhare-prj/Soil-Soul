@@ -22,6 +22,7 @@ import AddressForm from "@/components/store/AddressForm";
 import OrderSummary from "@/components/store/OrderSummary";
 import Button from "@/components/ui/Button";
 import Icon from "@/components/ui/Icon";
+import Badge from "@/components/ui/Badge";
 import { Checkbox } from "@/components/ui/Field";
 import { EmptyState, FormMessage, Skeleton } from "@/components/ui/States";
 
@@ -76,31 +77,234 @@ function Panel({ title, icon, children, headingRef }) {
 }
 
 /* ─── Steps ────────────────────────────────────────────────────── */
-function AddressStep({ address, onSave }) {
-  const [isEditing, setIsEditing] = useState(!address);
-  if (address && !isEditing) {
+function AddressStep({
+  address,
+  savedAddresses = [],
+  loadingAddresses = false,
+  onSelectAddress,
+  onSaveNewAddress,
+  onConfirmed,
+}) {
+  const [userMode, setUserMode] = useState(null); // null = auto, "confirmed" | "picker" | "new"
+  const mode = userMode ?? (address ? "confirmed" : savedAddresses.length > 0 ? "picker" : "new");
+  const [saveToProfile, setSaveToProfile] = useState(savedAddresses.length < 3);
+  const [savingNew, setSavingNew] = useState(false);
+  const [saveError, setSaveError] = useState("");
+
+  if (loadingAddresses) {
     return (
-      <div className="rounded-xl border border-forest bg-sage-50/50 p-4 text-sm">
-        <p className="m-0 font-semibold text-ink">{address.name}</p>
-        <p className="m-0 mt-1 text-muted">{formatAddress(address)}</p>
-        <p className="m-0 mt-0.5 text-muted">{address.phone}</p>
-        <button type="button" onClick={() => setIsEditing(true)} className="mt-3 inline-flex items-center gap-1.5 bg-transparent border-0 p-0 text-sm font-medium text-forest cursor-pointer hover:underline">
-          <Icon name="edit" size={15} /> Change address
-        </button>
+      <div className="space-y-3" role="status" aria-label="Loading delivery addresses">
+        <Skeleton className="h-28 rounded-xl" />
+        <Skeleton className="h-10 rounded-lg w-48" />
       </div>
     );
   }
+
+  // 1. Confirmed / Selected Address View (Yahi Address)
+  if (mode === "confirmed" && address) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl border-2 border-forest bg-sage-50/50 p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sage-200 pb-3 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-forest text-cream">
+                <Icon name="check" size={14} />
+              </span>
+              <span className="text-xs font-bold uppercase tracking-wider text-forest">
+                Delivery Address Selected
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Badge variant="outline">{address.label || "Home"}</Badge>
+              {address.isDefault && <Badge variant="secondary">Default</Badge>}
+            </div>
+          </div>
+
+          <div className="text-sm space-y-1">
+            <p className="m-0 font-bold text-ink text-base">{address.name}</p>
+            <p className="m-0 text-ink">{address.line1}</p>
+            {address.line2 && <p className="m-0 text-muted">{address.line2}</p>}
+            <p className="m-0 text-ink font-medium">
+              {address.city}, {address.state} — {address.pincode}
+            </p>
+            <p className="m-0 pt-1 flex items-center gap-1.5 text-xs text-muted">
+              <Icon name="phone" size={14} className="text-forest" />
+              <span>Contact: <strong className="text-ink">{address.phone}</strong></span>
+            </p>
+          </div>
+
+          <div className="mt-4 pt-3.5 border-t border-sage-200 flex flex-wrap items-center gap-3">
+            <Button size="md" onClick={onConfirmed}>
+              Deliver to this Address →
+            </Button>
+            {savedAddresses.length > 1 ? (
+              <Button variant="outline" size="md" onClick={() => setUserMode("picker")}>
+                Deliver to another address ({savedAddresses.length} saved)
+              </Button>
+            ) : (
+              <Button variant="outline" size="md" onClick={() => setUserMode("new")}>
+                + Use another address
+              </Button>
+            )}
+            {savedAddresses.length < 3 && savedAddresses.length > 0 && (
+              <Button variant="ghost" size="sm" onClick={() => setUserMode("new")}>
+                + Add new address ({savedAddresses.length}/3)
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between text-xs text-muted px-1">
+          <span>Need to update your address book?</span>
+          <Link href="/account/addresses" className="font-semibold text-forest hover:underline">
+            Manage Saved Addresses (max 3) →
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Picker View (Dusra Address - Pick from saved addresses)
+  if (mode === "picker" || (!address && savedAddresses.length > 0 && mode !== "new")) {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="m-0 text-sm font-bold text-ink">Choose a delivery address</h3>
+            <p className="m-0 text-xs text-muted">
+              Select one of your {savedAddresses.length} saved addresses (max 3 allowed)
+            </p>
+          </div>
+          {savedAddresses.length < 3 && (
+            <Button variant="outline" size="sm" onClick={() => setUserMode("new")}>
+              + Add New Address ({savedAddresses.length}/3)
+            </Button>
+          )}
+        </div>
+
+        <div className="grid gap-3">
+          {savedAddresses.map((a) => {
+            const id = a.id || a._id;
+            const isSelected =
+              (address?.id && address.id === id) ||
+              (address?._id && address._id === id) ||
+              (address?.line1 === a.line1 && address?.name === a.name);
+
+            return (
+              <div
+                key={id || a.line1}
+                className={`rounded-xl border p-4 transition-all ${
+                  isSelected
+                    ? "border-forest bg-sage-50/50 shadow-sm ring-1 ring-forest"
+                    : "border-line bg-white hover:border-sage-300"
+                }`}
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 text-sm space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-ink">{a.name}</span>
+                      <Badge variant="outline">{a.label || "Home"}</Badge>
+                      {a.isDefault && <Badge variant="secondary">Default</Badge>}
+                    </div>
+                    <p className="m-0 text-xs text-ink">{a.line1}{a.line2 ? `, ${a.line2}` : ""}</p>
+                    <p className="m-0 text-xs text-ink">{a.city}, {a.state} — {a.pincode}</p>
+                    <p className="m-0 text-xs text-muted flex items-center gap-1">
+                      <Icon name="phone" size={13} /> {a.phone}
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0">
+                    <Button
+                      size="sm"
+                      variant={isSelected ? "primary" : "outline"}
+                      onClick={() => {
+                        onSelectAddress(a);
+                        setUserMode("confirmed");
+                      }}
+                    >
+                      {isSelected ? "Deliver Here ✓" : "Deliver Here"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-line">
+          {address && (
+            <Button variant="ghost" size="sm" onClick={() => setUserMode("confirmed")}>
+              ← Keep current address
+            </Button>
+          )}
+          {savedAddresses.length < 3 ? (
+            <Button variant="outline" size="sm" onClick={() => setUserMode("new")}>
+              + Deliver to a new address ({savedAddresses.length}/3 saved)
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => setUserMode("new")}>
+              + Deliver to a different address (for this order)
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 3. New Address Form View
   return (
-    <AddressForm
-      initial={address ?? undefined}
-      showSaveOptions={false}
-      submitLabel="Use This Address"
-      onCancel={address ? () => setIsEditing(false) : undefined}
-      onSave={(a) => {
-        onSave(a);
-        setIsEditing(false);
-      }}
-    />
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-3">
+        <div>
+          <h3 className="m-0 text-sm font-bold text-ink">Enter Delivery Address</h3>
+          <p className="m-0 text-xs text-muted">
+            {savedAddresses.length >= 3
+              ? "You have 3 saved addresses in your profile (maximum limit). This address will be used for this order."
+              : `You have ${savedAddresses.length} of 3 addresses saved in your profile.`}
+          </p>
+        </div>
+        {savedAddresses.length > 0 && (
+          <Button variant="ghost" size="sm" onClick={() => setUserMode(address ? "confirmed" : "picker")}>
+            ← Back to saved addresses
+          </Button>
+        )}
+      </div>
+
+      {saveError && <FormMessage tone="error">{saveError}</FormMessage>}
+
+      <AddressForm
+        initial={address ?? undefined}
+        showSaveOptions={false}
+        submitLabel={savingNew ? "Saving…" : "Deliver to This Address"}
+        onCancel={savedAddresses.length > 0 ? () => setUserMode(address ? "confirmed" : "picker") : undefined}
+        onSave={async (formData) => {
+          setSaveError("");
+          setSavingNew(true);
+          try {
+            await onSaveNewAddress(formData, saveToProfile && savedAddresses.length < 3);
+            setUserMode("confirmed");
+          } catch (err) {
+            setSaveError(err.message || "Could not save address");
+          } finally {
+            setSavingNew(false);
+          }
+        }}
+      />
+
+      {savedAddresses.length < 3 && (
+        <div className="rounded-lg bg-sand/60 p-3 text-xs text-ink flex items-center gap-2">
+          <input
+            id="save-to-profile-chk"
+            type="checkbox"
+            checked={saveToProfile}
+            onChange={(e) => setSaveToProfile(e.target.checked)}
+            className="w-4 h-4 accent-forest cursor-pointer"
+          />
+          <label htmlFor="save-to-profile-chk" className="cursor-pointer font-medium">
+            Save this address to my profile for future orders ({savedAddresses.length}/3 saved)
+          </label>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -191,8 +395,8 @@ function Confirmation({ order, warning }) {
     hour12: true,
   });
 
-  // Calculate Expected Delivery Date: 4 business days
-  const estDate = new Date(placedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
+  // Calculate Expected Delivery Date: 7 days after order placed
+  const estDate = new Date(placedDate.getTime() + 7 * 24 * 60 * 60 * 1000);
   const estDeliveryFormatted = estDate.toLocaleDateString("en-IN", {
     weekday: "long",
     day: "numeric",
@@ -230,7 +434,7 @@ function Confirmation({ order, warning }) {
             🚚 Expected Delivery Date
           </span>
           <span className="text-sm font-bold text-forest block">{estDeliveryFormatted}</span>
-          <span className="text-xs text-muted block">Express Botanical Transit (3–4 days)</span>
+          <span className="text-xs text-muted block">Standard Botanical Transit (7 days)</span>
         </div>
       </div>
 
@@ -313,6 +517,8 @@ export default function CheckoutFlow() {
   const { authRequest } = useAuth();
   const { isReady, isAuthenticated, lines, totals, refresh } = useCart();
   const [address, setAddress] = useState(null);
+  const [savedAddresses, setSavedAddresses] = useState([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(true);
   const [paymentId, setPaymentId] = useState("COD");
   const [methods, setMethods] = useState(null);
   const [methodsError, setMethodsError] = useState("");
@@ -331,13 +537,57 @@ export default function CheckoutFlow() {
   useEffect(() => {
     if (!isAuthenticated) return undefined;
     let cancelled = false;
+
     authRequest("/orders/payment-methods")
       .then((data) => !cancelled && setMethods(data.paymentMethods))
       .catch((err) => !cancelled && setMethodsError(err.message));
+
+    authRequest("/users/me/addresses")
+      .then((data) => {
+        if (cancelled) return;
+        const list = data.addresses || [];
+        setSavedAddresses(list);
+        if (list.length > 0) {
+          const def = list.find((a) => a.isDefault) || list[0];
+          setAddress(def);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoadingAddresses(false);
+      });
+
     return () => {
       cancelled = true;
     };
   }, [isAuthenticated, authRequest]);
+
+  function handleSelectAddress(selected) {
+    setAddress(selected);
+    attemptKey.current = null;
+    setError("");
+  }
+
+  async function handleSaveNewAddress(formData, shouldSaveToProfile) {
+    if (shouldSaveToProfile && savedAddresses.length < 3) {
+      try {
+        const res = await authRequest("/users/me/addresses", {
+          method: "POST",
+          body: formData,
+        });
+        const updatedList = res.addresses || [];
+        setSavedAddresses(updatedList);
+        const matched = updatedList[updatedList.length - 1] || formData;
+        setAddress(matched);
+      } catch (err) {
+        setAddress(formData);
+      }
+    } else {
+      setAddress(formData);
+    }
+    attemptKey.current = null;
+    setError("");
+  }
 
   function goTo(next) {
     setError("");
@@ -437,11 +687,11 @@ export default function CheckoutFlow() {
           <Panel title="1. Delivery Address" icon="pin" headingRef={headingRef}>
             <AddressStep
               address={address}
-              onSave={(a) => {
-                setAddress(a);
-                attemptKey.current = null; // new details → new checkout attempt
-                setError("");
-              }}
+              savedAddresses={savedAddresses}
+              loadingAddresses={loadingAddresses}
+              onSelectAddress={handleSelectAddress}
+              onSaveNewAddress={handleSaveNewAddress}
+              onConfirmed={() => next()}
             />
           </Panel>
         )}

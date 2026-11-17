@@ -60,28 +60,49 @@ export default function AccountDashboard() {
             ))}
         </Card>
 
-        <Card className="content-start">
-          <CardHeader
-            title="Profile Information"
-            action={
-              <Link href="/account/settings" className={buttonClass({ variant: "outline", size: "sm" })}>
-                <Icon name="edit" size={14} /> Edit
+        <div className="space-y-5">
+          <Card className="content-start">
+            <CardHeader
+              title="Profile Information"
+              action={
+                <Link href="/account/settings" className={buttonClass({ variant: "outline", size: "sm" })}>
+                  <Icon name="edit" size={14} /> Edit
+                </Link>
+              }
+            />
+            <dl className="m-0 grid gap-2.5 text-sm">
+              {[
+                ["user", "Name", user?.name],
+                ["mail", "Email", user?.email],
+                ["phone", "Phone", user?.phone || "Not added"],
+              ].map(([icon, label, value]) => (
+                <div key={label} className="flex items-center gap-3">
+                  <dt className="text-muted"><Icon name={icon} size={17} /><span className="sr-only">{label}</span></dt>
+                  <dd className="m-0 text-ink truncate">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </Card>
+
+          <Card className="content-start">
+            <CardHeader
+              title="Saved Addresses"
+              action={
+                <Link href="/account/addresses" className={buttonClass({ variant: "outline", size: "sm" })}>
+                  Manage
+                </Link>
+              }
+            />
+            <p className="m-0 text-sm text-muted">
+              Save up to 3 delivery addresses for instant 1-click checkout.
+            </p>
+            <div className="mt-3">
+              <Link href="/account/addresses" className="inline-flex items-center gap-1.5 text-sm font-semibold text-forest hover:underline">
+                <Icon name="pin" size={15} /> View &amp; Manage Addresses →
               </Link>
-            }
-          />
-          <dl className="m-0 grid gap-2.5 text-sm">
-            {[
-              ["user", "Name", user?.name],
-              ["mail", "Email", user?.email],
-              ["phone", "Phone", user?.phone || "Not added"],
-            ].map(([icon, label, value]) => (
-              <div key={label} className="flex items-center gap-3">
-                <dt className="text-muted"><Icon name={icon} size={17} /><span className="sr-only">{label}</span></dt>
-                <dd className="m-0 text-ink truncate">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        </Card>
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );

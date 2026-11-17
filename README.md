@@ -1,67 +1,170 @@
-# Soil & Soul — Botanical E-Commerce Platform
+# Soil & Soul — Botanical Living & Gardening E-Commerce Platform
 
-Soil & Soul is an enterprise-grade full-stack botanical e-commerce application organized around four core departments:
+> **Nurturing greener homes, living soils, and flourishing spaces.**  
+> Soil & Soul is a modern, full-stack botanical e-commerce platform dedicated to urban gardeners and plant enthusiasts. From nursery-grown houseplants and heirloom seeds to bio-active living potting mixes and handcrafted tools, Soil & Soul delivers botanical living straight to doorsteps.
 
-1. **Plants** (Indoor, outdoor, low-light, pet-friendly)
-2. **Tools** (Handcrafted gardening tools, watering cans)
-3. **Seeds** (Organic vegetables, culinary herbs, seasonal blooms)
-4. **Soil & Plant Care** (Bio-active potting mixes, vermicompost, seaweed fertiliser, cocopeat)
+---
 
-> 📘 **Stage 2 Assessment Documentation**: For the complete technical report, architecture breakdown, Mermaid ER diagram, and testing metrics, refer to [PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md).
+## 🌿 Storefront & Customer Experience
 
-## Technology Stack
+### 1. Curated Botanical Catalog
+- **Living Plants**: Healthy, acclimated indoor and outdoor plants (Monstera, Peace Lily, Areca Palm, Snake Plant, Jade Plant, etc.) featuring detailed light, watering, and pet-safety badges.
+- **Garden Tools**: Ergonomic bypass shears, brass & stainless steel watering cans, coco coir plant stakes, and precision trowels.
+- **Heirloom Seeds**: Organic vegetable varieties, culinary herbs, and vibrant seasonal blooms with germination tips.
+- **Living Soil & Nutrition**: Bio-active potting mixes, slow-cured vermicompost, liquid seaweed fertilizer, and compressed coco coir blocks.
 
-- **Frontend**: Next.js 16 (App Router, Turbopack), React 19, Tailwind CSS v4, Lucide Botanical Icons.
-- **Backend**: Node.js, Express.js (Layered MVC/Service architecture, ES modules).
-- **Database**: MongoDB Atlas with Mongoose ORM (11 relational schemas).
-- **AI Concierge**: Sprout Botanical Assistant powered by Google Gemini API (`gemini-1.5-flash`) with offline rule fallback.
-- **Checkout**: Cash on Delivery (COD) with concurrency-safe stock deduction.
-- **Security & RBAC**: JWT with HttpOnly cookies, Role-Based Access Control (`customer` & `admin`), Helmet, Rate-Limiting, Mongo-Sanitize, Joi Validation.
-- **Testing**: 119 automated tests (102 backend tests + 17 frontend tests), zero ESLint warnings/errors.
+### 2. Interactive Shopping & Discovery
+- **Single-Line Featured Showcase**: Sleek horizontal slider with navigation buttons highlighting bestsellers and seasonal arrivals.
+- **Dynamic Shop by Category**: Intuitive category cards with visual department previews across Plants, Tools, Seeds, and Soil & Care.
+- **Instant Search & Deep Filtering**: Real-time attribute search (light levels, maintenance difficulty, pet friendliness) and sorting.
 
-## Repository layout
+### 3. Customer Account & Address Book
+- **Multi-Address Book (Up to 3 Addresses)**: Customers can save up to 3 addresses (Home, Work, Other) with custom labels and default address management.
+- **1-Click Checkout Confirmation**:
+  - Automatically loads and selects the customer's default address.
+  - One-click **"Deliver to this Address"** button eliminates repetitive typing.
+  - Easy switcher to toggle between saved addresses or add a new one-time delivery destination.
+- **Order Tracking & Real-Time Progress**:
+  - Transparent 4-stage tracking timeline: `Placed` → `Packing (Nursery Check)` → `Shipped (Eco-Courier)` → `Delivered (Doorstep)`.
+  - Guaranteed standard botanical transit with estimated 7-day doorstep delivery.
 
-```text
-Soil&Soul/
-├── client/       # Next.js frontend
-├── server/       # Express API
-├── docs/         # Architecture, setup, standards, testing, security
-├── README.md
-└── .gitignore
+### 4. Sprout — The AI Botanical Concierge
+- Built-in botanical care assistant available 24/7 across every storefront page.
+- Diagnoses common plant symptoms (yellow leaves, under-watering, root-bound signs).
+- Recommends tailored plants for specific indoor environments (low light, north-facing rooms, pet households).
+- Answers order and shipping policy inquiries with smart fallback heuristics.
+
+### 5. Transparent Reviews & Trust
+- Verified purchase badges on customer reviews.
+- Photo gallery testimonials from real urban gardeners.
+- Integrated customer wishlist and instant notification toasts.
+
+---
+
+## 🪴 Merchant & Nursery Operations
+
+- **3-Level Nested Category Hierarchy**: Tree taxonomy with L1 root categories, L2 subcategories, and L3 nested sub-departments.
+- **Safe Archival & Deletion Protections**: Protected canonical roots with cascade checks, in-place archiving, and restore workflows.
+- **Inventory & Stock Management**:
+  - Real-time stock level monitoring with low-stock alerts.
+  - Direct stock adjustments and quick increment/decrement controls.
+  - Complete historical stock movement audit logs.
+- **Order Fulfillment & COD Operations**: Cash on Delivery (COD) processing with concurrency-safe stock deduction and idempotency safeguards.
+
+---
+
+## 🏗️ Technical Architecture & Stack
+
+### Frontend
+- **Framework**: [Next.js 16](https://nextjs.org/) (App Router, Turbopack) & [React 19](https://react.dev/)
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) with custom botanical design tokens (Forest `#24452a`, Sand `#f6f4ee`, Sage `#8da68f`)
+- **Typography**: Playfair Display / Cormorant serif accents paired with modern sans-serif body typography
+- **State & Data**: Modular Context Providers (`AuthProvider`, `CartProvider`, `ToastProvider`) with resilient fetch hooks (`useAuthedResource`)
+
+### Backend
+- **Runtime & Server**: Node.js & [Express.js](https://expressjs.com/) (Modular MVC / Service-Repository pattern, native ES modules)
+- **Database**: [MongoDB](https://www.mongodb.com/) with [Mongoose ODM](https://mongoosejs.com/) (11 optimized relational schemas)
+- **AI Engine**: Google Gemini API (`gemini-1.5-flash`) with offline rule-based knowledge engine
+- **Security & Reliability**:
+  - JWT authentication stored in secure HttpOnly cookies
+  - Role-Based Access Control (`customer`, `admin`)
+  - Helmet HTTP security headers, CORS origin whitelisting, rate limiting, and NoSQL injection sanitization
+  - Idempotency key headers to prevent duplicate order placements
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js (v18.0.0 or higher recommended)
+- MongoDB instance (Local or MongoDB Atlas)
+- npm or yarn
+
+### 1. Clone & Install
+
+```bash
+# Clone the repository
+git clone https://github.com/gauravshivhare-prj/Soil-Soul.git
+cd Soil-Soul
+
+# Install client dependencies
+cd client
+npm install
+
+# Install server dependencies
+cd ../server
+npm install
 ```
 
-## Current development rule
+### 2. Environment Configuration
 
-Build in small, reviewable steps. After each meaningful change:
+Create a `.env` file in the `server` directory:
 
-1. Inspect the diff.
-2. Run the relevant checks.
-3. Verify the behavior manually where appropriate.
-4. Fix failures before starting another feature.
-5. Commit a known-good milestone when Git is initialized.
+```env
+PORT=5000
+NODE_ENV=development
+MONGODB_URI=mongodb://localhost:27017/soil_and_soul
+JWT_SECRET=your_jwt_secret_key_here
+CLIENT_URL=http://localhost:3000
+GEMINI_API_KEY=your_gemini_api_key_optional
+```
 
-Do not add real API keys, payment secrets, or production credentials to source control.
+Create a `.env.local` file in the `client` directory (optional for local defaults):
 
-## Local setup
+```env
+NEXT_PUBLIC_API_URL=http://localhost:5000/api/v1
+```
 
-See [`docs/setup-guide.md`](docs/setup-guide.md).
+### 3. Running in Development
 
-## Architecture
+In two separate terminals:
 
-See [`docs/architecture.md`](docs/architecture.md).
+```bash
+# Terminal 1 — Start the Backend Server
+cd server
+npm run dev
+# Server runs on http://localhost:5000
+```
 
-## Engineering standards
+```bash
+# Terminal 2 — Start the Storefront Frontend
+cd client
+npm run dev
+# Storefront live on http://localhost:3000
+```
 
-- [`docs/coding-standards.md`](docs/coding-standards.md)
-- [`docs/code-documentation-standard.md`](docs/code-documentation-standard.md)
-- [`docs/api-conventions.md`](docs/api-conventions.md)
-- [`docs/database-design.md`](docs/database-design.md)
-- [`docs/security.md`](docs/security.md)
-- [`docs/testing-strategy.md`](docs/testing-strategy.md)
-- [`docs/feature-workflow.md`](docs/feature-workflow.md)
-- [`docs/deployment.md`](docs/deployment.md)
-- [`docs/decisions.md`](docs/decisions.md)
+---
 
-## Current status
+## 🧪 Testing & Code Quality
 
-The repository contains implemented storefront and backend functionality, but a successful lint or source-test run does not establish live database or browser behavior. Verify the current working tree using the setup guide before relying on runtime status. Do not assume that database content, an external payment gateway, or a live OpenAI integration is configured.
+The platform includes comprehensive test suites across both layers:
+
+```bash
+# Run Backend Test Suite (102 automated tests)
+cd server
+npm test
+
+# Run Storefront Test Suite (17 automated tests)
+cd client
+npm test
+
+# Run ESLint Quality Check (0 warnings, 0 errors)
+cd client
+npm run lint
+```
+
+---
+
+## 📍 Soil & Soul Nursery & Customer Care
+
+- **Nursery & Flagship Store**: Soil & Soul Nursery, Bhopal, Madhya Pradesh, India
+- **Customer Care Line**: +91 98741 512xx
+- **Email Inquiries**: `soil&soul@gmail.com`
+- **Shipping**: Plastic-free, breathable botanical transit (Estimated 7-day door delivery across India)
+
+---
+
+## 📄 License
+
+This software and brand assets are distributed under the [MIT License](LICENSE).  
+*Good Choices, Greener Tomorrows.*

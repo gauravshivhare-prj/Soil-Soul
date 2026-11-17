@@ -121,3 +121,104 @@ export async function listCustomers({ page = 1, limit = 25, search = '' } = {}) 
     },
   };
 }
+
+export async function getAddresses(userId) {
+  const user = await User.findById(userId).select('addresses');
+  if (!user) throw createError(401, 'USER_NOT_FOUND', 'User account not found.');
+  return user.addresses || [];
+}
+
+export async function addAddress(userId, body) {
+  const user = await User.findById(userId);
+  if (!user) throw createError(401, 'USER_NOT_FOUND', 'User account not found.');
+  if (user.addresses && user.addresses.length >= 3) {
+    throw createError(400, 'MAX_ADDRESSES_REACHED', 'Maximum of 3 addresses can be saved. Please edit or delete an existing address.');
+  }
+
+  const { name, phone, line1, line2, city, state, pincode, label, isDefault } = body || {};
+  if (!name || !phone || !line1 || !city || !state || !pincode) {
+    throw createError(400, 'VALIDATION_ERROR', 'All required address fields must be filled.');
+  }
+
+  const shouldBeDefault = Boolean(isDefault) || (user.addresses?.length === 0);
+  if (shouldBeDefault && user.addresses) {
+    user.addresses.forEach((a) => { a.isDefault = false; });
+  }
+
+  user.addresses.push({
+    label: label?.trim() || 'Home',
+    name: name.trim(),
+    phone: phone.trim(),
+    line1: line1.trim(),
+    line2: (line2 || '').trim(),
+    city: city.trim(),
+    state: state.trim(),
+    pincode: pincode.trim(),
+    isDefault: shouldBeDefault,
+  });
+
+  await user.save();
+  return user.addresses;
+}
+
+export async function updateAddress(userId, addressId, body) {
+  const user = await User.findById(userId);
+  if (!user) throw createError(401, 'USER_NOT_FOUND', 'User account not found.');
+
+  const address = user.addresses.id(addressId);
+  if (!address) throw createError(404, 'ADDRESS_NOT_FOUND', 'Address not found.');
+
+  const { name, phone, line1, line2, city, state, pincode, label, isDefault } = body || {};
+  if (isDefault) {
+    user.addresses.forEach((a) => { a.isDefault = false; });
+    address.isDefault = true;
+  } else if (isDefault === false && address.isDefault && user.addresses.length > 1) {
+    const other = user.addresses.find((a) => a.id !== addressId);
+    if (other) other.isDefault = true;
+    address.isDefault = false;
+  }
+
+  if (name !== undefined) address.name = name.trim();
+  if (phone !== undefined) address.phone = phone.trim();
+  if (line1 !== undefined) address.line1 = line1.trim();
+  if (line2 !== undefined) address.line2 = (line2 || '').trim();
+  if (city !== undefined) address.city = city.trim();
+  if (state !== undefined) address.state = state.trim();
+  if (pincode !== undefined) address.pincode = pincode.trim();
+  if (label !== undefined) address.label = label.trim();
+
+  await user.save();
+  return user.addresses;
+}
+
+export async function deleteAddress(userId, addressId) {
+  const user = await User.findById(userId);
+  if (!user) throw createError(401, 'USER_NOT_FOUND', 'User account not found.');
+
+  const address = user.addresses.id(addressId);
+  if (!address) throw createError(404, 'ADDRESS_NOT_FOUND', 'Address not found.');
+
+  const wasDefault = address.isDefault;
+  user.addresses.pull({ _id: addressId });
+
+  if (wasDefault && user.addresses.length > 0) {
+    user.addresses[0].isDefault = true;
+  }
+
+  await user.save();
+  return user.addresses;
+}
+
+export async function setDefaultAddress(userId, addressId) {
+  const user = await User.findById(userId);
+  if (!user) throw createError(401, 'USER_NOT_FOUND', 'User account not found.');
+
+  const address = user.addresses.id(addressId);
+  if (!address) throw createError(404, 'ADDRESS_NOT_FOUND', 'Address not found.');
+
+  user.addresses.forEach((a) => { a.isDefault = false; });
+  address.isDefault = true;
+
+  await user.save();
+  return user.addresses;
+}

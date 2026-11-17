@@ -36,7 +36,7 @@ const FAQ_SECTIONS = [
       },
       {
         q: "How long does delivery take?",
-        a: "Most metro deliveries take 2–4 business days. Regional orders take 3–5 business days. We ship via express botanical courier to minimize transit time in dark parcels.",
+        a: "Orders are delivered within 7 days across India. We ship via safe botanical courier with eco-friendly transit packaging to protect living plants.",
       },
     ],
   },

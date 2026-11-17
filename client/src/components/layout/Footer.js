@@ -57,9 +57,9 @@ const LINK_COLUMNS = [
 ];
 
 const FOOTER_CONTACT = {
-  address: ["42, Green Roots Sanctuary, Sarjapur Road", "Bengaluru, Karnataka 560035"],
-  phone: "+91 98765 43210",
-  email: "support@soilandsoul.in",
+  address: ["Soil & Soul Nursery", "Bhopal, Madhya Pradesh"],
+  phone: "+91 98741512xx",
+  email: "soil&soul@gmail.com",
 };
 
 const SOCIAL_LINKS = [

@@ -2,6 +2,71 @@ import mongoose from 'mongoose';
 
 export const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
+export const addressSchema = new mongoose.Schema(
+  {
+    label: {
+      type: String,
+      default: 'Home',
+      trim: true,
+      maxlength: [30, 'Label cannot exceed 30 characters.'],
+    },
+    name: {
+      type: String,
+      required: [true, 'Recipient name is required.'],
+      trim: true,
+      maxlength: [60, 'Name cannot exceed 60 characters.'],
+    },
+    phone: {
+      type: String,
+      required: [true, 'Phone number is required.'],
+      trim: true,
+    },
+    line1: {
+      type: String,
+      required: [true, 'Address is required.'],
+      trim: true,
+      maxlength: [150, 'Address cannot exceed 150 characters.'],
+    },
+    line2: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: [100, 'Landmark cannot exceed 100 characters.'],
+    },
+    city: {
+      type: String,
+      required: [true, 'City is required.'],
+      trim: true,
+      maxlength: [60, 'City cannot exceed 60 characters.'],
+    },
+    state: {
+      type: String,
+      required: [true, 'State is required.'],
+      trim: true,
+    },
+    pincode: {
+      type: String,
+      required: [true, 'PIN code is required.'],
+      trim: true,
+    },
+    isDefault: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  {
+    timestamps: true,
+    toJSON: {
+      transform: (_doc, ret) => {
+        ret.id = ret._id ? ret._id.toString() : ret.id;
+        delete ret._id;
+        delete ret.__v;
+        return ret;
+      },
+    },
+  }
+);
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -52,6 +117,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ['active', 'disabled'],
       default: 'active',
+    },
+    // Up to 3 saved delivery addresses
+    addresses: {
+      type: [addressSchema],
+      default: [],
     },
     // Incremented to revoke every access token issued before (logout ends all sessions).
     tokenVersion: {

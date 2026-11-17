@@ -63,9 +63,9 @@ function ArrowRightIcon({ size = 14 }) {
 }
 
 const FALLBACK_CATEGORY_IMAGES = {
-  plants: "/images/categories/live-plants.png",
-  tools: "/images/categories/seeds-tools.png",
-  seeds: "/images/categories/pots-planters.png",
+  plants: "https://ik.imagekit.io/animate20/Soil%20&%20Soul/Soil%20&%20Soul%20Desk%20Plant%20Combo.png?updatedAt=1792911140247",
+  tools: "https://ik.imagekit.io/animate20/Soil%20&%20Soul/Sunlit%20Soil%20&%20Soul%20Plant%20Supports.png?updatedAt=1792911140903",
+  seeds: "/images/categories/seeds-tools.png",
   "soil-plant-care": "/images/categories/soil-fertilizers.png",
   "natural-products": "/images/categories/soil-fertilizers.png",
 };

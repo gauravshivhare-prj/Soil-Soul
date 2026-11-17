@@ -210,9 +210,9 @@ export default function ContactPage() {
                   <div>
                     <strong className="text-ink block">Nursery &amp; Living Soil Studio</strong>
                     <span className="text-muted leading-relaxed">
-                      42, Green Roots Sanctuary, Sarjapur Road,
+                      Soil &amp; Soul Nursery,
                       <br />
-                      Bengaluru, Karnataka 560035, India
+                      Bhopal, Madhya Pradesh, India
                     </span>
                   </div>
                 </div>
@@ -223,8 +223,8 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <strong className="text-ink block">Email Support</strong>
-                    <a href="mailto:support@soilandsoul.in" className="text-forest hover:underline">
-                      support@soilandsoul.in
+                    <a href="mailto:soil&soul@gmail.com" className="text-forest hover:underline">
+                      soil&soul@gmail.com
                     </a>
                     <span className="block text-xs text-muted">Response within 24 hours</span>
                   </div>
@@ -236,7 +236,9 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <strong className="text-ink block">Botanical Helpline</strong>
-                    <span className="text-ink">+91 98765 43210</span>
+                    <a href="tel:98741512xx" className="text-forest hover:underline font-medium">
+                      +91 98741512xx
+                    </a>
                     <span className="block text-xs text-muted">Mon–Sat: 9:00 AM – 7:00 PM IST</span>
                   </div>
                 </div>

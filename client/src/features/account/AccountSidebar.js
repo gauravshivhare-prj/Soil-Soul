@@ -15,6 +15,7 @@ import BotanicalSprig from "@/components/ui/BotanicalSprig";
 const ITEMS = [
   { label: "Dashboard", href: "/account", icon: "home", exact: true },
   { label: "My Orders", href: "/account/orders", icon: "box" },
+  { label: "Saved Addresses", href: "/account/addresses", icon: "pin" },
   { label: "Wishlist", href: "/account/wishlist", icon: "heart" },
   { label: "Account Settings", href: "/account/settings", icon: "settings" },
 ];

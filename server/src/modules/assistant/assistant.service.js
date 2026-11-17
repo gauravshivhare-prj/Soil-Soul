@@ -25,7 +25,7 @@ If you paid online via UPI, NetBanking, or Card, your full payment is automatica
 • **Already Shipped / In Transit:**
 Once an order has been picked up by our courier partner, it cannot be stopped mid-transit. You can decline the delivery when the courier arrives, or initiate a return within 48 hours of receipt.
 
-Need urgent help with an active order? Email us at **support@soilandsoul.in** with your Order ID!`,
+Need urgent help with an active order? Email us at **soil&soul@gmail.com** or call **98741512xx** with your Order ID!`,
     searchQuery: {},
     quickReplies: ['Track my order', 'Return policy', 'Contact support'],
   },
@@ -36,7 +36,7 @@ Need urgent help with an active order? Email us at **support@soilandsoul.in** wi
     reply: `🌿 **Soil & Soul Return & Guarantee Policy:**
 
 • **48-Hour Arrive-Healthy Guarantee (Live Plants):**
-Live plants travel in special moisture-locking burlap. If your plant arrives damaged, wilted, or stressed from transit, simply take a photo and email **support@soilandsoul.in** within **48 hours** of delivery. We will issue an immediate **free replacement** or **100% full refund**!
+Live plants travel in special moisture-locking burlap. If your plant arrives damaged, wilted, or stressed from transit, simply take a photo and email **soil&soul@gmail.com** within **48 hours** of delivery. We will issue an immediate **free replacement** or **100% full refund**!
 
 • **7-Day Return Window (Tools, Pots & Supplies):**
 Non-living items (gardening tools, terracotta pots, unopened soil mixes) can be returned within **7 days** of delivery in original packaging.
@@ -87,7 +87,9 @@ All online transactions are 256-bit SSL encrypted. We never store your card numb
     title: 'Customer Care & Support',
     reply: `🌿 **We are here to help you grow!**
 
-• **Email Support:** support@soilandsoul.in (Mon–Sat, 9:00 AM – 6:00 PM IST)
+• **Email Support:** soil&soul@gmail.com (Mon–Sat, 9:00 AM – 7:00 PM IST)
+• **Botanical Helpline:** +91 98741512xx
+• **Nursery Studio:** Soil & Soul Nursery, Bhopal, Madhya Pradesh
 • **Order Inquiries:** Please include your **Order ID** for priority assistance.
 • **Plant Doctor Help:** Send photos of your plant to our support email for personalized diagnosis from our botanists!
 • **Self-Service:** Visit your **[My Account](/account)** dashboard for live orders, addresses, and wishlist.`,
@@ -298,7 +300,7 @@ YOUR PERSONALITY & TONE:
 STORE POLICIES & CAPABILITIES:
 1. ORDER CANCELLATION:
    - Orders can be cancelled anytime BEFORE they are dispatched/shipped!
-   - How to cancel: Go to "My Account" -> "Orders" (/account/orders), click on the order, and choose "Cancel Order", or email support at support@soilandsoul.in with the Order ID.
+   - How to cancel: Go to "My Account" -> "Orders" (/account/orders), click on the order, and choose "Cancel Order", or email support at soil&soul@gmail.com with the Order ID.
    - If the order has already shipped, it cannot be stopped mid-transit. The customer can decline delivery or initiate an eligible return after it arrives.
    - Prepaid refunds: Credited back to the original payment source within 5–7 business days.
 
@@ -306,7 +308,7 @@ STORE POLICIES & CAPABILITIES:
    - Customers can track live order status under "My Account" -> "Orders" (/account/orders).
    - Eco-Packaging: 100% plastic-free, moisture-retaining burlap root wraps, corrugated recyclable cartons.
    - Transit timelines: Metro cities take 2–4 business days; rest of India takes 3–6 business days.
-   - "Arrive Healthy Guarantee": If a plant arrives damaged or stressed from travel, snap a photo and email support@soilandsoul.in within 48 hours for a prompt free replacement or refund.
+   - "Arrive Healthy Guarantee": If a plant arrives damaged or stressed from travel, snap a photo and email soil&soul@gmail.com within 48 hours for a prompt free replacement or refund.
 
 3. RETURNS & REFUNDS:
    - Non-plant items (tools, pots, unopened soil): Return window within 7 days of delivery.
