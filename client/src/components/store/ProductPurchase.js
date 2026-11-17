@@ -21,11 +21,16 @@ import { StatusBadge } from "@/components/ui/Badge";
 
 export default function ProductPurchase({ product }) {
   const router = useRouter();
-  const { addItem } = useCart();
+  const { addItem, lines } = useCart();
   const { notify } = useToast();
   const [optionId, setOptionId] = useState(defaultOptionId(product));
   const [qty, setQty] = useState(1);
   const [isBusy, setIsBusy] = useState(false);
+
+  const cartLine = lines?.find(
+    (line) => (line.product?.id === product.id || line.slug === product.slug) && (line.optionId === optionId || !line.optionId)
+  );
+  const inCartQty = cartLine ? cartLine.qty : 0;
 
   const option = product.options?.choices.find((c) => c.id === optionId);
   const selectedStock = option?.stock ?? product.stock ?? 0;
@@ -88,7 +93,7 @@ export default function ProductPurchase({ product }) {
         <div className="flex-1 grid grid-cols-2 gap-2.5">
           <Button size="lg" disabled={!inStock || isBusy} onClick={() => add()}>
             <Icon name="cart" size={18} />
-            {inStock ? "Add to Cart" : "Out of Stock"}
+            {inStock ? (inCartQty > 0 ? `Add More (${inCartQty} in Cart)` : "Add to Cart") : "Out of Stock"}
           </Button>
           <Button size="lg" variant="outline" disabled={!inStock || isBusy} onClick={() => add({ thenCheckout: true })}>
             <Icon name="bolt" size={17} />
@@ -96,6 +101,11 @@ export default function ProductPurchase({ product }) {
           </Button>
         </div>
       </div>
+      {inCartQty > 0 && (
+        <p className="m-0 mt-2.5 text-xs font-medium text-forest flex items-center gap-1.5">
+          <Icon name="check-circle" size={14} /> You already have {inCartQty} of this item in your cart.
+        </p>
+      )}
 
       {!inStock && (
         <p className="m-0 mt-3 text-sm text-muted">This item is currently out of stock. Please check back soon.</p>

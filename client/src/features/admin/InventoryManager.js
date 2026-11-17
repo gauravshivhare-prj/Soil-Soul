@@ -10,7 +10,7 @@
  * variant starts tracking stock on the variant itself.
  */
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Card, { CardHeader } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge, { StatusBadge, stockStatus } from "@/components/ui/Badge";
@@ -68,18 +68,64 @@ function ShopState({ unit }) {
 function AdjustForm({ unit, onDone }) {
   const { authRequest } = useAuth();
   const { notify } = useToast();
-  const [values, setValues] = useState({ direction: "add", qty: "", reason: "restock", note: "" });
+  const available = ownStock(unit);
+  const [mode, setMode] = useState("direct"); // "direct" = Set Exact Stock, "relative" = Add / Remove Delta
+  const [directStock, setDirectStock] = useState(String(available));
+  const [values, setValues] = useState({ direction: "add", qty: "5", reason: "restock", note: "" });
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState(null);
   const [isBusy, setIsBusy] = useState(false);
-  const available = ownStock(unit);
+
+  const parsedDirect = parseInt(directStock, 10);
+  const directDelta = Number.isFinite(parsedDirect) ? parsedDirect - available : 0;
+
   const set = (field) => (e) => {
     setValues((v) => ({ ...v, [field]: e.target.value }));
     setErrors((x) => ({ ...x, [field]: "" }));
     setServerError(null);
   };
 
-  async function submit(e) {
+  const handleQuickAdd = (amount) => {
+    const currentBase = Number.isFinite(parsedDirect) ? parsedDirect : available;
+    const next = Math.max(0, currentBase + amount);
+    setDirectStock(String(next));
+    setErrors({});
+  };
+
+  async function submitDirect(e) {
+    e.preventDefault();
+    if (!/^\d+$/.test(directStock.trim()) || Number(directStock) < 0) {
+      setErrors({ direct: "Enter a valid stock number of 0 or more." });
+      return;
+    }
+    const target = Number(directStock);
+    const delta = target - available;
+    if (delta === 0) {
+      setErrors({ direct: "Target stock is already " + available + "." });
+      return;
+    }
+    setIsBusy(true);
+    setServerError(null);
+    try {
+      const data = await authRequest("/admin/inventory/adjustments", {
+        method: "POST",
+        body: {
+          productId: unit.id,
+          ...(unit.optionId ? { optionId: unit.optionId } : {}),
+          delta,
+          reason: delta > 0 ? "restock" : "correction",
+          note: `Updated directly to ${target}`,
+        },
+      });
+      notify(`${unitName(unit)}: stock updated to ${data.product?.stock ?? target}.`);
+      onDone();
+    } catch (err) {
+      setServerError(err.message);
+      setIsBusy(false);
+    }
+  }
+
+  async function submitRelative(e) {
     e.preventDefault();
     const found = {};
     if (!/^\d+$/.test(values.qty.trim()) || Number(values.qty) < 1) found.qty = "Enter a whole number of 1 or more.";
@@ -88,6 +134,7 @@ function AdjustForm({ unit, onDone }) {
     setErrors(found);
     if (Object.keys(found).length > 0) return;
     setIsBusy(true);
+    setServerError(null);
     try {
       const delta = Number(values.qty) * (values.direction === "remove" ? -1 : 1);
       const data = await authRequest("/admin/inventory/adjustments", {
@@ -109,21 +156,141 @@ function AdjustForm({ unit, onDone }) {
   }
 
   return (
-    <form onSubmit={submit} noValidate className="grid gap-3">
+    <div className="grid gap-3">
       {serverError && <FormMessage tone="error">{serverError}</FormMessage>}
       {unit.sharesProductStock && (
         <FormMessage tone="info">
           This variant has no stock of its own yet and is sold from the product&rsquo;s shared stock ({unit.stock ?? "not set"}). Adjusting it starts tracking stock on this variant, beginning from 0.
         </FormMessage>
       )}
-      <div className="grid grid-cols-2 gap-3">
-        <SelectField label="Change" name="direction" value={values.direction} onChange={set("direction")} options={[{ value: "add", label: "Add stock" }, { value: "remove", label: "Remove stock" }]} />
-        <TextField label="Quantity" name="qty" type="number" min="1" step="1" inputMode="numeric" value={values.qty} onChange={set("qty")} error={errors.qty} required />
+
+      {/* Mode Switcher */}
+      <div className="flex rounded-lg border border-line bg-sand/40 p-1 text-xs">
+        <button
+          type="button"
+          onClick={() => setMode("direct")}
+          className={`flex-1 py-1.5 px-3 rounded-md font-medium transition-all cursor-pointer ${
+            mode === "direct" ? "bg-white text-forest shadow-xs font-semibold" : "text-muted hover:text-ink"
+          }`}
+        >
+          Direct Set Stock
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("relative")}
+          className={`flex-1 py-1.5 px-3 rounded-md font-medium transition-all cursor-pointer ${
+            mode === "relative" ? "bg-white text-forest shadow-xs font-semibold" : "text-muted hover:text-ink"
+          }`}
+        >
+          Add / Remove (+/-)
+        </button>
       </div>
-      <SelectField label="Reason" name="reason" value={values.reason} onChange={set("reason")} options={REASONS} />
-      <TextField label={values.reason === "other" ? "Note" : "Note (optional)"} name="note" value={values.note} onChange={set("note")} error={errors.note} maxLength={300} />
-      <div><Button type="submit" disabled={isBusy}>{isBusy ? "Saving…" : "Save Adjustment"}</Button></div>
-    </form>
+
+      {mode === "direct" ? (
+        <form onSubmit={submitDirect} noValidate className="grid gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-ink mb-1.5">
+              Target Total Units
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={directStock}
+                onChange={(e) => {
+                  setDirectStock(e.target.value);
+                  setErrors({});
+                  setServerError(null);
+                }}
+                className="w-full h-10 px-3 rounded-lg border border-line bg-white text-base font-bold text-ink outline-none focus:border-forest focus:ring-1 focus:ring-forest/20"
+                placeholder="0"
+                required
+              />
+              <Button type="submit" disabled={isBusy} variant="primary" className="h-10 px-5 shrink-0">
+                {isBusy ? "Saving…" : "Save Stock"}
+              </Button>
+            </div>
+            {errors.direct && <p className="text-xs text-danger mt-1">{errors.direct}</p>}
+          </div>
+
+          {/* Quick calculation feedback */}
+          <div className="rounded-lg bg-sand/30 p-2 text-xs flex items-center justify-between">
+            <span className="text-muted">Current: <strong className="text-ink">{available}</strong></span>
+            {Number.isFinite(parsedDirect) && directDelta !== 0 && (
+              <span className={`font-semibold ${directDelta > 0 ? "text-forest" : "text-danger"}`}>
+                {directDelta > 0 ? `+${directDelta} will be added` : `${directDelta} will be removed`}
+              </span>
+            )}
+          </div>
+
+          {/* Quick Preset Buttons */}
+          <div>
+            <p className="text-[11px] font-semibold text-muted mb-1.5">Quick Stock Adjust</p>
+            <div className="flex flex-wrap gap-1.5">
+              {[+1, +5, +10, +25, +50].map((amt) => (
+                <button
+                  key={amt}
+                  type="button"
+                  onClick={() => handleQuickAdd(amt)}
+                  className="px-2.5 py-1 text-xs font-semibold rounded-md bg-forest/10 text-forest hover:bg-forest hover:text-white transition-colors cursor-pointer"
+                >
+                  +{amt}
+                </button>
+              ))}
+              {[-1, -5].map((amt) => (
+                <button
+                  key={amt}
+                  type="button"
+                  onClick={() => handleQuickAdd(amt)}
+                  className="px-2.5 py-1 text-xs font-semibold rounded-md bg-red-50 text-danger hover:bg-danger hover:text-white transition-colors cursor-pointer"
+                >
+                  {amt}
+                </button>
+              ))}
+            </div>
+          </div>
+        </form>
+      ) : (
+        <form onSubmit={submitRelative} noValidate className="grid gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <SelectField
+              label="Change"
+              name="direction"
+              value={values.direction}
+              onChange={set("direction")}
+              options={[{ value: "add", label: "Add stock (+)" }, { value: "remove", label: "Remove stock (-)" }]}
+            />
+            <TextField
+              label="Quantity"
+              name="qty"
+              type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              value={values.qty}
+              onChange={set("qty")}
+              error={errors.qty}
+              required
+            />
+          </div>
+          <SelectField label="Reason" name="reason" value={values.reason} onChange={set("reason")} options={REASONS} />
+          <TextField
+            label={values.reason === "other" ? "Note" : "Note (optional)"}
+            name="note"
+            value={values.note}
+            onChange={set("note")}
+            error={errors.note}
+            maxLength={300}
+          />
+          <div>
+            <Button type="submit" disabled={isBusy} className="w-full">
+              {isBusy ? "Saving…" : "Save Adjustment"}
+            </Button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 
@@ -157,28 +324,64 @@ export default function InventoryManager() {
   const [page, setPage] = useState(1);
   const [selectedKey, setSelectedKey] = useState(null);
   const [historyKey, setHistoryKey] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
   const { status, data, error, reload } = useAuthedResource(`/admin/inventory?filter=${filter}&threshold=${THRESHOLD}&page=${page}&limit=${PAGE_SIZE}`);
   // Use the freshly loaded row for the selected unit so its stock stays current.
   const [selectedSnapshot, setSelectedSnapshot] = useState(null);
+  const filteredItems = useMemo(() => {
+    const items = data?.items ?? [];
+    if (!searchQuery.trim()) return items;
+    const q = searchQuery.toLowerCase().trim();
+    return items.filter(
+      (u) =>
+        u.name?.toLowerCase().includes(q) ||
+        u.sku?.toLowerCase().includes(q) ||
+        u.slug?.toLowerCase().includes(q) ||
+        u.optionName?.toLowerCase().includes(q)
+    );
+  }, [data?.items, searchQuery]);
+
   const current = selectedKey ? data?.items.find((u) => unitKey(u) === selectedKey) ?? selectedSnapshot : null;
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[1fr_360px] items-start">
+    <div className="grid gap-5 xl:grid-cols-[1fr_380px] items-start">
       <Card className="min-w-0">
-        <div role="group" aria-label="Filter stock" className="flex flex-wrap gap-2 mb-2">
-          {[["all", "All"], ["low", `Low (≤${THRESHOLD})`], ["out", "Out of stock"]].map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              aria-pressed={filter === id}
-              onClick={() => { setFilter(id); setPage(1); }}
-              className={`h-9 px-4 rounded-full border-0 text-[0.8125rem] font-medium cursor-pointer
-                          focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest
-                          ${filter === id ? "bg-forest text-cream" : "bg-sand text-ink hover:bg-[#ece6d8]"}`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+          <div role="group" aria-label="Filter stock" className="flex flex-wrap gap-2">
+            {[["all", "All"], ["low", `Low (≤${THRESHOLD})`], ["out", "Out of stock"]].map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={filter === id}
+                onClick={() => { setFilter(id); setPage(1); }}
+                className={`h-9 px-4 rounded-full border-0 text-[0.8125rem] font-medium cursor-pointer transition-colors
+                            focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest
+                            ${filter === id ? "bg-forest text-cream font-semibold shadow-xs" : "bg-sand text-ink hover:bg-[#ece6d8]"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="relative w-full sm:w-64">
+            <input
+              type="search"
+              placeholder="Search product, SKU…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-9 pl-3 pr-8 text-xs bg-white border border-line rounded-lg outline-none focus:border-forest focus:ring-1 focus:ring-forest/20 text-ink placeholder:text-muted"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink text-xs p-0.5 border-0 bg-transparent cursor-pointer"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
         <p className="m-0 mb-4 text-xs text-muted">
           {filter === "all" ? "Every product and variant, including drafts and hidden products." : "Only products and variants that are on sale."} Products with variants are listed per variant.
@@ -193,20 +396,20 @@ export default function InventoryManager() {
           <FormMessage tone="info" className="mb-3">The catalogue is very large; only the first 5,000 products are included here.</FormMessage>
         )}
         {status === "ready" &&
-          (data.items.length === 0 ? (
+          (filteredItems.length === 0 ? (
             <EmptyState
               icon="box"
               title="Nothing here"
-              description={filter === "all" ? "No products yet." : filter === "low" ? "No items on sale are running low." : "Nothing on sale is out of stock."}
+              description={searchQuery ? `No products match “${searchQuery}”.` : filter === "all" ? "No products yet." : filter === "low" ? "No items on sale are running low." : "Nothing on sale is out of stock."}
               className="!py-10"
             />
           ) : (
             <DataTable caption="Stock levels" head={["Product", "SKU", "Stock", "Shop", ""]} minWidth={680}>
-              {data.items.map((unit) => {
+              {filteredItems.map((unit) => {
                 const key = unitKey(unit);
                 const selected = current && unitKey(current) === key;
                 return (
-                  <tr key={key} aria-selected={selected || undefined}>
+                  <tr key={key} aria-selected={selected || undefined} className={selected ? "bg-forest/5" : ""}>
                     <td>
                       <span className="block font-medium text-ink">{unit.name}</span>
                       <span className="block text-xs text-muted">
@@ -218,7 +421,8 @@ export default function InventoryManager() {
                     <td><ShopState unit={unit} /></td>
                     <td>
                       <Button size="sm" variant={selected ? "primary" : "outline"} onClick={() => { setSelectedKey(key); setSelectedSnapshot(unit); }}>
-                        Adjust<span className="sr-only"> {unitName(unit)}</span>
+                        {selected ? "Editing" : "Adjust"}
+                        <span className="sr-only"> {unitName(unit)}</span>
                       </Button>
                     </td>
                   </tr>

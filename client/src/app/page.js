@@ -4,7 +4,6 @@ import ShopByCategory from "@/components/store/ShopByCategory";
 import FeaturedProducts from "@/components/store/FeaturedProducts";
 import PromoBanner from "@/components/store/PromoBanner";
 import FindYourPlant from "@/components/store/FindYourPlant";
-import NaturalCare from "@/components/store/NaturalCare";
 import OurStory from "@/components/store/OurStory";
 import Newsletter from "@/components/store/Newsletter";
 
@@ -17,7 +16,6 @@ export default function Home() {
       <FeaturedProducts />
       <PromoBanner />
       <FindYourPlant />
-      <NaturalCare />
       <OurStory />
       <Newsletter />
     </main>

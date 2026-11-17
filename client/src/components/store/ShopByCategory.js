@@ -62,9 +62,18 @@ function ArrowRightIcon({ size = 14 }) {
   );
 }
 
+const FALLBACK_CATEGORY_IMAGES = {
+  plants: "/images/categories/live-plants.png",
+  tools: "/images/categories/seeds-tools.png",
+  seeds: "/images/categories/pots-planters.png",
+  "soil-plant-care": "/images/categories/soil-fertilizers.png",
+  "natural-products": "/images/categories/soil-fertilizers.png",
+};
+
 /* ─── Card ──────────────────────────────────────────────────────── */
 function CategoryCard({ category }) {
-  const { slug, name, tagline, image } = category;
+  const { slug, name, tagline } = category;
+  const imageSrc = category.image?.src || FALLBACK_CATEGORY_IMAGES[slug] || "/images/categories/soil-fertilizers.png";
 
   return (
     <Link
@@ -78,10 +87,10 @@ function CategoryCard({ category }) {
     >
       {/* Image */}
       <div className="relative aspect-square overflow-hidden bg-[#f1ece1]">
-        {image?.src ? (
+        {imageSrc ? (
           <Image
-            src={image.src}
-            alt={image.alt || name}
+            src={imageSrc}
+            alt={category.image?.alt || name}
             fill
             sizes="(min-width: 1536px) 240px, (min-width: 1024px) 16vw, (min-width: 640px) 33vw, 50vw"
             className="object-cover transition-transform duration-500 ease-out group-hover:scale-105
@@ -140,7 +149,7 @@ export default function ShopByCategory() {
     return <FormMessage tone="error" className="mx-4 sm:mx-8 xl:mx-10">Categories could not be loaded. Please try again later.</FormMessage>;
   }
   if (state.categories.length === 0) return null;
-  const mainOrder = ["plants", "tools", "seeds", "natural-products"];
+  const mainOrder = ["plants", "tools", "seeds", "soil-plant-care", "natural-products"];
   const categories = state.categories
     .filter((category) => !category.parent && mainOrder.includes(category.slug))
     .sort((a, b) => mainOrder.indexOf(a.slug) - mainOrder.indexOf(b.slug));

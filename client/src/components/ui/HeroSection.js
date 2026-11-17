@@ -142,7 +142,7 @@ export default function HeroSection() {
               <ArrowRight />
             </Link>
             <Link
-              href="/plants"
+              href="/shop/plants"
               id="hero-explore-plants"
               className="inline-flex items-center justify-center h-12 px-5 sm:px-8 md:h-[clamp(2.6rem,3.3vw,3rem)] md:px-[clamp(1.4rem,2.2vw,2rem)] rounded-lg
                          border border-[#24452a]/70 bg-white/60 text-[#1f3d24] text-[0.9375rem] md:text-[clamp(0.85rem,1.05vw,0.9375rem)] font-medium

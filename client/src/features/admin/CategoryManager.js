@@ -133,7 +133,7 @@ export default function CategoryManager() {
   const displayCategories = useMemo(() => buildCategoryTree(allCategories), [allCategories]);
 
   // User toggle overrides for expanding/collapsing tree nodes: { [id]: boolean }
-  // By default, categories start collapsed so admin clicks any main category to reveal its subcategories
+  // By default, categories are expanded so admin can see all subcategories and their action buttons
   const [toggleOverrides, setToggleOverrides] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -181,7 +181,8 @@ export default function CategoryManager() {
   const isCategoryExpanded = useCallback(
     (id) => {
       const idStr = String(id);
-      return Boolean(toggleOverrides[idStr]);
+      if (toggleOverrides[idStr] !== undefined) return toggleOverrides[idStr];
+      return true; // Default expanded so subcategories and their delete/archive actions are visible
     },
     [toggleOverrides]
   );
@@ -721,29 +722,36 @@ export default function CategoryManager() {
                               + Subcategory
                             </Button>
                           )}
-                          {!isMainCategory(c) && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-xs"
-                              disabled={busy !== null}
-                              onClick={() => archiveOrRestore(c)}
+                          {!isMainCategory(c) ? (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-xs"
+                                disabled={busy !== null}
+                                onClick={() => archiveOrRestore(c)}
+                              >
+                                {c.archivedAt ? "Restore" : "Archive"}
+                                <span className="sr-only"> {c.name}</span>
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="!text-danger hover:bg-red-50 text-xs"
+                                disabled={busy !== null}
+                                onClick={() => deleteCategory(c)}
+                              >
+                                Delete
+                                <span className="sr-only"> {c.name}</span>
+                              </Button>
+                            </>
+                          ) : (
+                            <span
+                              className="text-[11px] font-medium text-muted bg-sand/80 px-2 py-0.5 rounded-full border border-line"
+                              title="Primary catalogue roots (Plants, Tools, Seeds, Soil & Plant Care) are protected. Subcategories under them can be archived or deleted."
                             >
-                              {c.archivedAt ? "Restore" : "Archive"}
-                              <span className="sr-only"> {c.name}</span>
-                            </Button>
-                          )}
-                          {!isMainCategory(c) && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="!text-danger hover:bg-red-50 text-xs"
-                              disabled={busy !== null}
-                              onClick={() => deleteCategory(c)}
-                            >
-                              Delete
-                              <span className="sr-only"> {c.name}</span>
-                            </Button>
+                              Root Protected
+                            </span>
                           )}
                         </div>
                       </td>

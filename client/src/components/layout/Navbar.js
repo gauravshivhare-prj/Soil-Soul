@@ -26,17 +26,16 @@ import { brandSerif } from "@/app/fonts";
 import DesktopNav from "./DesktopNav";
 import MobileNav from "./MobileNav";
 import CartLink from "./CartLink";
+import NavbarSearch from "./NavbarSearch";
 
 
 /* ─── Navigation link definitions ─────────────────────────────────── */
 const NAV_LINKS = [
   { label: "Home", href: "/" },
   { label: "Shop", href: "/shop" },
-  { label: "Plants", href: "/shop/plants" },
-  { label: "Tools", href: "/shop/tools" },
-  { label: "Seeds", href: "/shop/seeds" },
-  { label: "Soil & Plant Care", href: "/shop/soil-plant-care" },
   { label: "Our Story", href: "/our-story" },
+  { label: "FAQ", href: "/faq" },
+  { label: "Contact", href: "/contact" },
 ];
 
 /* ─── Inline SVG icons ──────────────────────────────────────────── */
@@ -158,13 +157,38 @@ export default function Navbar() {
 
   return (
     <>
-      {/* ── Announcement bar ── */}
-      <div className="bg-[#24452a] text-[#f4f1e8] font-sans">
-        <p className="max-w-[1360px] mx-auto px-4 h-8 sm:h-9 m-0 flex items-center justify-center gap-2 text-xs sm:text-[0.8125rem] tracking-wide text-center">
-          <span aria-hidden="true">🌿</span>
-          <span>Bring nature home</span>
-          <span aria-hidden="true">🌱</span>
-        </p>
+      {/* ── Announcement bar with smooth continuous sliding animation ── */}
+      <div className="bg-[#1f3d24] text-[#f4f1e8] font-sans overflow-hidden border-b border-[#2d5233]">
+        <div className="py-2 flex items-center overflow-hidden whitespace-nowrap">
+          <div className="flex shrink-0 animate-marquee items-center gap-8 text-xs sm:text-[0.8125rem] font-medium tracking-wide">
+            <span>🌿 100% Plastic-Free Botanical Delivery Across India</span>
+            <span className="opacity-60">•</span>
+            <span>🌱 Bio-Active Living Soil &amp; Handcrafted Tools</span>
+            <span className="opacity-60">•</span>
+            <span>✨ Use Code <strong className="text-white">SOUL10</strong> for 10% Off First Order</span>
+            <span className="opacity-60">•</span>
+            <span>🪴 7-Day Healthy Plant Guarantee — Arrives Happy or Replaced</span>
+            <span className="opacity-60">•</span>
+            <span>🐾 Pet-Friendly Houseplants &amp; Certified Organic Feeds</span>
+            <span className="opacity-60">•</span>
+            <span>💬 Free Botanical Advice with Sprout AI Concierge</span>
+            <span className="opacity-60">•</span>
+          </div>
+          <div aria-hidden="true" className="flex shrink-0 animate-marquee items-center gap-8 text-xs sm:text-[0.8125rem] font-medium tracking-wide pl-8">
+            <span>🌿 100% Plastic-Free Botanical Delivery Across India</span>
+            <span className="opacity-60">•</span>
+            <span>🌱 Bio-Active Living Soil &amp; Handcrafted Tools</span>
+            <span className="opacity-60">•</span>
+            <span>✨ Use Code <strong className="text-white">SOUL10</strong> for 10% Off First Order</span>
+            <span className="opacity-60">•</span>
+            <span>🪴 7-Day Healthy Plant Guarantee — Arrives Happy or Replaced</span>
+            <span className="opacity-60">•</span>
+            <span>🐾 Pet-Friendly Houseplants &amp; Certified Organic Feeds</span>
+            <span className="opacity-60">•</span>
+            <span>💬 Free Botanical Advice with Sprout AI Concierge</span>
+            <span className="opacity-60">•</span>
+          </div>
+        </div>
       </div>
 
       <header
@@ -211,38 +235,8 @@ export default function Navbar() {
               aria-label="Site actions"
             >
 
-              {/* Search pill */}
-              <form
-                className="hidden xl:flex items-center gap-2.5 bg-[#f0eee7] border border-transparent rounded-full
-                           px-4 h-11 mr-1 2xl:mr-3
-                           transition-all duration-150
-                           focus-within:border-[#24452a] focus-within:bg-white focus-within:shadow-[0_0_0_3px_rgba(36,69,42,0.14)]"
-                role="search"
-                aria-label="Search products"
-                action="/shop"
-                method="get"
-              >
-                <span className="text-[#6b6a62] flex-shrink-0">
-                  <SearchIcon />
-                </span>
-                <input
-                  id="navbar-search"
-                  type="search"
-                  name="q"
-                  placeholder="Search plants, pots, soil…"
-                  aria-label="Search for plants, pots, soil…"
-                  autoComplete="off"
-                  className="border-0 outline-none bg-transparent text-[0.875rem] text-[#1f241d]
-                             placeholder:text-[#8f8c82] w-44 2xl:w-52 min-w-0"
-                />
-              </form>
-
-              {/* Search icon — replaces the pill below xl */}
-              <Link href="/shop" className={`${iconBtnClass} inline-flex xl:hidden`} aria-label="Search">
-                <span className="[&>svg]:w-[22px] [&>svg]:h-[22px]">
-                  <SearchIcon />
-                </span>
-              </Link>
+              {/* Search (Desktop pill + live dropdown + mobile search modal) */}
+              <NavbarSearch />
 
               {/* Wishlist */}
               <Link href="/account/wishlist" className={`${iconBtnClass} hidden sm:inline-flex`} aria-label="Wishlist">

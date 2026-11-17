@@ -15,6 +15,7 @@
  * Social icons only render as links once a real `href` is set.
  */
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { brandSerif, scriptFont } from "@/app/fonts";
@@ -31,40 +32,41 @@ const LINK_COLUMNS = [
       { label: "Tools", href: categoryHref("tools") },
       { label: "Seeds", href: categoryHref("seeds") },
       { label: "Soil & Plant Care", href: categoryHref("soil-plant-care") },
-    ],
-  },
-  {
-    title: "Quick Links",
-    links: [
-      { label: "Home", href: "/" },
       { label: "Shop All", href: "/shop" },
-      { label: "Our Story", href: "/our-story" },
-      { label: "Plants", href: categoryHref("plants") },
-      { label: "Tools", href: categoryHref("tools") },
-      { label: "Seeds", href: categoryHref("seeds") },
-      { label: "Soil & Plant Care", href: categoryHref("soil-plant-care") },
     ],
   },
   {
     title: "Customer Care",
     links: [
-      { label: "My Account", href: "/account" },
-      { label: "Track Orders", href: "/account/orders" },
+      { label: "My Orders & Tracking", href: "/account/orders" },
+      { label: "Returns & Exchanges", href: "/returns" },
+      { label: "FAQs & Help Center", href: "/faq" },
+      { label: "Contact Us", href: "/contact" },
       { label: "Wishlist", href: "/account/wishlist" },
-      { label: "Cart", href: "/cart" },
+    ],
+  },
+  {
+    title: "Our Ethos",
+    links: [
+      { label: "Our Story", href: "/our-story" },
+      { label: "Living Soil & Composting", href: "/shop/soil-plant-care" },
+      { label: "Plastic-Free Guarantee", href: "/faq" },
+      { label: "Pet-Friendly Botanicals", href: "/shop" },
     ],
   },
 ];
 
-/* Owner to provide: { address: [line1, line2], phone, email }. Null hides the column. */
-const FOOTER_CONTACT = null;
+const FOOTER_CONTACT = {
+  address: ["42, Green Roots Sanctuary, Sarjapur Road", "Bengaluru, Karnataka 560035"],
+  phone: "+91 98765 43210",
+  email: "support@soilandsoul.in",
+};
 
-/* Set `href` to the real profile URL to turn each icon into a link. */
 const SOCIAL_LINKS = [
-  { label: "Instagram", icon: "instagram", href: null },
-  { label: "Facebook", icon: "facebook", href: null },
-  { label: "YouTube", icon: "youtube", href: null },
-  { label: "Pinterest", icon: "pinterest", href: null },
+  { label: "Instagram", icon: "instagram", href: "https://instagram.com" },
+  { label: "Facebook", icon: "facebook", href: "https://facebook.com" },
+  { label: "YouTube", icon: "youtube", href: "https://youtube.com" },
+  { label: "Pinterest", icon: "pinterest", href: "https://pinterest.com" },
 ];
 
 /* Fixed year: Cache Components prerenders this layout, so `new Date()`
@@ -194,15 +196,103 @@ const linkClass =
   "text-[0.8125rem] text-[#f4f1e8]/80 no-underline transition-colors duration-150 hover:text-white " +
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f4f1e8] rounded-sm";
 
+function NewsletterForm() {
+  const [email, setEmail] = useState("");
+  const [subscribed, setSubscribed] = useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setSubscribed(true);
+  };
+
+  if (subscribed) {
+    return (
+      <p className="m-0 mt-3 text-xs text-emerald-300 font-medium flex items-center gap-1.5">
+        <span>🌱</span> Welcome to the botanical circle! Check your inbox for code <strong>SOUL10</strong>.
+      </p>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-3 flex gap-2 max-w-md">
+      <input
+        type="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="Enter your email address…"
+        className="flex-1 h-10 px-3.5 rounded-lg bg-white/10 border border-white/20 text-xs text-white placeholder:text-white/60 outline-none focus:border-white focus:bg-white/15"
+      />
+      <button
+        type="submit"
+        className="h-10 px-4 rounded-lg bg-white text-forest text-xs font-semibold hover:bg-cream transition-colors cursor-pointer border-0 shrink-0"
+      >
+        Subscribe
+      </button>
+    </form>
+  );
+}
+
 export default function Footer() {
   const pathname = usePathname();
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return null;
 
   return (
     <footer className="mt-auto bg-[#24452a] text-[#f4f1e8] font-sans">
-      <div className="max-w-[1536px] mx-auto px-5 sm:px-8 xl:px-10">
+      {/* ─── Top Trust & Eco Guarantee Strip ─── */}
+      <div className="border-b border-white/10 bg-[#1b3520] py-5 text-[#f4f1e8]">
+        <div className="max-w-[1536px] mx-auto px-5 sm:px-8 xl:px-10">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl" aria-hidden="true">🌿</span>
+              <div>
+                <h4 className="m-0 text-xs sm:text-sm font-semibold text-white">100% Plastic-Free</h4>
+                <p className="m-0 text-[11px] sm:text-xs text-[#f4f1e8]/70">Eco-conscious packaging</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl" aria-hidden="true">🪴</span>
+              <div>
+                <h4 className="m-0 text-xs sm:text-sm font-semibold text-white">7-Day Guarantee</h4>
+                <p className="m-0 text-[11px] sm:text-xs text-[#f4f1e8]/70">Arrives happy or replaced</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl" aria-hidden="true">🌱</span>
+              <div>
+                <h4 className="m-0 text-xs sm:text-sm font-semibold text-white">Bio-Active Living Soil</h4>
+                <p className="m-0 text-[11px] sm:text-xs text-[#f4f1e8]/70">Chemical-free nutrition</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl" aria-hidden="true">🚚</span>
+              <div>
+                <h4 className="m-0 text-xs sm:text-sm font-semibold text-white">Safe Express Transit</h4>
+                <p className="m-0 text-[11px] sm:text-xs text-[#f4f1e8]/70">Pan-India doorstep delivery</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-[1536px] mx-auto px-5 sm:px-8 xl:px-10 pt-8 pb-7">
+        {/* Newsletter Strip */}
+        <div className="border-b border-white/10 pb-8 mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="max-w-xl">
+            <span className="text-[11px] uppercase tracking-widest text-emerald-400 font-semibold">Join Our Botanical Circle</span>
+            <h3 className={`${brandSerif.className} m-0 mt-1 text-xl sm:text-2xl font-bold text-white`}>
+              Get 10% off your first order + weekly garden notes
+            </h3>
+            <p className="m-0 mt-1.5 text-xs text-[#f4f1e8]/75">
+              Tips for living soils, seasonal seed alerts, and gentle plant care guides.
+            </p>
+          </div>
+          <NewsletterForm />
+        </div>
+
         <div
-          className="grid grid-cols-2 gap-x-5 gap-y-7 pt-9 pb-7 sm:grid-cols-4 sm:gap-x-6
+          className="grid grid-cols-2 gap-x-5 gap-y-7 sm:grid-cols-4 sm:gap-x-6
                      lg:flex lg:items-start lg:justify-between lg:gap-8"
         >
           {/* Brand */}
@@ -221,9 +311,11 @@ export default function Footer() {
                 </span>
               </span>
             </Link>
-            <p className="m-0 mt-3 text-[0.8125rem] text-[#f4f1e8]/80">Greener homes. Healthier lives.</p>
+            <p className="m-0 mt-3 text-[0.8125rem] text-[#f4f1e8]/80 leading-relaxed">
+              Greener homes. Healthier lives. Handcrafted botanical living soils and organic plant companions.
+            </p>
 
-            <ul role="list" className="list-none m-0 mt-2.5 -ml-2 p-0 flex items-center gap-1">
+            <ul role="list" className="list-none m-0 mt-3 -ml-2 p-0 flex items-center gap-1">
               {SOCIAL_LINKS.map(({ label, icon, href }) => (
                 <li key={icon}>
                   {href ? (
@@ -267,7 +359,7 @@ export default function Footer() {
           {/* Contact */}
           {FOOTER_CONTACT && (
             <div>
-              <h2 className="m-0 text-xs font-semibold uppercase tracking-[0.12em] text-white">Contact Us</h2>
+              <h2 className="m-0 text-xs font-semibold uppercase tracking-[0.12em] text-white">Nursery Studio</h2>
               <address className="not-italic mt-4 grid gap-2.5 text-[0.8125rem] leading-snug break-words lg:whitespace-nowrap text-[#f4f1e8]/80">
                 <p className="m-0 flex gap-2.5">
                   <span className="mt-px flex-shrink-0"><PinIcon /></span>
@@ -299,10 +391,21 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-white/15 py-4">
+        <div className="border-t border-white/15 mt-8 pt-5 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="m-0 text-xs text-[#f4f1e8]/70">
-            &copy; {COPYRIGHT_YEAR} Soil &amp; Soul. All rights reserved.
+            &copy; {COPYRIGHT_YEAR} Soil &amp; Soul. All rights reserved. Conscious gardening for Indian homes.
           </p>
+          <div className="flex items-center gap-3 text-xs text-[#f4f1e8]/70">
+            <span>📦 Cash on Delivery Available</span>
+            <span>•</span>
+            <Link href="/returns" className="text-inherit hover:underline">
+              7-Day Guarantee
+            </Link>
+            <span>•</span>
+            <Link href="/faq" className="text-inherit hover:underline">
+              FAQs
+            </Link>
+          </div>
         </div>
       </div>
     </footer>

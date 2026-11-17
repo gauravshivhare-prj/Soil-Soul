@@ -11,8 +11,9 @@
  * - On small screens the filters open in a slide-over panel.
  */
 
-import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { Suspense, useDeferredValue, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { defaultOptionId, fetchCategories, fetchProductFacets, fetchProducts, isInStock, SHOP_SORT_OPTIONS as SORT_OPTIONS } from "@/services/catalogApi";
 import { productHref } from "@/lib/routes";
 import { useCart } from "@/features/cart/CartProvider";
@@ -69,13 +70,6 @@ function filterOptionsFor(facets) {
   };
 }
 
-/* ─── ?q= from the URL ─────────────────────────────────────────── */
-function subscribeToLocation(callback) {
-  window.addEventListener("popstate", callback);
-  return () => window.removeEventListener("popstate", callback);
-}
-const readUrlQuery = () => new URLSearchParams(window.location.search).get("q") ?? "";
-const serverUrlQuery = () => "";
 
 function defaultFilters(options, categories) {
   return { categories, priceMin: options.priceMin, priceMax: options.priceMax, tags: [], light: [], sizes: [], inStockOnly: false };
@@ -96,9 +90,13 @@ function countActive(filters, options, initialCategories) {
 
 /* ─── List-view row ────────────────────────────────────────────── */
 function ProductRow({ product }) {
-  const { addItem } = useCart();
+  const { addItem, lines, setQty, removeItem } = useCart();
   const { notify } = useToast();
   const inStock = isInStock(product);
+  const cartLine = lines?.find(
+    (line) => line.product?.id === product.id || line.product?.slug === product.slug || line.slug === product.slug
+  );
+  const currentQty = cartLine ? cartLine.qty : 0;
   return (
     <article className="flex gap-3 sm:gap-5 rounded-xl border border-line bg-white p-3 sm:p-4">
       <Link href={productHref(product.slug)} tabIndex={-1} aria-hidden="true" className="flex-shrink-0">
@@ -116,17 +114,52 @@ function ProductRow({ product }) {
           <Price price={product.price} mrp={product.mrp} size="md" />
           <div className="flex items-center gap-2 ml-auto sm:ml-0">
             <WishlistButton product={product} className="border border-line !shadow-none" />
-            <Button
-              size="sm"
-              disabled={!inStock}
-              onClick={async () => {
-                const result = await addItem(product, { optionId: defaultOptionId(product) });
-                if (result.ok) notify(`${product.name} added to your cart`);
-                else if (result.error) notify(result.error.message, { tone: "error" });
-              }}
-            >
-              {inStock ? <><Icon name="cart" size={14} />Add to Cart</> : "Out of Stock"}
-            </Button>
+            {currentQty > 0 ? (
+              <div className="flex items-center h-8 rounded-md border border-forest bg-forest text-cream overflow-hidden">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (currentQty <= 1) {
+                      await removeItem(cartLine.key);
+                      notify(`${product.name} removed from cart`);
+                    } else {
+                      await setQty(cartLine.key, currentQty - 1);
+                    }
+                  }}
+                  aria-label="Decrease quantity"
+                  className="flex items-center justify-center w-7 h-full bg-forest text-cream hover:bg-forest-dark cursor-pointer border-0"
+                >
+                  <Icon name="minus" size={13} />
+                </button>
+                <span className="text-xs font-semibold px-2 select-none">{currentQty} in Cart</span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (cartLine.maxQty && currentQty >= cartLine.maxQty) {
+                      notify(`Maximum stock (${cartLine.maxQty}) reached`, { tone: "info" });
+                      return;
+                    }
+                    await setQty(cartLine.key, currentQty + 1);
+                  }}
+                  aria-label="Increase quantity"
+                  className="flex items-center justify-center w-7 h-full bg-forest text-cream hover:bg-forest-dark cursor-pointer border-0"
+                >
+                  <Icon name="plus" size={13} />
+                </button>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                disabled={!inStock}
+                onClick={async () => {
+                  const result = await addItem(product, { optionId: defaultOptionId(product) });
+                  if (result.ok) notify(`${product.name} added to your cart`);
+                  else if (result.error) notify(result.error.message, { tone: "error" });
+                }}
+              >
+                {inStock ? <><Icon name="cart" size={14} />Add to Cart</> : "Out of Stock"}
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -183,26 +216,37 @@ export default function ShopCatalog({ currentCategory = null, initialCategories 
     );
   }
   return (
-    <CatalogBody
-      currentCategory={currentCategory}
-      initialCategories={initialCategories}
-      categories={catalog.categories}
-      facets={catalog.facets}
-    />
+    <Suspense fallback={<ProductGridSkeleton count={8} />}>
+      <CatalogBody
+        currentCategory={currentCategory}
+        initialCategories={initialCategories}
+        categories={catalog.categories}
+        facets={catalog.facets}
+      />
+    </Suspense>
   );
 }
 
 /* Product filtering, sorting and pagination are performed by the API. */
 function CatalogBody({ currentCategory, initialCategories, categories, facets }) {
   const options = useMemo(() => filterOptionsFor(facets), [facets]);
-  const urlQuery = useSyncExternalStore(subscribeToLocation, readUrlQuery, serverUrlQuery);
-  const [typedQuery, setTypedQuery] = useState(null);
-  const query = typedQuery ?? urlQuery;
+  const searchParams = useSearchParams();
+  const urlParamQ = searchParams?.get("q") ?? "";
+  const [typedQuery, setTypedQuery] = useState(urlParamQ);
+  const [prevUrlQ, setPrevUrlQ] = useState(urlParamQ);
   const [filters, setFilters] = useState(() => defaultFilters(options, initialCategories));
   const [sort, setSort] = useState("featured");
   const [view, setView] = useState("grid");
   const [page, setPage] = useState(1);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+
+  if (urlParamQ !== prevUrlQ) {
+    setPrevUrlQ(urlParamQ);
+    setTypedQuery(urlParamQ);
+    setPage(1);
+  }
+
+  const query = typedQuery;
 
   // Keep typing responsive on slow devices: results catch up a frame later.
   const deferredFilters = useDeferredValue(filters);

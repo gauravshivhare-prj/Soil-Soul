@@ -98,6 +98,15 @@ export default function AccountOrderDetail({ orderId }) {
   }
 
   const { order } = data;
+  const placedDate = new Date(order.createdAt || 0);
+  const estDate = new Date(placedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
+  const estDeliveryFormatted = estDate.toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
   return (
     <div className="space-y-5">
       <div>
@@ -111,6 +120,15 @@ export default function AccountOrderDetail({ orderId }) {
         <p className="m-0 mt-1 text-sm text-muted">
           Placed on {formatDate(order.createdAt)} · {PAYMENT_METHOD_LABEL[order.paymentMethod] ?? order.paymentMethod}
         </p>
+
+        {order.orderStatus !== "CANCELLED" && order.orderStatus !== "DELIVERED" && (
+          <div className="mt-3 flex items-center gap-2 rounded-xl bg-sage-50 border border-sage-200 px-4 py-2 text-xs sm:text-sm text-forest">
+            <span aria-hidden="true">🚚</span>
+            <span>
+              <strong>Estimated Delivery:</strong> {estDeliveryFormatted} (Express Botanical Transit)
+            </span>
+          </div>
+        )}
       </div>
 
       <Card>

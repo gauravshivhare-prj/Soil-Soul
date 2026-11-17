@@ -28,10 +28,12 @@ function generateMessageId(role) {
   return `${role}-${msgCounter}`;
 }
 
+const CHAT_STORAGE_KEY = "soil_soul_chat_history_v2";
+
 function loadInitialMessages() {
   if (typeof window === "undefined") return [WELCOME_MESSAGE];
   try {
-    const saved = sessionStorage.getItem("soil_soul_chat_history");
+    const saved = localStorage.getItem(CHAT_STORAGE_KEY) || sessionStorage.getItem("soil_soul_chat_history");
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -47,8 +49,8 @@ function loadInitialMessages() {
 function formatText(text, isUser = false) {
   if (!text) return null;
   const lines = text.split("\n");
-  const textColor = isUser ? "text-white" : "text-body";
-  const strongColor = isUser ? "text-white" : "text-ink";
+  const textColor = isUser ? "!text-white" : "text-body";
+  const strongColor = isUser ? "!text-white" : "text-ink";
   const inlineStyle = isUser ? { color: "#ffffff" } : undefined;
 
   return lines.map((line, idx) => {
@@ -97,14 +99,16 @@ function ChatbotWidgetContent() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Save messages to session storage when messages update
+  // Save messages to local storage so chat history persists across navigation and visits
   useEffect(() => {
-    if (messages.length > 1) {
-      try {
-        sessionStorage.setItem("soil_soul_chat_history", JSON.stringify(messages));
-      } catch {
-        // Ignore quota errors
+    try {
+      if (messages.length > 1) {
+        localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+      } else {
+        localStorage.removeItem(CHAT_STORAGE_KEY);
       }
+    } catch {
+      // Ignore quota errors
     }
   }, [messages]);
 
@@ -186,6 +190,7 @@ function ChatbotWidgetContent() {
   const handleClearChat = () => {
     setMessages([WELCOME_MESSAGE]);
     try {
+      localStorage.removeItem(CHAT_STORAGE_KEY);
       sessionStorage.removeItem("soil_soul_chat_history");
     } catch {
       // Ignore storage errors
@@ -276,7 +281,7 @@ function ChatbotWidgetContent() {
                 <div
                   className={`max-w-[85%] rounded-2xl p-3.5 shadow-sm text-sm ${
                     msg.role === "user"
-                      ? "bg-forest text-white rounded-br-xs"
+                      ? "bg-forest !text-white rounded-br-xs"
                       : "bg-white border border-line text-ink rounded-bl-xs"
                   }`}
                   style={msg.role === "user" ? { color: "#ffffff" } : undefined}

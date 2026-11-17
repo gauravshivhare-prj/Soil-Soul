@@ -180,22 +180,119 @@ function ReviewStep({ address, payment, lines, agreed, onAgree, error, couponCod
 }
 
 function Confirmation({ order, warning }) {
+  const placedDate = new Date(order.createdAt || 0);
+  const placedDateFormatted = placedDate.toLocaleString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  // Calculate Expected Delivery Date: 4 business days
+  const estDate = new Date(placedDate.getTime() + 4 * 24 * 60 * 60 * 1000);
+  const estDeliveryFormatted = estDate.toLocaleDateString("en-IN", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
   return (
-    <div className="rounded-2xl border border-line bg-white">
-      <EmptyState
-        icon="check-circle"
-        title="Order placed"
-        description={`Thank you! Your order ${order.orderNumber} for ${formatPrice(order.total)} has been placed. Pay in cash when it is delivered.`}
-        action={
-          <div className="grid justify-items-center gap-3">
-            {warning && <FormMessage tone="info">{warning}</FormMessage>}
-            <div className="flex flex-wrap justify-center gap-2.5">
-              <Button href={`/account/orders/${order.orderNumber}`}>View Order</Button>
-              <Button href="/shop" variant="outline">Continue Shopping</Button>
-            </div>
+    <div className="rounded-3xl border border-line bg-white p-6 sm:p-10 shadow-sm max-w-2xl mx-auto space-y-6">
+      {/* Top Banner */}
+      <div className="text-center space-y-2">
+        <div className="w-16 h-16 rounded-full bg-forest text-cream flex items-center justify-center text-3xl mx-auto shadow-sm">
+          ✓
+        </div>
+        <h2 className={`${brandSerif.className} m-0 text-2xl sm:text-3xl font-bold text-[#1f3d24]`}>
+          Order Successfully Placed!
+        </h2>
+        <p className="m-0 text-sm text-muted">
+          Thank you for choosing Soil &amp; Soul. Your plants and botanical essentials are being prepared for transit.
+        </p>
+      </div>
+
+      {/* Date & Time Highlights Card */}
+      <div className="grid gap-3 sm:grid-cols-2 rounded-2xl bg-[#faf8f2] border border-line p-4 sm:p-5">
+        <div className="space-y-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted block">
+            📅 Order Placed Date &amp; Time
+          </span>
+          <span className="text-sm font-bold text-ink block">{placedDateFormatted}</span>
+          <span className="text-xs text-muted block">Order #{order.orderNumber}</span>
+        </div>
+
+        <div className="space-y-1 sm:border-l sm:border-line sm:pl-4">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-forest block">
+            🚚 Expected Delivery Date
+          </span>
+          <span className="text-sm font-bold text-forest block">{estDeliveryFormatted}</span>
+          <span className="text-xs text-muted block">Express Botanical Transit (3–4 days)</span>
+        </div>
+      </div>
+
+      {/* Progress Timeline */}
+      <div className="space-y-2 pt-1">
+        <p className="m-0 text-xs font-semibold text-ink">Delivery Progress Tracker:</p>
+        <div className="grid grid-cols-4 gap-2 text-center">
+          <div className="flex flex-col items-center">
+            <span className="w-7 h-7 rounded-full bg-forest text-cream text-xs font-bold flex items-center justify-center">1</span>
+            <span className="text-[11px] font-semibold text-forest mt-1">Placed</span>
+            <span className="text-[10px] text-muted">Confirmed</span>
           </div>
-        }
-      />
+          <div className="flex flex-col items-center">
+            <span className="w-7 h-7 rounded-full bg-sage-100 text-forest text-xs font-bold flex items-center justify-center">2</span>
+            <span className="text-[11px] font-medium text-ink mt-1">Packing</span>
+            <span className="text-[10px] text-muted">Nursery Check</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="w-7 h-7 rounded-full bg-sand text-muted text-xs font-bold flex items-center justify-center">3</span>
+            <span className="text-[11px] font-medium text-muted mt-1">Shipped</span>
+            <span className="text-[10px] text-muted">Eco-Courier</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="w-7 h-7 rounded-full bg-sand text-muted text-xs font-bold flex items-center justify-center">4</span>
+            <span className="text-[11px] font-medium text-muted mt-1">Delivered</span>
+            <span className="text-[10px] text-muted">Doorstep</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary Details */}
+      <div className="rounded-2xl border border-line bg-white p-4 space-y-2 text-sm">
+        <div className="flex justify-between items-center border-b border-line pb-2">
+          <span className="text-muted">Total Amount (COD):</span>
+          <span className="font-bold text-ink text-base">{formatPrice(order.total)}</span>
+        </div>
+        <div className="flex justify-between items-center text-xs text-muted">
+          <span>Payment Method:</span>
+          <span className="font-semibold text-ink">Cash on Delivery (Pay upon delivery)</span>
+        </div>
+        {order.deliveryAddress && (
+          <div className="pt-2 border-t border-line text-xs text-muted">
+            <span className="block font-semibold text-ink mb-0.5">Delivery Address:</span>
+            <span>
+              {order.deliveryAddress.recipientName}, {order.deliveryAddress.addressLine1},{" "}
+              {order.deliveryAddress.city}, {order.deliveryAddress.state} — {order.deliveryAddress.postalCode}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {warning && <FormMessage tone="info">{warning}</FormMessage>}
+
+      {/* Action Buttons */}
+      <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+        <Button href={`/account/orders/${order.orderNumber}`} size="lg">
+          Track Order Details →
+        </Button>
+        <Button href="/shop" variant="outline" size="lg">
+          Continue Shopping
+        </Button>
+      </div>
     </div>
   );
 }
