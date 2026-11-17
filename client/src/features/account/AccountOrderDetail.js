@@ -129,6 +129,20 @@ export default function AccountOrderDetail({ orderId }) {
             </span>
           </div>
         )}
+
+        {order.totalRefunded > 0 && (
+          <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-emerald-50 border border-emerald-300 px-4 py-2.5 text-xs sm:text-sm text-emerald-900 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <span className="text-base">💸</span>
+              <span>
+                <strong>Refund Issued:</strong> {formatPrice(order.totalRefunded)} has been credited to your account for this order.
+              </span>
+            </div>
+            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-200/80 text-emerald-950">
+              {order.paymentStatus === "REFUNDED" ? "Fully Refunded" : "Partially Refunded"}
+            </span>
+          </div>
+        )}
       </div>
 
       <Card>
@@ -145,6 +159,8 @@ export default function AccountOrderDetail({ orderId }) {
             />
             <OrderItems items={order.items} />
           </Card>
+
+          {order.orderStatus !== "CANCELLED" && <ReturnRequests order={order} />}
 
           {/* Plant Care & Support Card */}
           <div className="rounded-2xl border border-line bg-gradient-to-br from-[#faf8f2] via-cream to-sage-50/60 p-5 space-y-3 shadow-[0_1px_3px_rgba(36,69,42,0.04)]">
@@ -183,7 +199,6 @@ export default function AccountOrderDetail({ orderId }) {
               <DeliveryAddress address={order.deliveryAddress} />
             </Card>
           )}
-          <ReturnRequests order={order} />
           {canCustomerCancel(order) && <CancelOrder key={order.updatedAt} order={order} onCancelled={replace} />}
         </div>
       </div>

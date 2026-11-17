@@ -22,6 +22,190 @@ const STATUS_LABEL = {
 
 const itemImage = (item) => (item?.image?.src ? { src: item.image.src, alt: item.image.alt || item.name } : null);
 
+function ReturnRefundTrackerCard({ entry }) {
+  const isExchange = entry.reason?.includes("EXCHANGE");
+  const isRejected = entry.status === "REJECTED";
+
+  const STEPS = isExchange
+    ? [
+        { id: "REQUESTED", label: "Requested", icon: "clock" },
+        { id: "APPROVED", label: "Approved", icon: "check-circle" },
+        { id: "RECEIVED", label: "Inspected", icon: "box" },
+        { id: "REPLACED", label: "Replaced", icon: "truck" },
+      ]
+    : [
+        { id: "REQUESTED", label: "Requested", icon: "clock" },
+        { id: "APPROVED", label: "Approved", icon: "check-circle" },
+        { id: "RECEIVED", label: "Inspected", icon: "box" },
+        { id: "REFUNDED", label: "Refund Paid", icon: "cash" },
+      ];
+
+  let currentStep = 0;
+  if (entry.status === "APPROVED") currentStep = 1;
+  if (entry.status === "RECEIVED") currentStep = entry.refundStatus === "RECORDED" ? 3 : 2;
+  if (entry.refundStatus === "RECORDED") currentStep = 3;
+
+  return (
+    <div className="rounded-xl border border-line bg-[#faf8f2] p-3.5 space-y-3 shadow-2xs">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2 border-b border-line/60 pb-2.5">
+        <div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <strong className="text-xs sm:text-sm text-ink">{entry.productName} × {entry.quantity}</strong>
+            <Badge variant="outline" className="text-[10px] py-0">
+              {isExchange ? "Exchange" : "Return & Refund"}
+            </Badge>
+          </div>
+          <span className="text-[11px] text-muted block mt-0.5">
+            Value: {formatPrice(entry.amount)} · Requested {formatDate(entry.createdAt)}
+          </span>
+        </div>
+
+        <span
+          className={`text-[10px] sm:text-[11px] px-2.5 py-0.5 rounded-full font-semibold shrink-0 border ${
+            isRejected
+              ? "bg-rose-100 text-rose-800 border-rose-200"
+              : entry.refundStatus === "RECORDED"
+              ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+              : entry.status === "RECEIVED"
+              ? "bg-blue-100 text-blue-800 border-blue-200"
+              : "bg-sage-100 text-forest border-sage-200"
+          }`}
+        >
+          {isRejected
+            ? "Rejected"
+            : entry.refundStatus === "RECORDED"
+            ? "Refund Credited"
+            : STATUS_LABEL[entry.status] || entry.status}
+        </span>
+      </div>
+
+      {/* Stepper Progress */}
+      {isRejected ? (
+        <div className="rounded-lg bg-rose-50 border border-rose-200 p-2.5 text-xs text-rose-900 flex items-start gap-2">
+          <Icon name="x-circle" size={15} className="text-danger shrink-0 mt-0.5" />
+          <div>
+            <strong className="block">Request Rejected</strong>
+            <span className="text-rose-800 text-[11px] block mt-0.5">
+              {entry.reason || "This item is not eligible for return under nursery guidelines."}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="py-1">
+          <ol className="list-none m-0 p-0 grid grid-cols-4" aria-label="Return and refund progress">
+            {STEPS.map((step, index) => {
+              const isDone = index <= currentStep;
+              const isCurrent = index === currentStep;
+
+              return (
+                <li
+                  key={step.id}
+                  className="relative flex flex-col items-center text-center px-0.5"
+                  aria-current={isCurrent ? "step" : undefined}
+                >
+                  {index > 0 && (
+                    <span
+                      className={`absolute top-3.5 right-1/2 w-full h-0.5 ${
+                        index <= currentStep ? "bg-forest" : "bg-line"
+                      }`}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span
+                    className={`relative flex items-center justify-center w-7 h-7 rounded-full text-xs transition-all ${
+                      isDone
+                        ? "bg-forest text-cream shadow-2xs ring-2 ring-forest/20"
+                        : "bg-sand text-faint"
+                    }`}
+                  >
+                    {isDone && index < currentStep ? (
+                      <Icon name="check" size={13} strokeWidth={2.5} />
+                    ) : (
+                      <Icon name={step.icon} size={12} strokeWidth={2} />
+                    )}
+                  </span>
+                  <span
+                    className={`mt-1.5 text-[10px] leading-tight font-medium ${
+                      isDone ? "text-ink font-semibold" : "text-muted"
+                    }`}
+                  >
+                    {step.label}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
+
+      {/* Live Refund Status Info Box */}
+      {!isRejected && !isExchange && (
+        <div className="rounded-lg border border-line/60 bg-white p-2.5 text-xs space-y-1">
+          {entry.refundStatus === "RECORDED" ? (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between font-bold text-emerald-900">
+                <span className="flex items-center gap-1.5 text-forest">
+                  <Icon name="check" size={14} />
+                  Refund of {formatPrice(entry.amount)} Transferred
+                </span>
+                {entry.refundRecordedAt && (
+                  <span className="text-[10px] text-muted">
+                    {formatDate(entry.refundRecordedAt)}
+                  </span>
+                )}
+              </div>
+              {entry.upiId && (
+                <p className="m-0 text-[11px] text-muted">
+                  Transferred to UPI: <strong className="font-mono text-ink">{entry.upiId}</strong>
+                </p>
+              )}
+              {entry.refundNote && (
+                <p className="m-0 text-[10px] text-muted italic">
+                  Ref Note: {entry.refundNote}
+                </p>
+              )}
+            </div>
+          ) : entry.status === "RECEIVED" ? (
+            <div className="space-y-0.5 text-blue-900">
+              <strong className="flex items-center gap-1.5 text-blue-950">
+                <Icon name="box" size={13} /> Item Received &amp; Verified
+              </strong>
+              <p className="m-0 text-[11px] text-blue-800">
+                Package passed verification. Refund of <strong>{formatPrice(entry.amount)}</strong> is being transferred to UPI <strong>{entry.upiId}</strong>.
+              </p>
+            </div>
+          ) : entry.status === "APPROVED" ? (
+            <div className="space-y-0.5 text-forest">
+              <strong className="flex items-center gap-1.5 text-forest">
+                <Icon name="truck" size={13} /> Pickup Approved
+              </strong>
+              <p className="m-0 text-[11px] text-muted">
+                Courier partner will arrive to collect the items. Refund will be deposited to UPI <strong>{entry.upiId}</strong> upon nursery arrival.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-0.5 text-amber-900">
+              <strong className="flex items-center gap-1.5 text-amber-950">
+                <Icon name="clock" size={13} /> Under Review
+              </strong>
+              <p className="m-0 text-[11px] text-amber-800">
+                Our plant experts are reviewing your request within 24 hours. Refund of <strong>{formatPrice(entry.amount)}</strong> will be credited to UPI <strong>{entry.upiId}</strong>.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Reason Preview */}
+      <div className="text-[11px] text-muted bg-sand/30 p-2 rounded-lg flex items-start gap-1">
+        <span className="font-semibold text-ink shrink-0">Reason:</span>
+        <span className="line-clamp-2">{entry.reason}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function ReturnRequests({ order }) {
   const { authRequest } = useAuth();
   const { notify } = useToast();
@@ -237,54 +421,21 @@ export default function ReturnRequests({ order }) {
           </p>
         )}
 
-        {/* Submitted Returns List */}
+        {/* Submitted Returns & Refund Tracking Window */}
         {state.returns.length > 0 && (
-          <div className="space-y-2 mb-3">
-            <p className="m-0 text-xs font-semibold text-muted uppercase tracking-wider">
-              Submitted Requests ({state.returns.length})
-            </p>
-            <ul className="m-0 grid list-none gap-2 p-0">
-              {state.returns.map((entry) => {
-                const isExchange = entry.reason?.includes("EXCHANGE");
-                return (
-                  <li key={entry.id} className="rounded-xl bg-[#faf8f2] p-3 text-sm border border-line space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-bold text-ink text-xs sm:text-sm">{entry.productName} × {entry.quantity}</span>
-                          <Badge variant="outline" className="text-[10px] py-0">{isExchange ? "Exchange" : "Return"}</Badge>
-                        </div>
-                        <p className="m-0 text-xs text-muted line-clamp-2 mt-0.5">{entry.reason}</p>
-                      </div>
-                      <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-sage-100 text-forest shrink-0">
-                        {STATUS_LABEL[entry.status] || entry.status}
-                      </span>
-                    </div>
+          <div className="space-y-3 mb-4">
+            <div className="flex items-center justify-between">
+              <p className="m-0 text-xs font-bold text-ink uppercase tracking-wider flex items-center gap-1.5">
+                <span>🔄 Return &amp; Refund Progress</span>
+                <span className="text-[11px] font-normal text-muted">({state.returns.length})</span>
+              </p>
+            </div>
 
-                    {/* UPI and Refund Info */}
-                    {entry.upiId && !isExchange && (
-                      <div className="rounded-lg bg-sand/40 border border-line/60 px-2.5 py-1.5 text-[11px] text-muted flex items-center justify-between gap-2">
-                        <span>💳 Refund UPI: <strong className="font-mono text-ink">{entry.upiId}</strong></span>
-                        {entry.refundStatus === "RECORDED" ? (
-                          <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full">
-                            ✅ Refund Processed
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full">
-                            ⏳ Refund Pending
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="pt-1.5 border-t border-line/40 flex justify-between text-[11px] text-muted">
-                      <span>Value: {formatPrice(entry.amount)}</span>
-                      <span>{formatDate(entry.createdAt)}</span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="space-y-3">
+              {state.returns.map((entry) => (
+                <ReturnRefundTrackerCard key={entry.id} entry={entry} />
+              ))}
+            </div>
           </div>
         )}
 
