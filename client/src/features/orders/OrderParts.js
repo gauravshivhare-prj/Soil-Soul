@@ -125,8 +125,8 @@ export function OrderStatusHistory({ history = [] }) {
             {entry.previousStatus ? `${labelStatus(entry.previousStatus)} → ` : ""}
             {labelStatus(entry.nextStatus)}
           </span>
-          <time className="text-xs font-medium text-forest bg-sage-50 border border-sage-200 px-2 py-0.5 rounded" dateTime={entry.changedAt}>
-            🕒 {formatDateTime(entry.changedAt)}
+          <time className="text-xs text-muted" dateTime={entry.changedAt}>
+            {formatDateTime(entry.changedAt)}
           </time>
           {entry.reason && <span className="basis-full text-xs text-muted">{entry.reason}</span>}
         </li>

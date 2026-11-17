@@ -6,7 +6,8 @@ import Card, { CardHeader } from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Icon from "@/components/ui/Icon";
 import Badge from "@/components/ui/Badge";
-import { TextArea, TextField } from "@/components/ui/Field";
+import ProductImage from "@/components/ui/ProductImage";
+import { TextArea } from "@/components/ui/Field";
 import { FormMessage, Skeleton } from "@/components/ui/States";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { useToast } from "@/components/ui/Toast";
@@ -19,14 +20,15 @@ const STATUS_LABEL = {
   RECEIVED: "Received & Inspected",
 };
 
+const itemImage = (item) => (item?.image?.src ? { src: item.image.src, alt: item.image.alt || item.name } : null);
+
 export default function ReturnRequests({ order }) {
   const { authRequest } = useAuth();
   const { notify } = useToast();
   const [state, setState] = useState({ status: "loading", returns: [], policy: null, isExpired: false, error: null });
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [requestType, setRequestType] = useState("RETURN");
-  const [itemIndex, setItemIndex] = useState("0");
-  const [quantity, setQuantity] = useState("1");
+  const [selectedItems, setSelectedItems] = useState({});
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [modalError, setModalError] = useState("");
@@ -50,29 +52,6 @@ export default function ReturnRequests({ order }) {
     return () => controller.abort();
   }, [authRequest, order.orderNumber]);
 
-  async function submit(event) {
-    event.preventDefault();
-    setBusy(true);
-    setModalError("");
-    const typeLabel = requestType === "EXCHANGE" ? "EXCHANGE / REPLACEMENT" : "RETURN FOR REFUND";
-    const prefixedReason = `[${typeLabel}] ${reason.trim()}`;
-    try {
-      const data = await authRequest(`/orders/${encodeURIComponent(order.orderNumber)}/returns`, {
-        method: "POST",
-        body: { itemIndex: Number(itemIndex), quantity: Number(quantity), reason: prefixedReason },
-      });
-      setState((previous) => ({ ...previous, returns: [data.returnRequest, ...previous.returns] }));
-      setReason("");
-      setIsModalOpen(false);
-      notify(`Your ${requestType === "EXCHANGE" ? "exchange" : "return"} request was successfully submitted.`);
-    } catch (error) {
-      setModalError(error.message || "Failed to submit request.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const windowDays = state.policy?.windowDays || 7;
   const canRequest = order.orderStatus === "DELIVERED" && !state.isExpired;
 
   const remainingQuantity = (index) =>
@@ -86,6 +65,123 @@ export default function ReturnRequests({ order }) {
 
   const alreadyRequested = (index) => remainingQuantity(index) === 0;
   const allItemsRequested = order.items.every((_, index) => alreadyRequested(index));
+
+  function openModal() {
+    const initial = {};
+    order.items.forEach((item, index) => {
+      const rem = remainingQuantity(index);
+      if (rem > 0) {
+        initial[index] = { selected: true, quantity: rem };
+      }
+    });
+    setSelectedItems(initial);
+    setModalError("");
+    setIsModalOpen(true);
+  }
+
+  const selectedEntries = Object.entries(selectedItems).filter(([_, val]) => val?.selected && val?.quantity > 0);
+  const totalSelectedUnits = selectedEntries.reduce((sum, [_, val]) => sum + Number(val.quantity), 0);
+  const totalEstimatedValue = selectedEntries.reduce((sum, [idx, val]) => {
+    const item = order.items[Number(idx)];
+    return sum + (item?.unitPrice || 0) * Number(val.quantity);
+  }, 0);
+
+  const eligibleItems = order.items.map((it, idx) => ({ ...it, rem: remainingQuantity(idx), idx })).filter((it) => it.rem > 0);
+  const allEligibleSelected = eligibleItems.length > 0 && eligibleItems.every((it) => selectedItems[it.idx]?.selected);
+
+  function toggleSelectAll() {
+    if (allEligibleSelected) {
+      setSelectedItems((prev) => {
+        const next = { ...prev };
+        eligibleItems.forEach((it) => {
+          if (next[it.idx]) next[it.idx] = { ...next[it.idx], selected: false };
+        });
+        return next;
+      });
+    } else {
+      setSelectedItems((prev) => {
+        const next = { ...prev };
+        eligibleItems.forEach((it) => {
+          next[it.idx] = { selected: true, quantity: next[it.idx]?.quantity || it.rem };
+        });
+        return next;
+      });
+    }
+  }
+
+  function handleToggleItem(index, defaultQuantity) {
+    setSelectedItems((prev) => {
+      const current = prev[index];
+      const willBeSelected = !current?.selected;
+      return {
+        ...prev,
+        [index]: {
+          selected: willBeSelected,
+          quantity: current?.quantity || defaultQuantity || 1,
+        },
+      };
+    });
+  }
+
+  function handleQuantityChange(index, qty, max) {
+    const parsed = Math.max(1, Math.min(Number(qty) || 1, max));
+    setSelectedItems((prev) => ({
+      ...prev,
+      [index]: {
+        selected: true,
+        quantity: parsed,
+      },
+    }));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setBusy(true);
+    setModalError("");
+
+    const itemsToSubmit = selectedEntries.map(([idx, val]) => ({
+      itemIndex: Number(idx),
+      quantity: Number(val.quantity),
+    }));
+
+    if (itemsToSubmit.length === 0) {
+      setModalError("Please select at least one item to return or exchange.");
+      setBusy(false);
+      return;
+    }
+
+    if (!reason.trim() || reason.trim().length < 5) {
+      setModalError("Please provide a reason of at least 5 characters.");
+      setBusy(false);
+      return;
+    }
+
+    const typeLabel = requestType === "EXCHANGE" ? "EXCHANGE / REPLACEMENT" : "RETURN FOR REFUND";
+    const prefixedReason = `[${typeLabel}] ${reason.trim()}`;
+
+    try {
+      const responses = await Promise.all(
+        itemsToSubmit.map(({ itemIndex, quantity }) =>
+          authRequest(`/orders/${encodeURIComponent(order.orderNumber)}/returns`, {
+            method: "POST",
+            body: { itemIndex, quantity, reason: prefixedReason },
+          })
+        )
+      );
+
+      const createdReturns = responses.map((r) => r.returnRequest).filter(Boolean);
+      setState((previous) => ({ ...previous, returns: [...createdReturns, ...previous.returns] }));
+      setReason("");
+      setIsModalOpen(false);
+      notify(
+        `Your ${requestType === "EXCHANGE" ? "exchange" : "return"} request for ${itemsToSubmit.length} item(s) was submitted successfully.`
+      );
+    } catch (error) {
+      setModalError(error.message || "Failed to submit request.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <>
@@ -170,10 +266,7 @@ export default function ReturnRequests({ order }) {
                 type="button"
                 variant={state.returns.length > 0 ? "outline" : "primary"}
                 className="w-full justify-center !py-2.5 text-xs sm:text-sm font-semibold shadow-xs"
-                onClick={() => {
-                  setModalError("");
-                  setIsModalOpen(true);
-                }}
+                onClick={openModal}
               >
                 <Icon name="refresh" size={15} />
                 {state.returns.length > 0 ? "+ Request For Another Item" : "Request Return / Exchange"}
@@ -265,40 +358,123 @@ export default function ReturnRequests({ order }) {
                   </div>
                 </div>
 
-                {/* Item Select */}
+                {/* Items Selection */}
                 <div>
-                  <label htmlFor="return-item-select" className="block text-xs font-semibold text-ink mb-1.5">
-                    Select Item to {requestType === "EXCHANGE" ? "Exchange" : "Return"}
-                  </label>
-                  <select
-                    id="return-item-select"
-                    value={itemIndex}
-                    onChange={(e) => {
-                      setItemIndex(e.target.value);
-                      setQuantity("1");
-                    }}
-                    className="w-full h-11 rounded-xl border border-line bg-white px-3 text-sm text-ink outline-none focus:border-forest focus:ring-2 focus:ring-forest/15 cursor-pointer"
-                  >
-                    {order.items.map((item, index) => (
-                      <option key={index} value={index} disabled={alreadyRequested(index)}>
-                        {item.name} — {remainingQuantity(index)} eligible (₹{item.unitPrice} each)
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-muted">
+                      Select Items to {requestType === "EXCHANGE" ? "Exchange" : "Return"} ({eligibleItems.length} eligible)
+                    </label>
+                    {eligibleItems.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={toggleSelectAll}
+                        className="text-xs font-semibold text-forest hover:underline cursor-pointer bg-transparent border-0 p-0"
+                      >
+                        {allEligibleSelected ? "Deselect All" : "Select All"}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                    {order.items.map((item, index) => {
+                      const rem = remainingQuantity(index);
+                      const isEligible = rem > 0;
+                      const isSelected = !!selectedItems[index]?.selected;
+                      const selectedQty = selectedItems[index]?.quantity || rem || 1;
+
+                      return (
+                        <div
+                          key={index}
+                          className={`rounded-xl border p-3 transition-colors ${
+                            !isEligible
+                              ? "bg-sand/20 border-line/60 opacity-60"
+                              : isSelected
+                              ? "border-forest/60 bg-sage-50/50"
+                              : "border-line bg-white hover:border-sage-300"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <label className="flex items-center pt-1 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                disabled={!isEligible}
+                                checked={isSelected}
+                                onChange={() => handleToggleItem(index, rem)}
+                                className="w-4 h-4 rounded text-forest accent-forest focus:ring-forest cursor-pointer"
+                              />
+                            </label>
+
+                            <ProductImage image={itemImage(item)} className="w-12 h-12 flex-shrink-0" rounded="rounded-lg" sizes="48px" />
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="m-0 text-xs sm:text-sm font-semibold text-ink leading-snug">
+                                    {item.name}
+                                  </p>
+                                  <p className="m-0 mt-0.5 text-xs text-muted">
+                                    {formatPrice(item.unitPrice)} each · Ordered: {item.quantity}
+                                  </p>
+                                </div>
+                                {!isEligible && (
+                                  <span className="text-[10px] font-semibold text-muted bg-sand/60 px-2 py-0.5 rounded-full shrink-0">
+                                    Already Requested
+                                  </span>
+                                )}
+                              </div>
+
+                              {isEligible && isSelected && (
+                                <div className="mt-2.5 pt-2 border-t border-line/40 flex items-center justify-between flex-wrap gap-2">
+                                  <span className="text-xs text-muted font-medium">
+                                    Qty to {requestType === "EXCHANGE" ? "exchange" : "return"}:
+                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex items-center rounded-lg border border-line bg-white shadow-2xs overflow-hidden">
+                                      <button
+                                        type="button"
+                                        disabled={selectedQty <= 1}
+                                        onClick={() => handleQuantityChange(index, selectedQty - 1, rem)}
+                                        className="w-7 h-7 flex items-center justify-center text-ink hover:bg-sand/50 disabled:opacity-30 disabled:pointer-events-none text-sm font-bold cursor-pointer"
+                                        aria-label="Decrease quantity"
+                                      >
+                                        −
+                                      </button>
+                                      <span className="w-7 text-center text-xs font-semibold text-ink select-none">
+                                        {selectedQty}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        disabled={selectedQty >= rem}
+                                        onClick={() => handleQuantityChange(index, selectedQty + 1, rem)}
+                                        className="w-7 h-7 flex items-center justify-center text-ink hover:bg-sand/50 disabled:opacity-30 disabled:pointer-events-none text-sm font-bold cursor-pointer"
+                                        aria-label="Increase quantity"
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                    <span className="text-[11px] text-muted">of {rem}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                {/* Quantity */}
-                <TextField
-                  label="Quantity to Return / Exchange"
-                  type="number"
-                  min="1"
-                  max={remainingQuantity(Number(itemIndex)) || 1}
-                  step="1"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  hint={`Max ${remainingQuantity(Number(itemIndex)) || 1} item(s) eligible`}
-                  required
-                />
+                {/* Selection Summary */}
+                <div className="rounded-xl bg-sage-50/80 border border-sage-200 p-3 text-xs flex items-center justify-between">
+                  <span className="text-ink font-medium">
+                    {totalSelectedUnits > 0
+                      ? `${totalSelectedUnits} item(s) selected`
+                      : "No items selected"}
+                  </span>
+                  <span className="text-forest font-bold text-sm">
+                    Est. Value: {formatPrice(totalEstimatedValue)}
+                  </span>
+                </div>
 
                 {/* Reason */}
                 <TextArea
@@ -329,9 +505,11 @@ export default function ReturnRequests({ order }) {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={busy || allItemsRequested || Number(quantity) > remainingQuantity(Number(itemIndex))}
+                  disabled={busy || totalSelectedUnits === 0}
                 >
-                  {busy ? "Submitting Request…" : `Submit ${requestType === "EXCHANGE" ? "Exchange" : "Return"} Request`}
+                  {busy
+                    ? "Submitting Requests…"
+                    : `Submit ${requestType === "EXCHANGE" ? "Exchange" : "Return"} (${totalSelectedUnits} items)`}
                 </Button>
               </div>
             </form>
